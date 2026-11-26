@@ -2,8 +2,10 @@
 
 Status: **draft v0.2**. Revised by the portal side in response to the guides module's feedback on
 v0.1 ([`guides-contract-feedback.md`](./guides-contract-feedback.md)). Every proposal and assumption
-in that feedback is answered by number in [section 11](#11-decisions-on-the-v01-feedback). Awaiting
-the guides module's re-sync and confirmation.
+in that feedback is answered by number in [section 11](#11-decisions-on-the-v01-feedback). This
+draft also carries the corrections required by the security design review of 2026-11-26. They were
+made before 0.2 was released to the guides module, so the version is unchanged; section 10 lists
+them. Awaiting the guides module's re-sync and confirmation.
 
 This is the interface between two projects:
 
@@ -90,13 +92,19 @@ assets/              images and downloadable files (optional)
 - A file path under `pages/` or `assets/` is one or more segments separated by `/`. Each segment
   matches `[a-z0-9-]+`. The last segment is followed by one extension matching `\.[a-z0-9]+`. The
   whole path is at most 200 characters. A violation is `invalid-path`.
-- Limits: 2 MB per page, 2 MB for `report.json`, 5 MB per asset, 200 MB and 5,000 files per bundle.
-  A violation is `size-limit`.
+- Limits: 1 MB for `guides.json`, 2 MB per page, 16 KB for a page's frontmatter (section 4), 2 MB
+  for `report.json`, 5 MB per asset, 200 MB and 5,000 files per bundle. A violation is `size-limit`.
 - Allowed asset extensions: `png`, `jpg`, `webp`, `gif`, `svg`, `pdf`, `json`, `zip`. Any other
   extension, or a file whose content is not of the type its extension names, is `asset-type`.
-- Assets are untrusted. The portal sanitizes SVG, shows images only through image elements, never
-  inlines an asset into a page as markup, and serves every asset so that a browser will not run it
-  as a document in the portal's origin.
+- Assets are untrusted. The portal shows images only through image elements and never inlines an
+  asset into a page as markup. SVG sanitizing is an allowlist that rejects DOCTYPE, entities,
+  `script`, `foreignObject`, event attributes and external references. A zip is never unpacked.
+- Assets are served from a dedicated per-tenant asset origin, never the portal's or the customer's
+  origin. Every response has: `Content-Type` from the portal's extension table;
+  `X-Content-Type-Options: nosniff`; `Content-Security-Policy: default-src 'none'; sandbox`;
+  `Content-Disposition: attachment` for svg, pdf, json and zip. A generator is not affected: it
+  writes `asset:` targets and the portal builds the URL. What this means for the portal's hosting
+  modes is in section 9.
 
 ## 3. Manifest: `guides.json`
 
@@ -126,7 +134,7 @@ The JSON Schema is in [`guides-manifest.schema.json`](./guides-manifest.schema.j
 ```
 
 - A missing manifest is `missing-manifest`. One that is not JSON or fails the schema is
-  `invalid-manifest`.
+  `invalid-manifest`. One larger than 1 MB is `size-limit`.
 - `contractVersion` must be exactly `"0.2"` for a portal implementing this document. Anything else
   is `unsupported-contract-version`. See section 7.
 - `spec.sha256` is the SHA-256, in lowercase hex, of the bytes of the root OpenAPI document the
@@ -136,9 +144,12 @@ The JSON Schema is in [`guides-manifest.schema.json`](./guides-manifest.schema.j
 - `generatedAt` is optional. A generator may leave it out to make output byte-identical.
 - `nav` is the single source of ordering and grouping. A group at the top level of `nav` is at depth
   1; a group inside it is at depth 2. A group at depth 4 or deeper is `nav-depth`. Pages may appear
-  at the top level or inside any group.
+  at the top level or inside any group. The portal checks nav depth while it parses the manifest,
+  and stops at the first group that is too deep; it does not build the tree first.
 - A `page` value is the file path under `pages/` without the `.md` extension. It is the page's
   **slug**. The portal builds the page's URL from it; the URL itself is the portal's.
+- Guides are served under a prefix reserved for them. No slug can therefore collide with one of
+  the portal's own routes, and a generator may use any slug the path rules in section 2 allow.
 - Every page file must appear in `nav` exactly once. A nav entry with no file is `missing-page`. A
   file under `pages/` with no nav entry is `unlisted-page`. A slug that appears twice is
   `duplicate-page`.
@@ -173,8 +184,11 @@ operations: [createPayment, confirmPayment]
   unknown field, a wrong type, a missing required field, or a value outside the stated range is
   `invalid-frontmatter`.
 - Only plain YAML is allowed: string scalars and sequences of strings. Anchors, aliases, tags, merge
-  keys and multiple documents are `invalid-frontmatter`. An operation id that YAML would not read as
-  a plain string, such as one containing `: ` or starting with `@`, is quoted.
+  keys and multiple documents are `invalid-frontmatter`. Anchors, aliases, tags and merge keys are
+  detected in the token stream before any expansion; duplicate keys are `invalid-frontmatter`;
+  frontmatter is at most 16 KB, counted from line 1 to the closing `---` line, and a longer one is
+  `size-limit`. An operation id that YAML would not read as a plain string, such as one containing
+  `: ` or starting with `@`, is quoted.
 - Frontmatter values are literal text. Markdown, components and variables are not recognised in them.
 - The body must not contain an `h1`, in either ATX or setext form (`heading-h1`). Headings start at
   `h2`.
@@ -207,6 +221,11 @@ written `\<`.
 **Escapes.** Backslash escapes and character references work as in CommonMark. `\<`, `\{`, `\*` and
 the rest produce the literal character. A character produced by a backslash escape or by a character
 reference is always text: it never opens a component tag and never forms part of a variable (4.6).
+
+**Nesting.** Markdown nesting is capped at 32. The depth of a point in a page is the number of
+these constructs open around it: block quote, list item, component, footnote definition, table
+cell, emphasis, strong emphasis, strikethrough, link and image. A depth greater than 32 is
+`nesting-limit`. The portal enforces the cap while it parses, not on a finished tree.
 
 The reason for these rules is tenant isolation. The portal is multi-tenant and treats guide content
 as data. It parses pages into a syntax tree and renders only known nodes. Nothing in a bundle is
@@ -362,12 +381,34 @@ operation. Nothing is filled in from defaults except credentials.
 | A required parameter or a required request body has no value | `invalid-sample` |
 | A `path` name is not a parameter in the operation's path template | `invalid-sample` |
 | A `body` is given and the operation has no request body | `invalid-sample` |
-| A `query` or `headers` name is not a declared parameter of the operation | `undeclared-parameter`, a **warning**. The value is sent as written. |
-| A `headers` name is one the portal controls: `Authorization`, `Proxy-Authorization`, `Cookie`, `Host`, `Content-Type`, `Content-Length`, `Transfer-Encoding`, `Connection` | `invalid-sample` |
+| A `query` or `headers` name is not a declared parameter of the operation | `undeclared-parameter`, a **warning**. The value is sent as written, unless a row below applies. |
+| A `headers` name is one the portal controls, listed below, whether or not the operation declares it | `invalid-sample` |
 | A `headers` or `query` name is one that a security scheme in the spec uses to carry a credential | `invalid-sample` |
+| A `headers` name is not an RFC 9110 `token`, or a header value contains CR, LF or NUL | `invalid-sample` |
 
 A declared parameter is one listed on the operation or on its path item, after references are
 resolved. A string value that contains a variable is exempt from schema validation, as 4.6 defines.
+
+**Headers the portal controls.** Names are compared case-insensitively.
+
+- These names: `Authorization`, `Cookie`, `Host`, `Content-Type`, `Content-Length`,
+  `Transfer-Encoding`, `Connection`, `Forwarded`, `X-Real-IP`, `Via`, `TE`, `Trailer`, `Upgrade`,
+  `Keep-Alive`, `Expect`, `Origin`, `Referer`, `X-HTTP-Method`, `X-HTTP-Method-Override`,
+  `X-Method-Override`.
+- Every name that begins with `X-Forwarded-`, `Proxy-` (which covers `Proxy-Authorization`) or
+  `Sec-`.
+- Every name that begins with the portal's internal prefix, `X-Ezdp-`.
+
+**Header syntax.** Header names match the RFC 9110 `token`; values contain no CR, LF or NUL;
+otherwise `invalid-sample`. Checked again after substitution: the bundle check sees the value as
+written, with JSON escapes decoded, and the portal repeats the check on the final value once
+variables have been filled in (4.6). A value that fails then is not sent.
+
+**This table is a bundle check, not a security control.** The proxy and MCP enforce the same rules
+on every request, server-side, from the published model: destination only from the model's servers
+(server variables limited to their `enum`, or `[A-Za-z0-9.-]+`), subject to the URL policy in
+ADR 0003; final method and path must match an operation the tenant enabled. A request that never
+passed through a bundle validator, such as a direct call to the proxy, meets the same rules.
 
 **`tryIt`.** `tryIt="false"` means the portal must not offer "Try it" for this sample. The code
 sample is still shown. `tryIt="true"`, or leaving the attribute out, is a request and not a
@@ -392,11 +433,16 @@ index   = "0" / [1-9][0-9]*
 ```
 
 - No other separator, no leading or trailing space, and no other JSONPath syntax is accepted.
-- A name must not be one of the built-in variables in 4.6, and must not be captured more than once
-  on the same page.
+- A name must not be one of the built-in variables in 4.6, must not be `api_key`, and must not be
+  captured more than once on the same page.
 - A violation of the grammar or of these rules is `invalid-capture`.
-- The path is evaluated against the JSON response body when the reader runs the sample. The captured
-  value keeps its JSON type. The path is not checked against the response schema in 0.2.
+- The path is evaluated against the JSON response body when the reader runs the sample. A captured
+  value is a string, number or boolean of at most 2,048 characters, read by own-property lookup;
+  otherwise nothing is captured. For a number or boolean the length is that of its JSON text. An
+  object, an array, `null`, a missing member, an inherited member and a longer value all capture
+  nothing, and the name stays unfilled exactly as if the sample had not been run.
+- The captured value keeps its JSON type. The path is not checked against the response schema in
+  0.2.
 - A captured name is in scope from the end of its `<Sample>` to the end of the page. It is not
   available on other pages.
 
@@ -434,12 +480,17 @@ apply stricter checks to its own output.
 | `[text](guide:payments/refunds)` | Another guide, by slug | `unknown-guide` |
 | `[text](guide:payments/refunds#partial-refunds)` | A heading in a guide | `unknown-guide` or `unknown-anchor` |
 | `[text](asset:payments/flow.png)` | A file under `assets/` | `unknown-asset` |
-| `[text](https://…)` | External link. The destination starts with lowercase `https://`. | not checked |
+| `[text](https://…)` | External link. The destination starts with lowercase `https://` and passes the checks below. | not checked |
 
 Every other destination is `link-not-allowed`. That includes relative and absolute paths, `http:`,
 `mailto:` and any other scheme, a destination in angle brackets, and `#anchor` on its own. To link
 to a heading on the same page, write `guide:` with the page's own slug. The portal owns URL
 structure and may change it.
+
+**External links.** An external destination is parsed with the WHATWG URL parser and must have the
+scheme `https`, a host, no userinfo and no control characters. One that does not parse, or breaks
+any of these, is `link-not-allowed`. The portal renders an external link with
+`rel="noopener noreferrer nofollow ugc"`. Whether the target exists is not checked.
 
 - These rules apply to inline links, reference-style link definitions, and `href` on `<Card>`.
 - **Image sources must be `asset:` targets.** An image with any other source is `link-not-allowed`.
@@ -458,7 +509,10 @@ Every other character is percent-encoded as its UTF-8 bytes (`%20`, `%28`; hex d
 case). `#` appears unencoded only as the separator before an anchor in a `guide:` target. The portal
 percent-decodes the target exactly once and compares the result with the identifier, exactly. A
 destination that contains a character outside the list without encoding it, or a `%` not followed
-by two hex digits, is `link-not-allowed`.
+by two hex digits, is `link-not-allowed`. Invalid UTF-8 after decoding is `link-not-allowed`;
+targets resolve by lookup, never by path joining. A decoded `guide:` or `asset:` target is a key
+into the set of slugs or asset paths in the bundle and is never joined to a directory, so `..`,
+`/` and NUL in a decoded target can only fail to match.
 
 So `gists/create` is linked as `[text](op:gists/create)`, and an operation id `get user (v2)` as
 `[text](op:get%20user%20%28v2%29)`.
@@ -494,6 +548,11 @@ Both sides compute it the same way:
 
 `<Step>` and `<Tab>` titles and footnotes have no anchors in 0.2.
 
+An anchor is the name a `guide:` link uses. It is not the `id` in the published HTML. An `id` made
+from bundle text can shadow a DOM global (`location`, `forms`, `name`), so the portal puts a fixed
+prefix of its own on every `id` it derives from a heading and maps `guide:slug#anchor` to the
+prefixed fragment. A generator never writes the prefix.
+
 ### 4.6 Variables
 
 A variable is written `{{name}}`, where `name` matches `[a-z][a-z0-9_]*` and nothing, not even a
@@ -502,13 +561,16 @@ space, separates it from the braces.
 | Variable | Value | Type |
 |---|---|---|
 | `{{base_url}}` | The server URL selected by the reader | string |
-| `{{api_key}}` | The signed-in reader's test key, or a placeholder | string |
 | `{{idempotency_key}}` | A UUID generated in the reader's browser. Each `<Sample>` gets its own. | string |
 | `{{api_name}}` | The API title from the spec | string |
 | captured names | The value captured by an earlier `<Sample>` on the same page (4.3) | the JSON type of the captured value |
 
-A generator does not need `{{api_key}}` to authenticate a sample. The portal adds credentials to
-every sample from the operation's security requirements.
+`{{api_key}}` is not available to bundles; anywhere in a bundle it is `unknown-variable`.
+Credentials are placed only by the portal's sample generator, from the operation's security
+requirements, so a generator needs no variable to authenticate a sample. The name cannot be
+captured either (4.3). "Anywhere" means each of the three places below where variables are
+recognised; in the places where no variable is recognised, the same characters are literal text,
+as for any other name, and nothing ever fills them in (item 6 below).
 
 **Where variables are recognised.** In exactly three places:
 
@@ -530,7 +592,8 @@ not followed by a name and `}}`.
 - In prose: `\{{`, or a character reference for a brace.
 - In an ordinary code block: `\{{`. The backslash is removed and no variable starts. This is the
   only backslash processing in a code block.
-- In a string in a `<Sample>` block: write a brace as the JSON escape `{`.
+- In a string in a `<Sample>` block: write the first brace as the JSON escape `\u007b`, so the
+  string `"\u007b{name}}"` is the text `{{name}}` and holds no variable.
 
 **Variables in sample values.**
 
@@ -545,6 +608,22 @@ not followed by a name and `}}`.
 - A generator always writes a variable inside a quoted JSON string, including where the schema says
   integer or boolean.
 
+**Runtime values.** A captured value is data from an API response, and a third party may have set
+it. These rules bind the portal; a generator needs to know them because they decide when a
+placeholder stays unfilled.
+
+- A captured value is a string, number or boolean of at most 2,048 characters, read by own-property
+  lookup; otherwise nothing is captured (4.3).
+- In an ordinary code block a captured value is substituted only if it matches
+  `^[A-Za-z0-9._:~-]{1,256}$`; otherwise the placeholder stays. The test is applied to the value's
+  text, which for a number or boolean is its JSON text.
+- Every runtime substitution into a sample or request goes through the target language's encoder
+  and the parameter location's encoder (path segment: `/ ? # %` encoded, `.` and `..` rejected).
+  String replacement into emitted code does not conform. A value its location rejects is not
+  substituted: the placeholder stays, and no request is sent with it.
+- A header value is checked again after substitution (4.3).
+- In prose a value is inserted as text and nothing else.
+
 **Order of operations. This is a requirement on the portal's renderer and validator.**
 
 1. A variable exists only where the characters `{`, `{`, the name, `}`, `}` are **literal characters
@@ -553,17 +632,25 @@ not followed by a name and `}}`.
    string, before JSON escapes are decoded.
 2. Braces that come from a character reference (`&#123;`, `&#x7b;`, `&lbrace;`, `&lcub;` and the
    closing forms), from a backslash escape, or from a JSON `\u` escape are text. They never form
-   part of a variable. So `&#123;&#123;api_key&#125;&#125;`, however it reached the page, renders as
-   the eleven visible characters `{{api_key}}` and is not substituted.
+   part of a variable. So `&#123;&#123;base_url&#125;&#125;`, however it reached the page, renders
+   as the twelve visible characters `{{base_url}}` and is not substituted.
 3. It follows that the portal must identify variables from source positions, before or independently
    of entity and escape decoding. An implementation that decodes a page to text nodes and then
    searches the decoded text for `{{` does not conform.
 4. A substituted value is inserted as plain text, or as a typed data value in a sample. It is never
    parsed again as Markdown, as a component, as HTML or for further variables. Substitution is a
    single pass.
-5. Values that are specific to the reader (`api_key`, the selected `base_url`, `idempotency_key`,
-   captured values) are substituted in the reader's browser. Published pages contain placeholders
-   for them, so pages stay static and no credential is stored in or served from published content.
+5. Values that are specific to the reader (the selected `base_url`, `idempotency_key`, captured
+   values, and the credentials the sample generator places) are filled in in the reader's browser.
+   Published pages contain placeholders for them, so pages stay static and no credential is stored
+   in or served from published content.
+6. Published output carries variables as structure (a placeholder element or a segment list), never
+   as marker text. Client-side substitution fills only those placeholders and must never search
+   text or code for `{{`. Text taken from the spec never contains a variable. So `{{name}}` in a
+   spec description, a spec example or an API response is the literal characters wherever it ends
+   up, including in a request body and in generated code. Markdown twins, `llms.txt`, the search
+   index and the docs MCP are never substituted: they show the portal's fixed display text for
+   each placeholder.
 
 ### 4.7 Incomplete content
 
@@ -647,7 +734,8 @@ names for the same conditions.
 | `unexpected-file` | A file, directory or link that the layout in section 2 does not allow. |
 | `invalid-path` | A path breaks the character or length rules. |
 | `invalid-encoding` | Not UTF-8, or has a byte order mark, CR line endings or NUL. |
-| `size-limit` | A size or count limit in section 2 is exceeded. |
+| `size-limit` | A size or count limit in section 2 is exceeded, including the limits on `guides.json` and on frontmatter. |
+| `nesting-limit` | Markdown nesting deeper than 32. See 4.1. |
 | `asset-type` | An asset's extension is not allowed, or its content does not match it. |
 | `invalid-frontmatter` | Frontmatter is missing, is not plain YAML, or breaks the field rules. |
 | `heading-h1` | The body contains an `h1`. |
@@ -666,7 +754,7 @@ names for the same conditions.
 | `unknown-asset` | An `asset:` path that is not in the bundle. |
 | `unknown-response` | A `<Response>` status the operation does not define. |
 | `unknown-example` | An `example` name that selects nothing. |
-| `link-not-allowed` | A link or image destination in a form 4.5 does not allow. |
+| `link-not-allowed` | A link or image destination in a form 4.5 does not allow, an external link that fails the checks in 4.5, or a target that is not valid UTF-8 once decoded. |
 | `invalid-sample` | See 4.3. |
 | `invalid-capture` | See 4.3. |
 | `invalid-code-info` | A code block info string that breaks 4.4. |
@@ -726,6 +814,8 @@ The JSON Schema is in [`guides-report.schema.json`](./guides-report.schema.json)
 - `pointer` is a JSON Pointer into the spec document.
 - Members the schema does not define are allowed anywhere and are ignored by the portal. A
   generator may keep its own detail there.
+- `pages`, `gaps` and `specProblems` hold at most 1,000 items each, and a slug is at most 197
+  characters, the longest a page path allows. These are in the schema.
 - A report that is not JSON, or that fails the schema, is `invalid-report`, a warning.
 
 ## 6. Delivery
@@ -742,6 +832,14 @@ What is fixed now:
 - A valid bundle is staged, not published. Publishing is a separate step.
 - Publishing is atomic. A bundle replaces the previous one as a whole, and a failed bundle leaves
   the live portal unchanged.
+- Whatever the transport, the step that extracts or reads the bundle enforces the section 2 limits
+  on actual bytes, as it reads them and not from sizes an archive declares, and rejects links,
+  absolute paths and `..`. It stops at the first limit it passes.
+- That step belongs to the control plane. The validator is a pure function of file contents and
+  cannot see a symbolic link, so the control plane makes that check and reports it as
+  `unexpected-file`.
+- An archive used for transport is not an asset. A `zip` under `assets/` is never unpacked
+  (section 2).
 
 ## 7. Versioning
 
@@ -785,16 +883,26 @@ engine and renderer. They are here so they are written down on the portal side.
 - Define one default sample per operation, deterministic, used by the reference page and by
   `<Sample operation="x" />`.
 - Define the sample media type as in 4.3.
-- The sample generator adds credentials from the operation's security requirements. The guides
-  module never writes `{{api_key}}` and relies on this.
+- The sample generator adds credentials from the operation's security requirements, and nothing
+  else places a credential. `{{api_key}}` is not a bundle variable: in a bundle it is
+  `unknown-variable` (4.6). The guides module never writes it and relies on the generator.
+- Variables are structure in the request representation and in generated code, never marker text
+  (4.6, item 6; ADR 0005). The engine never searches a string for `{{`. A string from the spec is
+  literal, whatever it contains.
 - Inline blocks contain only the keys that have values. A block with only `path` is normal.
 - Captured values arrive as quoted strings even where the parameter is an integer. Apply the typed
-  substitution rule in 4.6.
+  substitution rule in 4.6. A captured value is a scalar within the limits in 4.6.
 - Every value that reaches generated code, from a bundle, a spec or a captured response, is data.
   The sample generator must encode it for the target language, including shell quoting, so that a
-  value cannot change the meaning of the code a reader copies.
+  value cannot change the meaning of the code a reader copies. This holds for a value filled in at
+  run time in the browser exactly as for one known at publish time: it goes through the same
+  language encoder and location encoder (4.6). Replacing a placeholder string inside emitted code
+  does not conform.
+- Enforce the parser limits while parsing: frontmatter size and plain-YAML checks on the token
+  stream, manifest size and nav depth, and the Markdown nesting cap (sections 2 to 4).
 - Bundle validation is a pure function of the bundle's file contents and the normalized model. The
-  control plane does the reading and unpacking.
+  control plane does the reading and unpacking, and the checks in section 6 that a pure function
+  cannot make.
 - Sample values built from types (`"email": "string"`) pass the schema but are not realistic. 85 of
   Stripe's 120 generated pages have them. The bundle marks them only in `report.json`.
 
@@ -802,14 +910,44 @@ engine and renderer. They are here so they are written down on the portal side.
 
 - Follow the order of operations in 4.6. It is a security requirement.
 - Do not enable GFM autolink literals. Text taken from spec descriptions contains bare `http://` URLs.
-- Substitute reader-specific variables in the browser. Published pages are static.
+- Substitute reader-specific variables in the browser, into placeholders only. Published pages are
+  static and carry no `{{` marker text for client code to find (4.6, item 6).
 - Render `<Todo>` in preview only.
 - Guide slugs are chosen by the generator and include fixed names such as `authentication`, `errors`,
-  `pagination`, `idempotency`, `rate-limits` and `webhooks`. Guide URLs must live in a namespace
-  where they cannot collide with the portal's own routes.
+  `pagination`, `idempotency`, `rate-limits` and `webhooks`. That is why section 3 reserves a prefix
+  for guides.
+- Prefix every `id` derived from a heading (4.5), and render external links with the `rel` value
+  in 4.5.
+- Build every `asset:` URL as an absolute URL on the tenant's asset origin (section 2). Asset URLs
+  do not go through the portal's base path.
 - The guides module sanitizes spec text before writing it into a page. The portal must not rely on
   that. Every page is untrusted input.
 - Scale seen so far: 120 pages from a spec with 612 operations, and 25 pages from one with 908.
+
+**Control plane, proxy and MCP**
+
+- The proxy and MCP enforce the header, destination, method and path rules in 4.3 on every request,
+  server-side, from the published model. The bundle validator is not in the path of a direct call.
+- Extraction enforces the section 2 limits on actual bytes and rejects links, absolute paths and
+  `..` (section 6).
+- Publishing a bundle runs under the same per-tenant worker and time limit as publishing a spec
+  (ADR 0003).
+- Serve assets from a dedicated per-tenant asset origin with the headers in section 2.
+
+**What the asset origin means for hosting.** Two product decisions are affected. Neither changes.
+
+- *Subpath hosting.* Pages under `host.com/docs` stay same-origin with the customer's site, which
+  is the point of that mode: the customer's licensed fonts still load. Guide assets do not come
+  through the customer's reverse proxy. They load cross-origin from an origin we host, so that an
+  asset opened directly cannot run in the customer's origin and the customer's proxy cannot strip
+  its headers. The customer has nothing to route, but a customer whose site sends a
+  `Content-Security-Policy` must allow the asset origin in `img-src`, and onboarding has to say so.
+- *Static export.* Core pages still need no per-request server logic. An exported portal is no
+  longer self-contained when its guides have assets: the exported pages point at the asset origin.
+  Whoever hosts an export either keeps using the asset origin we host or runs a second origin that
+  sends the same headers. Copying `assets/` into the export beside the pages does not conform.
+- The naming and isolation of the asset origin are designed with custom domains (M5 and M6) and
+  go to the security reviewer.
 
 **Not exercised by the guides module today**, so the portal needs its own fixtures for them:
 `<Tabs>`, assets and images, `label` and `hidden` in nav, pages of type `reference`, multiple
@@ -832,8 +970,8 @@ Added:
 - The heading anchor algorithm and `unknown-anchor` (4.5).
 - Percent-encoding in link targets, so any operation id can be linked (4.5).
 - The order of operations for variables (4.6).
-- New codes: `unlisted-page`, `invalid-tag-placement`, `unknown-anchor`, `todo-present`,
-  `page-not-ready`, `undeclared-parameter`, `invalid-report`.
+- New codes: `unlisted-page`, `invalid-tag-placement`, `unknown-anchor`, `nesting-limit`,
+  `todo-present`, `page-not-ready`, `undeclared-parameter`, `invalid-report`.
 
 Changed:
 
@@ -857,6 +995,36 @@ Changed:
 - Delivery: the upload endpoint and Git ingestion are no longer proposed here. Transport moves to M5.
 - Versioning: 0.x minors may break; the portal accepts exactly one 0.x version.
 
+Required by the security design review of 2026-11-26, and made before 0.2 was released:
+
+- `{{api_key}}` is removed. It is not available to bundles, is `unknown-variable` wherever variables
+  are recognised, and cannot be a captured name. Credentials are placed only by the portal's sample
+  generator (4.6, 4.3).
+- Published output carries variables as structure, never as marker text. Text from the spec never
+  contains a variable (4.6, item 6).
+- A captured value is a string, number or boolean of at most 2,048 characters. It is substituted
+  into an ordinary code block only if it matches `^[A-Za-z0-9._:~-]{1,256}$`, and into a sample or
+  request only through the language and location encoders (4.3, 4.6).
+- The escape for a literal `{{` in a `<Sample>` string is written out: `\u007b` (4.6). The earlier
+  draft lost the escape sequence.
+- Header names must be RFC 9110 tokens and values must not contain CR, LF or NUL (4.3).
+- The list of headers a sample cannot set is longer: forwarding, hop-by-hop and method-override
+  headers, `Origin`, `Referer`, `Expect`, every `Proxy-*` and `Sec-*` name, and the portal's
+  internal prefix `X-Ezdp-` (4.3).
+- The sample checks are stated to be a bundle check. The proxy and MCP enforce the same rules
+  server-side (4.3).
+- Assets are served from a dedicated per-tenant asset origin with fixed response headers. SVG
+  sanitizing is an allowlist. A zip is never unpacked (2).
+- Limits: `guides.json` is at most 1 MB and frontmatter at most 16 KB; duplicate frontmatter keys
+  are `invalid-frontmatter`; Markdown nesting is capped at 32, with the new code `nesting-limit`;
+  `report.json` arrays hold at most 1,000 items (2, 3, 4, 4.1, 5.2).
+- External links are parsed with the WHATWG URL parser and must be `https` with a host, no userinfo
+  and no control characters (4.5).
+- A link target that is not valid UTF-8 after percent-decoding is `link-not-allowed` (4.5).
+- Guides are served under a reserved prefix. This was a note to the renderer and is now a rule (3).
+- A heading anchor is not the HTML `id`; the portal prefixes ids (4.5).
+- Extraction enforces the limits on actual bytes and rejects links, absolute paths and `..` (6).
+
 ## 11. Decisions on the v0.1 feedback
 
 Numbers are those in [`guides-contract-feedback.md`](./guides-contract-feedback.md).
@@ -872,7 +1040,7 @@ means it says something different, and a generator built on the assumption needs
 | 2 | `tryIt` on `<Sample>` | Confirmed | `tryIt="true"\|"false"`, default `true`. `false` is binding on the portal. `true` is a request; the portal may still withhold "Try it". (4.3) |
 | 3 | Named example with inline values | Confirmed, with a rule for `body` | `example` and an inline block may be combined. Inline `path`, `query` and `headers` are merged per parameter and win over the example. A `body` from both is `invalid-sample`. (4.3) |
 | 4 | Exempt `concept` pages from `page-unreferenced` | Confirmed, and extended | The warning applies only to `quickstart`, `how-to` and `tutorial` pages with no `operations`. `concept` and `reference` are exempt. (5.1) |
-| 5 | Publish the full list of codes | Confirmed | The list in 5.1. All of the module's names are kept. `api-request-code` becomes a warning, `unsupported-syntax` is generator-side only, and seven codes are added. |
+| 5 | Publish the full list of codes | Confirmed | The list in 5.1. All of the module's names are kept. `api-request-code` becomes a warning, `unsupported-syntax` is generator-side only, and eight codes are added. |
 | 6 | A place for the run report | Confirmed | Optional `report.json` at the bundle root, with a minimum shape and a schema; extra members are allowed and ignored. An invalid report is the warning `invalid-report`. (5.2) |
 
 ### Assumptions
@@ -881,8 +1049,8 @@ means it says something different, and a generator built on the assumption needs
 |---|---|---|---|
 | 1 | `<Sample>` with no inputs | Confirmed, and extended | `<Sample operation="x" />` is valid for any operation and renders the operation's default sample, the one on its reference page. (4.3, form 1) |
 | 2 | What `example` names | Changed: made exact | Key `N` in the `examples` map of a request body media type (sample media type first, then document order), together with the `examples` entry `N` of every path, query and header parameter that has one. At least one must exist, or `unknown-example`. (4.3) |
-| 3 | Variables and schema validation | Confirmed, and made exact | A JSON string that is exactly one variable is replaced by the value with its own JSON type. A variable inside a longer string is interpolation. Any string containing a variable is exempt from schema validation. (4.6) |
-| 4 | `capture` syntax | Changed | Pairs are separated by exactly one space. Commas are not accepted. Names match `[a-z][a-z0-9_]*`; paths use `$`, `.member` and `[index]` only. A name may be captured once per page and may not be a built-in. (4.3) |
+| 3 | Variables and schema validation | Confirmed, and made exact; limits added | A JSON string that is exactly one variable is replaced by the value with its own JSON type. A variable inside a longer string is interpolation. Any string containing a variable is exempt from schema validation. A captured value is a string, number or boolean of at most 2,048 characters, and reaches a sample or request only through the language and location encoders; a value its location rejects leaves the placeholder in place. `{{api_key}}` is not a bundle variable. (4.6) |
+| 4 | `capture` syntax | Changed | Pairs are separated by exactly one space. Commas are not accepted. Names match `[a-z][a-z0-9_]*`; paths use `$`, `.member` and `[index]` only. A name may be captured once per page and may not be a built-in or `api_key`. Only a string, number or boolean of at most 2,048 characters is captured. (4.3) |
 | 5 | Literal `<` and `{` in prose | Confirmed | `\<` and `\{` are CommonMark escapes and produce text. `\<` is required before a letter, `/`, `!` or `?`. `\{` is allowed but not required: a `{` that is not part of `{{` is always text. An escaped character never opens a tag or a variable. (4.1) |
 | 6 | Attribute values | Confirmed, with one change | Double quotes only. No escapes and no entity decoding. A value cannot contain `"` or a line break. Braces are literal and **need not be removed**. Variables are not recognised in attributes or in code spans. (4.2, 4.6) |
 | 7 | Markdown inside components | Confirmed, as a requirement | A tag is alone on one line, with blank lines around it, except the fenced block inside `<Sample>`. Violations are `invalid-tag-placement`. Components may not sit inside lists, block quotes, tables or footnotes. (4.2) |
@@ -890,10 +1058,10 @@ means it says something different, and a generator built on the assumption needs
 | 9 | Fragment links | Confirmed, and anchors defined | `#anchor` alone is `link-not-allowed`. `guide:slug#anchor` is valid, the anchor algorithm is in 4.5, and a missing anchor is `unknown-anchor`. |
 | 10 | Webhooks | Confirmed | Webhooks and callbacks are not operations. Referring to one is `unknown-operation`. (1.1) |
 | 11 | Derived `operationId` | Confirmed, with a collision rule | The lowercase method immediately followed by the path with each code point outside `A-Z a-z 0-9` replaced by `_`: `get_payments__id_`. Collisions are resolved by sorting on path then method and appending `_2`, `_3`, …. Duplicate explicit ids are resolved the same way. (1.1) |
-| 12 | Identifier characters | Changed: widened | Any identifier is accepted. In attributes and frontmatter it is written verbatim; only `"` and line breaks cannot be written. In link targets, characters outside `A-Z a-z 0-9 _ . - / : ~ @ $ ! * + , ; =` are percent-encoded and the portal decodes once. Ids matching the module's current pattern need no encoding. (4.5) |
+| 12 | Identifier characters | Changed: widened | Any identifier is accepted. In attributes and frontmatter it is written verbatim; only `"` and line breaks cannot be written. In link targets, characters outside `A-Z a-z 0-9 _ . - / : ~ @ $ ! * + , ; =` are percent-encoded and the portal decodes once. Ids matching the module's current pattern need no encoding. A target that is not valid UTF-8 after decoding is `link-not-allowed`. (4.5) |
 | 13 | Nav labels | Confirmed | `label` is optional on a page entry and replaces the title in the sidebar only. (3) |
 | 14 | Hand-written request code | Changed | A warning, not an error. The portal's check is: an ordinary code block that contains `{{base_url}}` is `api-request-code`. `curl` to another host is not flagged. A generator may be stricter with its own output. (4.4) |
-| 15 | Unknown header in a sample | Changed | An undeclared header or query parameter is the warning `undeclared-parameter` and is sent. Headers the portal controls, and names that carry a credential, are `invalid-sample`. An unknown `path` name is `invalid-sample`. (4.3) |
+| 15 | Unknown header in a sample | Changed | An undeclared header or query parameter is the warning `undeclared-parameter` and is sent, unless it is one of the following, which are `invalid-sample`: a header the portal controls, declared or not (the list in 4.3, which includes forwarding, hop-by-hop and method-override headers, `Proxy-*`, `Sec-*` and `X-Ezdp-*`); a name that carries a credential; a header name that is not an RFC 9110 token; a header value with CR, LF or NUL. An unknown `path` name is `invalid-sample`. These are bundle checks; the proxy and MCP enforce the same rules server-side on every request. (4.3) |
 | 16 | OpenAPI 3.2 | Confirmed | The contract covers 3.0 and 3.1. A 3.2 document is read as 3.1; 3.2-only constructs are ignored and cannot be referenced. (1.1) |
 | 17 | Bare URLs in prose | Confirmed, and tightened | GFM autolink literals are off: a bare URL is text. Angle-bracket autolinks are `disallowed-syntax`. The module does not need to break URLs up. (4.1) |
-| 18 | Entities | Confirmed, as a requirement on the portal | A variable exists only where its braces are literal characters in the source. Braces from character references, backslash escapes or JSON `\u` escapes are text. Substitution is a single pass and its output is never parsed again. (4.6) |
+| 18 | Entities | Confirmed, and extended, as a requirement on the portal | A variable exists only where its braces are literal characters in the source. Braces from character references, backslash escapes or JSON `\u` escapes are text. Substitution is a single pass and its output is never parsed again. Published output carries variables as structure, never as marker text; client-side substitution fills only those placeholders and never searches text or code for `{{`; text taken from the spec never contains a variable. The feedback's example, `{{api_key}}`, is no longer a variable at all. (4.6) |

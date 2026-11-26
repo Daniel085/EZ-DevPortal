@@ -2,11 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ez-devportal.dev/schemas/guides-report-0.2.json",
   "title": "Guides bundle run report",
-  "description": "Optional report.json at the bundle root. See section 5.2 of guides-contract.md. Members not defined here are allowed at every level and are ignored by the portal. All text is shown as plain text.",
+  "description": "Optional report.json at the bundle root. See section 5.2 of guides-contract.md. Members not defined here are allowed at every level and are ignored by the portal. All text is shown as plain text. Each array holds at most 1,000 items; the file is at most 2 MB (size-limit).",
   "type": "object",
   "properties": {
     "pages": {
       "type": "array",
+      "maxItems": 1000,
       "items": {
         "type": "object",
         "required": ["page", "outcome"],
@@ -20,6 +21,7 @@
     },
     "gaps": {
       "type": "array",
+      "maxItems": 1000,
       "items": {
         "type": "object",
         "required": ["message"],
@@ -31,6 +33,7 @@
     },
     "specProblems": {
       "type": "array",
+      "maxItems": 1000,
       "items": {
         "type": "object",
         "required": ["message"],
@@ -44,7 +47,8 @@
   "$defs": {
     "slug": {
       "type": "string",
-      "pattern": "^[a-z0-9-]+(/[a-z0-9-]+)*$"
+      "pattern": "^[a-z0-9-]+(/[a-z0-9-]+)*$",
+      "maxLength": 197
     }
   }
 }

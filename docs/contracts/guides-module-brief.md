@@ -19,7 +19,7 @@ Your guides appear inside those portals, next to the API reference, styled by th
 
 ## The contract
 
-The interface is defined in two files in the EZ-DevPortal repository:
+The interface is defined in three files in the EZ-DevPortal repository:
 
 - `docs/contracts/guides-contract.md`: the bundle format, in full
 - `docs/contracts/guides-manifest.schema.json`: JSON Schema for the manifest
@@ -27,7 +27,8 @@ The interface is defined in two files in the EZ-DevPortal repository:
 
 Read the contract before designing anything. It is a draft, now at **v0.2**. Version 0.2 is the
 portal side's answer to the guides module's feedback on v0.1: section 11 of the contract decides
-every proposal and assumption by number, and section 10 lists what changed. A module built against
+every proposal and assumption by number, and section 10 lists what changed, including the
+corrections the portal's security review required before 0.2 was released. A module built against
 v0.1 must re-sync its copy of all three files and set `contractVersion` to `"0.2"`; a portal on 0.2
 rejects `"0.1"`. If the contract cannot express something the guides need, say so and propose a
 change. Do not work around it.
@@ -44,7 +45,9 @@ change. Do not work around it.
    portal is multi-tenant, evaluates nothing in a bundle, and rejects any tag it does not know.
 4. **Sample values must be valid.** Inline request values are validated against the operation's
    schema. Prefer named examples already in the spec where they exist. Do not write credentials
-   into samples; the portal adds them.
+   into samples; the portal adds them. There is no credential variable: `{{api_key}}` is not
+   available to bundles, and anywhere a variable is recognised it is `unknown-variable`. A sample
+   also cannot set the headers the portal controls; the list is in section 4.3 of the contract.
 5. **Record the spec hash.** Put the SHA-256 of the exact spec document you generated from in the
    manifest, so the portal can detect guides that are out of date.
 6. **Be deterministic where you can.** The same spec and settings should produce the same slugs and
@@ -56,7 +59,10 @@ change. Do not work around it.
   authenticate, make one call, read the response. This matters more than any other page.
 - **How-to guides** organized around what the reader is trying to do, not around the endpoint list.
   A guide that restates the reference adds nothing.
-- **Multi-step flows** that carry values from one call to the next, using `capture`.
+- **Multi-step flows** that carry values from one call to the next, using `capture`. Only a
+  string, number or boolean can be captured, and the portal fills a captured value into a later
+  sample or code block only when it is safe to (section 4.6), so capture identifiers, not objects
+  or free text.
 - **Cross-cutting pages** where the spec supports them: authentication, errors, pagination,
   idempotency, rate limits, webhooks.
 - Honest gaps. Specs are often thin. Where the spec does not say something, do not invent it.

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ez-devportal.dev/schemas/guides-manifest-0.2.json",
   "title": "Guides bundle manifest",
-  "description": "guides.json at the bundle root, contract version 0.2. See section 3 of guides-contract.md. Rules this schema does not express: the accepted contractVersion (unsupported-contract-version), group nesting depth (nav-depth), and each page appearing exactly once (missing-page, unlisted-page, duplicate-page).",
+  "description": "guides.json at the bundle root, contract version 0.2. See section 3 of guides-contract.md. Rules this schema does not express: the accepted contractVersion (unsupported-contract-version), the 1 MB limit on the file (size-limit), group nesting depth (nav-depth), which is checked while parsing, and each page appearing exactly once (missing-page, unlisted-page, duplicate-page).",
   "type": "object",
   "additionalProperties": false,
   "required": ["contractVersion", "generator", "spec", "nav"],

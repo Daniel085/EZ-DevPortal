@@ -1,6 +1,7 @@
 # ADR 0004: Spec doctor findings and fixes
 
-Status: proposed, 2026-11-26. Milestone: M1.
+Status: proposed, 2026-11-26. Milestone: M1. Revised the same day to apply the security design
+review (`docs/reviews/2026-11-26-security-design-review.md`, M7).
 
 ## Context
 
@@ -49,10 +50,24 @@ builds but calls or samples are likely wrong. `info` is advice. Lines and column
 A fix is a **JSON Patch against the parsed document**, not a text edit. Every patch begins with
 `test` operations asserting what the rule saw, so a stale patch is detected, not misapplied.
 
+Patches are written by the engine and by nothing else. Pointer traversal and every lookup keyed by
+tenant text use own properties only; `__proto__`, `constructor` and `prototype` segments are a
+conflict; tenant-keyed maps are `Map` or null-prototype. The overlay stores engine-generated
+patches by fix id; clients send a fix id and `inputs` only, never ops.
+
+- `applyFixes` returns a `PatchConflict` for an op whose path has one of those three segments, and
+  applies nothing from that patch. It does this for every patch it is given, whoever stored it.
+- `bindFix(fix, inputs)` returns the fix's patch with each supplied input placed, as a JSON string,
+  at the position its `inputs[].pointer` names. An input cannot add an op, change a path or supply
+  a value that is not a string.
+- The caller looks a fix up by id in the findings the engine produced on the server for the
+  current spec. It never accepts a `SpecPatch` from a browser or an API client.
+
 How a caller applies accepted fixes:
 
-1. The caller stores the accepted `SpecPatch`es, in order, as the project's **overlay**. It stores
-   dismissed fingerprints too. The engine stores nothing.
+1. The caller stores each accepted fix in the project's **overlay**, in order: the fix id, the
+   `inputs` the person supplied, and the patch `bindFix` returned for them. It stores dismissed
+   fingerprints too. The engine stores nothing.
 2. On every publish: fetch, `parseDocument`, `applyFixes(docs, overlay)`, then `buildModel` and
    `diagnose` on the result. Findings already fixed do not reappear.
 3. `applyFixes` returns `conflicts` for patches whose `test` fails or whose path is gone. The caller
@@ -70,7 +85,9 @@ identifiers and structure.
 ## Consequences
 
 - In M1 the `ezdp` CLI keeps the overlay in a file beside the spec. In M4 the control plane keeps
-  it per project. Neither changes the engine.
+  it per project. Neither changes the engine. The CLI's file is its owner's to edit; in the control
+  plane the stored patches are only ever ones the engine generated, and the dashboard posts a fix
+  id and inputs.
 - `fingerprint` lets the dashboard remember accepted and dismissed findings between runs.
 - The published portal is built from the patched spec. The guides module generates from the
   original and pins its hash, so the guides contract must say which hash is compared and which
