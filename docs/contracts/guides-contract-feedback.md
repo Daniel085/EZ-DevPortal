@@ -1,5 +1,5 @@
-> Copied from `docs/contract-feedback.md` in the guides module repository (EZ-DevDocs) at commit
-> `89e086a`, 2026-11-26. The guides module owns this text; the contract itself is unchanged. See
+> This is the only copy. It is written by the guides module (EZ-DevDocs), which links here and
+> edits this file directly. The contract itself is unchanged. See
 > [`guides-module-status.md`](./guides-module-status.md) for what the module does today.
 
 # Feedback on the Guides Bundle Contract, v0.1
