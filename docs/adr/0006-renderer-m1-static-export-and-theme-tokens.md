@@ -1,7 +1,9 @@
 # ADR 0006: Renderer in M1: static export and theme tokens
 
-Status: proposed, 2026-11-26. Milestone: M1. Revised the same day to apply the security design
-review (`docs/reviews/2026-11-26-security-design-review.md`, H1, M5, M6, L9, L10).
+Status: accepted, 2026-11-26. Milestone: M1. Revised the same day to apply the security design
+review (`docs/reviews/2026-11-26-security-design-review.md`, H1, M5, M6, L9, L10). The re-review
+(`docs/reviews/2026-11-26-security-design-re-review.md`) passed it subject to required fixes:
+rulings 9 and 10 and the encoder rule. They are applied in this text.
 
 ## Context
 
@@ -50,10 +52,12 @@ literals, which the guides contract forbids (4.1) and which would make links out
 in spec descriptions.
 
 - HTML nodes are rendered as text. `dangerouslySetInnerHTML` is banned in the app by lint.
-- Link targets are limited to `https:`, `mailto:` and in-page anchors. An `https:` target is parsed
-  with the WHATWG URL parser and must have a host, no userinfo and no control characters;
-  otherwise the link is rendered as its text. External links are rendered with
-  `rel="noopener noreferrer nofollow ugc"`. This is the rule in contract 4.5.
+- Link targets are limited to `https:`, `mailto:` and in-page anchors. An `https:` target must
+  match the regex in contract 4.5 and have no `\`. The renderer also parses it with the WHATWG
+  parser and rejects it if the parsed host differs from the host in the text. A target that fails
+  any of these is rendered as its text. External links are rendered with
+  `rel="noopener noreferrer nofollow ugc"`. This is the rule in contract 4.5, and one function
+  serves both spec descriptions and guides.
 - Images in spec descriptions are not loaded from remote hosts. An image is rendered as its alt
   text, and the page makes no request to the image's URL.
 - Every `id` derived from tenant text, such as a heading anchor, gets a fixed prefix of ours, so it
@@ -73,22 +77,41 @@ publish worker and its time limit (ADR 0003).
 **Variables in samples.** Sample code arrives as a list of segments, literal strings and variables
 (ADR 0005). The highlighter is given the literal text with each variable's display text in place,
 and the renderer then puts a placeholder element at each variable's recorded offset. Client code
-fills only those elements, with a value passed through the variable's encoders. Nothing in the
-app searches text or code for `{{`.
+fills only those elements, with a value passed through the variable's encoders. An unknown encoder
+id means the placeholder is not filled. A typed scalar is written by JSON serialization. Nothing
+in the app searches text or code for `{{`.
 
-**Tenant assets.** M1 has none. From M5, guide assets are served from a dedicated per-tenant asset
-origin, never the portal's or the customer's origin, with the response headers in contract
-section 2. Their URLs are absolute and do not go through the base path. Two decisions in the
-product brief are affected, and neither changes:
+**Tenant assets.** M1 has none. From M5, guide assets are served as contract section 2 says:
+
+- svg, pdf, json and zip always use the asset origin, a dedicated per-tenant origin that is never
+  the portal's or the customer's. Their URLs are absolute and do not go through the base path.
+- png, jpg, webp and gif use the asset origin too, with one narrower option: an image of these
+  types that has been re-encoded by the portal may be served on the page origin with
+  `X-Content-Type-Options: nosniff`, and then its URL goes through the base path like the app's
+  own files. Re-encoding is done by the publish pipeline, not by the renderer and not by the
+  engine. The bundle's own bytes are never served on the page origin.
+- Every asset-origin response has the headers in contract section 2, which include
+  `Cross-Origin-Resource-Policy: cross-origin` and, for svg,
+  `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox`.
+- The design is sound as far as is known and is not verified. A browser test in Chrome, Firefox
+  and Safari is an M5 acceptance test: each image type shows through an image element on a portal
+  page, including an svg sent with `Content-Disposition: attachment` and the sandbox policy, and
+  no asset type runs anything when opened directly.
+
+Two decisions in the product brief are affected, and neither changes:
 
 - *Subpath hosting.* Pages under `host.com/docs` stay same-origin with the customer's site, so the
-  customer's fonts still load. Guide assets load cross-origin from an origin we host and do not
-  pass through the customer's reverse proxy. A customer whose site sends a
-  `Content-Security-Policy` must allow the asset origin in `img-src`.
+  customer's fonts still load. Re-encoded png, jpg, webp and gif may come through the customer's
+  reverse proxy on the page origin. svg, pdf, json and zip load cross-origin from an origin we
+  host and never pass through the customer's reverse proxy. A customer whose site sends a
+  `Content-Security-Policy` must allow the asset origin in `img-src` only where guides show svg
+  images or the portal keeps other images on the asset origin.
 - *Static export.* Core pages still export with no per-request server logic. An export whose
-  guides have assets is not self-contained: its pages point at the asset origin, and whoever hosts
-  the export keeps using ours or runs a second origin that sends the same headers. Copying the
-  assets into the export beside the pages does not conform.
+  guide assets are all png, jpg, webp or gif is self-contained: the re-encoded images are exported
+  beside the pages, and the host must send `nosniff` with them. Where guides have svg, pdf, json
+  or zip assets, the pages point at the asset origin for those files, and whoever hosts the export
+  keeps using ours or runs a second origin that sends the same headers. Copying those four types,
+  or any image as it came in the bundle, into the export beside the pages does not conform.
 
 **Theme.** `@ezdp/theme` exports the `ThemeTokens` type (JSON, `tokensVersion: 1`), a validator,
 `defaultTheme`, and `tokensToCss(tokens): string`. Token groups: color (background, surface, text,

@@ -27,6 +27,13 @@ that lets AI agents call their API.
 | MCP and proxy credentials | The end user's own credentials, passed through per request, never stored by us. |
 | MCP writes | Read-only by default. Write operations are enabled by the tenant per operation, enforced server-side. |
 | Spec repair is core | A "spec doctor" lints the spec and proposes fixes for auth schemes, servers and examples before anything is published. |
+| Sample languages | Eight in M1: cURL, JavaScript, Python, Go, Java, C#, PHP, Ruby. |
+| OpenAPI versions | 3.0 and 3.1. A 3.2 document is read as 3.1. Swagger 2.0 is rejected with a clear message. |
+| Operation ids | Declared ids are used verbatim. Missing ones are derived by the rule in section 1.1 of the guides contract, which is normative for both projects. |
+| Credentials are placed only by the portal | Guides and specs cannot name the reader's credential. Only the sample generator places it. |
+| Proxy and MCP are `https` only | For a server on `http://` or localhost, samples still render but "Try it" and MCP are withheld, with a spec-doctor finding. |
+| Risky assets use a separate origin | SVG, PDF, JSON and ZIP are served from a per-tenant asset origin. Raster images may be served on the page origin after the portal re-encodes them. |
+| Security review is recorded | Design reviews are kept in `docs/reviews/`. |
 | Themes are data | Design tokens as CSS variables. A brand extractor reads the customer's site and produces tokens, with a manual override editor. |
 
 ## Architecture

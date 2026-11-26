@@ -1,7 +1,9 @@
 # ADR 0003: The engine's public interface and the no-I/O rule
 
-Status: proposed, 2026-11-26. Milestone: M1. Revised the same day to apply the security design
-review (`docs/reviews/2026-11-26-security-design-review.md`, H4, M6, M7).
+Status: accepted, 2026-11-26. Milestone: M1. Revised the same day to apply the security design
+review (`docs/reviews/2026-11-26-security-design-review.md`, H4, M6, M7). The re-review
+(`docs/reviews/2026-11-26-security-design-re-review.md`) passed it subject to required fixes: R1,
+R2, rulings 2, 3, 4 and 7, the `bindFix` cap and the notes. They are applied in this text.
 
 ## Context
 
@@ -33,7 +35,8 @@ buildModel(input: { root: ParsedDocument; documents: ParsedDocument[]; sourceHas
 
 // 4. Spec doctor (ADR 0004).
 diagnose(model: ApiModel, docs: ParsedDocument[]): Finding[]
-bindFix(fix: Fix, inputs: Record<string, string>): SpecPatch      // the engine's patch with inputs placed
+bindFix(fix: Fix, inputs: Record<string, string>): SpecPatch | null   // the engine's patch with inputs
+                                       // placed; null if an input is over 2,048 characters (ADR 0004)
 applyFixes(docs: ParsedDocument[], patches: SpecPatch[]): { docs: ParsedDocument[]; conflicts: PatchConflict[] }
 serializeDocument(doc: ParsedDocument): string
 
@@ -64,12 +67,14 @@ budget counts nodes and bytes produced, so it bounds that case too. `buildReques
 bundle, and each page's share of it is bounded as well.
 
 **Lookups keyed by tenant text.** Pointer traversal and every lookup keyed by tenant text use own
-properties only; `__proto__`, `constructor` and `prototype` segments are a conflict; tenant-keyed
-maps are `Map` or null-prototype. This binds the `$ref` resolver, `applyFixes` (ADR 0004), the
+properties only. Reads use `Object.hasOwn` or a `Map`; writes use `Object.defineProperty` or a
+`Map`, never assignment with a tenant key. A `__proto__` segment is a conflict. `constructor` and
+`prototype` are ordinary names. A test resolves and patches through all three and asserts
+`Object.prototype` is unchanged. This binds the `$ref` resolver, `applyFixes` (ADR 0004), the
 model's indexes by operation id, schema name and parameter name, and request building. In the
-resolver a `$ref` with such a segment does not resolve and is reported as `ref-unresolved`. The
-engine runs in a process shared between tenants, so a write to `Object.prototype` would cross
-tenants.
+resolver a `$ref` with a `__proto__` segment does not resolve and is reported as `ref-unresolved`.
+A schema or property named `constructor` or `prototype` resolves like any other. The engine runs
+in a process shared between tenants, so a write to `Object.prototype` would cross tenants.
 
 `PortalBundle` is a list of files as data, `{ path, mediaType, content }[]`, with `bundleVersion: 1`:
 
@@ -89,7 +94,7 @@ Who does the I/O:
 | Job | Owner |
 |---|---|
 | Read or fetch the spec, compute its SHA-256 | Caller (`publisher`) |
-| Fetch external `$ref` targets: loop `listExternalRefs` -> fetch -> `parseDocument` until the set is closed or a cap is reached | Caller, under the URL policy below |
+| Fetch external `$ref` targets: loop `listExternalRefs` -> fetch -> `parseDocument` until the set is closed or a cap is reached | Caller, under the spec fetch policy below |
 | Write bundle files | Caller |
 | Timestamps, UUIDs, any randomness | Caller passes them in, or they are left out |
 | Bound the time a publish may take | Caller. The engine has no clock. |
@@ -118,37 +123,86 @@ Libraries:
 Supported input in M1: OpenAPI 3.0.x and 3.1.x. Swagger 2.0 yields a single `unsupported-version`
 error. 3.2 is read as 3.1 with a warning.
 
-## URL policy
+## Outbound requests
 
-The engine requests nothing, so this policy is enforced by its callers. It is written here because
-the fetch loop is defined here. It covers the root spec URL and every `$ref`.
+The engine requests nothing, so the three policies below are enforced by its callers. They are
+written here because the fetch loop is defined here and the proxy builds its destinations from the
+engine's model. "Address vetting" is shared. "Spec fetch policy" and "Proxy destination policy"
+each use it and differ in everything else: one fetches documents and sends no credential, the
+other sends an end user's credential and follows nothing.
+
+### Address vetting
+
+Applied to every outbound connection that either policy makes, including each redirect hop of a
+spec fetch.
+
+- Resolve the host, then reject any address that is not global unicast, including NAT64 and 6to4
+  forms of a blocked IPv4 address.
+- The test is "is this address global unicast", not a list of bad ranges. It therefore rejects, at
+  least: loopback, RFC 1918, 169.254/16, 100.64/10, 0.0.0.0, multicast, broadcast and reserved
+  IPv4 ranges; IPv6 loopback, the unspecified address, ULA, link-local and multicast; and
+  v4-mapped addresses. For a NAT64 address (`64:ff9b::/96`) and a 6to4 address (`2002::/16`) the
+  IPv4 address inside is taken out and must itself be global unicast.
+- A host written as an IP literal is vetted the same way.
+- Connect to the vetted address. The connection goes to the address that was checked, not to a
+  second lookup of the name.
+
+### Spec fetch policy
+
+Covers the root spec URL and every `$ref`.
 
 - `https` only; `file:` only in the local CLI and only under the root's directory; no userinfo.
-- Resolve, then reject loopback, RFC 1918, 169.254/16, 100.64/10, 0.0.0.0, IPv6 ULA and link-local,
-  and v4-mapped addresses; connect to the vetted address. The connection goes to the address that
-  was checked, not to a second lookup of the name.
+- Address vetting, as above, on the first request and on every redirect hop.
 - Redirects are re-vetted per hop, maximum 3.
-- No credentials or cookies are sent.
-- Caps: 100 documents, 10 MB each, 50 MB total, 10 s each, 60 s total.
-- Uploaded specs get a synthetic URI. Its scheme is not `https` or `file`, so a relative `$ref` in
-  an uploaded spec resolves to a URI the policy refuses.
+- No credentials or cookies are sent. Tokens for private spec URLs and Git sync are not covered
+  by this policy; they need their own reviewed path before either is built.
+- Caps: 100 documents, 10 MB each, 50 MB total, 10 s each, 60 s total. Bytes are counted after
+  content decoding, so a compressed response is measured as the document it decodes to, and
+  decoding stops at the cap.
+- Uploaded specs get a synthetic URI. A relative `$ref` in an uploaded spec resolves only against
+  other files of the same upload, by lookup; it is never fetched. The lookup is by the synthetic
+  URI in the set of uploaded files; a target that is not in the set is a missing document. An
+  absolute `https` `$ref` in an uploaded spec is fetched under this policy like any other.
 
 A URL the policy refuses, and a document past a cap, is not fetched. The document is then missing
 from the closed set and `buildModel` reports the reference as a finding. The loop stops at the
 first cap it reaches, so a server that answers every request with a fresh `$ref` ends it at 100
 documents or 60 seconds. The content of a refused URL never reaches a portal.
 
-The same policy applies to the destinations the M2 proxy and MCP call (guides contract 4.3): the
-scheme, userinfo, address and redirect rules as written. The document caps are about fetching
-specs. The rule on credentials means the portal adds none of its own; the end user's credential
-for the API, passed through for that request, is the one thing sent, and M2's design must say what
-happens to it on a redirect.
+### Proxy destination policy
+
+Covers every request the M2 proxy sends, for "Try it" and for MCP `call` (guides contract 4.3).
+These are requirements on M2's design.
+
+- The portal sends none of its own credentials or cookies. The end user's credential is sent only
+  to a destination built from the model's servers. The proxy does not follow redirects; a 3xx is
+  returned to the caller.
+- The destination is built from the model's servers and nothing else. Server variables are limited
+  as contract 4.3 says: a value from the `enum`, or, with no `enum`, a value valid for the
+  variable's position, and a variable that forms or follows the last label of the host needs an
+  `enum` or a tenant-listed set, or the server is not callable. The substituted URL is then parsed
+  and vetted: `https` only, no userinfo, and address vetting as above.
+- `https` only, with no exception for development servers. A server that is `http://`, localhost
+  or relative is not callable. Plain `http` would put the user's key on the wire in clear, and the
+  hosted proxy cannot reach localhost under address vetting in any case. For such a server the
+  code samples still render; "Try it" and MCP are withheld and the spec doctor reports
+  `server-not-callable` (ADR 0004). A mode in which the reader's browser calls localhost directly
+  is a separate design and needs its own security review.
+- The final method and path must match an operation the tenant enabled. The controlled-header
+  list of contract 4.3 applies, and the proxy strips every `X-Ezdp-` header from inbound requests.
+- MCP `call` rejects a parameter the operation does not declare. The proxy and MCP input shape
+  excludes `templates` and rejects it (ADR 0005).
+- The document caps above are about fetching specs and do not apply here. M2 sets its own limits
+  on request and response size, counted after content decoding.
+- The end user's credential is passed through for that one request and is never stored or logged.
 
 ## Consequences
 
 - The same engine build runs in the publisher, in M2's proxy and MCP, and in the browser.
 - The caller's fetch loop is the single place where tenant-supplied URLs are requested for a
-  publish. SSRF controls live there, outside the engine, and are the URL policy above.
+  publish. SSRF controls live there, outside the engine, and are address vetting and the spec
+  fetch policy above. The proxy is the second place that makes outbound requests, under the proxy
+  destination policy.
 - Functions that returned a bare value now return it with findings, so a truncated result is never
   mistaken for a complete one.
 - Per-page bundle files let the M4 multi-tenant renderer load one small file per request instead of
