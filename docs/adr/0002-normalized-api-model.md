@@ -33,14 +33,17 @@ Building it twice from the same input gives byte-identical JSON. It carries `mod
 - **OperationId**: the declared `operationId`, verbatim, whatever characters it contains
   (`repos/get` is valid). If absent, derived: lowercase method, then the path template with each
   character outside `[A-Za-z0-9]` replaced by `_`. `get` + `/payments/{id}` = `get_payments__id_`.
-- **Collision rule** (applies to duplicate declared ids, derived ids, and synthesized schema ids):
-  1. Declared ids are assigned before derived ids. A derived id never displaces a declared one.
-  2. Within each group, contenders for the same id are ordered by path template compared by
-     Unicode code point, then by method in the order `get, put, post, delete, options, head, patch,
-     trace`. Document order is not used, so re-ordering keys in the spec never changes an id.
-  3. The first contender keeps the id. Each later one gets `_2`, `_3`, ... appended; if that id is
-     already taken by anything, keep incrementing.
+- **Collision rule for operation ids**: the algorithm in section 1.1 of
+  `docs/contracts/guides-contract.md` is normative, because the guides module must derive
+  identical ids. Implement it exactly and test against its worked examples. In summary:
+  1. Order all path operations by path template, then by lowercase method, both compared by
+     Unicode code point. Document order is not used, so re-ordering keys never changes an id.
+  2. Walking that list, an operation keeps its declared `operationId` unless it is empty or an
+     earlier operation already took it. Declared ids are all assigned before any derived id.
+  3. Every other operation, including one whose declared id was a duplicate, gets the derived
+     base id. If that is taken by anything, append `_2`, `_3`, ... and take the first unused.
   4. Every collision is a spec-doctor finding (`operation-id-collision`).
+- Synthesized schema ids use the same suffix rule, ordered by source pointer.
 - Webhooks share the pool and are assigned after all path operations. Derived webhook id:
   `webhook_` + method + `_` + sanitized name.
 - **Slug**: `slug` on operations, tags and schemas is the URL segment. Lowercase, runs outside
