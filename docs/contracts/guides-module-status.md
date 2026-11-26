@@ -5,7 +5,7 @@ ingestion (M5) here.
 
 ## Where it is
 
-- Repository: `daniel085/ez-devdocs`, branch `claude/hopeful-darwin-fuei2f`, commit `89e086a`. Not merged, no pull request.
+- Repository: `daniel085/ez-devdocs`, branch `main`.
 - It targets contract **v0.1** as written in this directory. It holds a copy of the contract and the
   manifest schema under `contract/`; that copy must be re-synced when the contract changes.
 - Its feedback on the contract is in [`guides-contract-feedback.md`](./guides-contract-feedback.md), kept only in this repository:
