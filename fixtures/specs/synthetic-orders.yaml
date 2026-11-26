@@ -1,0 +1,152 @@
+openapi: 3.0.3
+info:
+  title: 'Orders <API> {beta}'
+  version: '0.3'
+  description: |
+    # Orders
+    Manage <b>orders</b> for a store. See [the old docs](/docs/v1) or {{legacy_var}} for more.
+    <script>alert(1)</script>
+servers:
+  - url: https://api.example.com/v1
+security:
+  - token: []
+paths:
+  /stores:
+    get:
+      summary: List stores
+      parameters:
+        - { name: cursor, in: query, description: 'Position returned as `next_cursor`.', schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50 } }
+      responses:
+        '200':
+          description: A page of stores
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: '#/components/schemas/Store' } }
+                  next_cursor: { type: string, description: Pass this as `cursor` to continue. }
+        '429':
+          description: Too many requests
+          headers:
+            Retry-After: { description: Seconds to wait., schema: { type: integer } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Problem' }
+    post:
+      description: Creates a store. Use <i>sparingly</i>.
+      parameters:
+        - { name: Idempotency-Key, in: header, description: A unique key per logical request., schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewStore' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Store' }
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Problem' }
+  /stores/{storeId}:
+    parameters:
+      - { name: storeId, in: path, required: true, schema: { type: string } }
+    get:
+      responses:
+        '200':
+          description: The store
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Store' }
+    patch:
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewStore' }
+      responses:
+        '200': { description: Updated }
+    delete:
+      responses:
+        '204': { description: Deleted }
+  /stores/{storeId}/orders:
+    parameters:
+      - { name: storeId, in: path, required: true, schema: { type: string } }
+    get:
+      responses:
+        '200':
+          description: Orders of the store
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/Order' } }
+    post:
+      summary: 'Place an order for {storeId}'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NewOrder' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+  /stores/{storeId}/orders/{orderId}:
+    parameters:
+      - { name: storeId, in: path, required: true, schema: { type: string } }
+      - { name: orderId, in: path, required: true, schema: { type: integer } }
+    get:
+      responses:
+        '200':
+          description: The order
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Order' }
+  /reports/{reportId}:
+    get:
+      deprecated: true
+      parameters:
+        - { name: reportId, in: path, required: true, schema: { type: string, pattern: '^rep_[a-z]{8}$' } }
+      responses:
+        '200': { description: A report }
+components:
+  securitySchemes:
+    token:
+      type: http
+      scheme: bearer
+  schemas:
+    NewStore:
+      type: object
+      required: [name, currency]
+      properties:
+        name: { type: string, minLength: 3 }
+        currency: { type: string, enum: [usd, eur] }
+        note: { type: string, nullable: true }
+    Store:
+      allOf:
+        - $ref: '#/components/schemas/NewStore'
+        - type: object
+          properties:
+            id: { type: string, readOnly: true }
+    NewOrder:
+      type: object
+      required: [sku, quantity]
+      properties:
+        sku: { type: string, pattern: '^[A-Z]{3}-[0-9]{4}$', example: ABC-1234 }
+        quantity: { type: integer, minimum: 1, exclusiveMinimum: false }
+    Order:
+      type: object
+      properties:
+        id: { type: integer }
+        sku: { type: string }
+        quantity: { type: integer }
+    Problem:
+      type: object
+      properties:
+        message: { type: string }

@@ -1,0 +1,9 @@
+info:
+  title: Missing openapi field
+  version: "1.0.0"
+paths:
+  /ping:
+    get:
+      responses:
+        "200":
+          description: ok

@@ -1,0 +1,18 @@
+openapi: 3.0.3
+info:
+  title: Dangling $ref
+  version: "1.0.0"
+paths:
+  /things:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DoesNotExist"
+components:
+  schemas:
+    Thing:
+      type: object

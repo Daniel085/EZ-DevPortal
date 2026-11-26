@@ -1,0 +1,17 @@
+openapi: 3.0.3
+info:
+  title: parameters is an object, not an array
+  version: "1.0.0"
+paths:
+  /things/{id}:
+    get:
+      parameters:
+        id:
+          name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
