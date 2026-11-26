@@ -23,9 +23,14 @@ The interface is defined in two files in the EZ-DevPortal repository:
 
 - `docs/contracts/guides-contract.md`: the bundle format, in full
 - `docs/contracts/guides-manifest.schema.json`: JSON Schema for the manifest
+- `docs/contracts/guides-report.schema.json`: JSON Schema for the optional run report
 
-Read the contract before designing anything. It is a draft (v0.1) proposed by the portal side. If
-it cannot express something the guides need, say so and propose a change. Do not work around it.
+Read the contract before designing anything. It is a draft, now at **v0.2**. Version 0.2 is the
+portal side's answer to the guides module's feedback on v0.1: section 11 of the contract decides
+every proposal and assumption by number, and section 10 lists what changed. A module built against
+v0.1 must re-sync its copy of all three files and set `contractVersion` to `"0.2"`; a portal on 0.2
+rejects `"0.1"`. If the contract cannot express something the guides need, say so and propose a
+change. Do not work around it.
 
 ## The constraints that shape your design
 
@@ -35,10 +40,11 @@ it cannot express something the guides need, say so and propose a change. Do not
    commands, config files, webhook handlers.
 2. **Refer to the spec by identifier.** Operations by `operationId`, schemas by component name.
    Never write URLs to reference pages; use `op:`, `schema:` and `guide:` links.
-3. **Content is data.** No raw HTML, no JSX expressions, no imports, no scripts. Only the components
-   listed in the contract. The portal is multi-tenant and will reject anything else.
+3. **Content is data.** No raw HTML and no scripts. Only the components listed in the contract. The
+   portal is multi-tenant, evaluates nothing in a bundle, and rejects any tag it does not know.
 4. **Sample values must be valid.** Inline request values are validated against the operation's
-   schema. Prefer named examples already in the spec where they exist.
+   schema. Prefer named examples already in the spec where they exist. Do not write credentials
+   into samples; the portal adds them.
 5. **Record the spec hash.** Put the SHA-256 of the exact spec document you generated from in the
    manifest, so the portal can detect guides that are out of date.
 6. **Be deterministic where you can.** The same spec and settings should produce the same slugs and
@@ -54,7 +60,8 @@ it cannot express something the guides need, say so and propose a change. Do not
 - **Cross-cutting pages** where the spec supports them: authentication, errors, pagination,
   idempotency, rate limits, webhooks.
 - Honest gaps. Specs are often thin. Where the spec does not say something, do not invent it.
-  Leave it out, or mark the page so a human can complete it.
+  Leave it out, or mark it with `<Todo>` and a page `status` so a human can complete it. Marked
+  content shows in the portal's preview and blocks publishing until a new bundle resolves it.
 
 ## Specs you should expect
 
@@ -62,8 +69,15 @@ Real specs are frequently incomplete: missing `operationId`s, no examples, spars
 undocumented error responses, inconsistent naming. Decide deliberately how the module behaves on
 weak input, and report what it could not do.
 
-Where an `operationId` is missing, the portal derives one as `{method}_{path}` with non-alphanumeric
-characters replaced by `_`, for example `get_payments__id_`. Use the same rule so identifiers match.
+Where an `operationId` is missing, the portal derives one: the lowercase method, immediately
+followed by the path with each character outside `A-Z a-z 0-9` replaced by `_`. No separator is
+added between the two; the path's leading `/` becomes the underscore. So `get` and `/payments/{id}`
+give `get_payments__id_`. Two paths can produce the same id (`/a-b` and `/a_b`), and real specs
+repeat explicit ids, so the contract fixes a collision rule as well. Implement section 1.1 of the
+contract exactly, including its ordering, so both projects derive identical identifiers.
+
+Real specs also use ids such as `gists/create`. The contract accepts any id: verbatim in attributes
+and frontmatter, percent-encoded in link targets where a character is outside the listed set.
 
 ## Definition of done for a first version
 
@@ -71,12 +85,15 @@ characters replaced by `_`, for example `get_payments__id_`. Use the same rule s
   manifest schema and follows every rule in the contract.
 - It includes its own validator for the contract rules, so a bundle is checked before it leaves.
 - It is tested against at least three public specs of different size and quality.
-- It reports, per run, which pages it produced and what it skipped and why.
+- It reports, per run, which pages it produced and what it skipped and why. The report may be
+  included in the bundle as `report.json` in the shape the contract defines.
+- It writes a bundle directory and nothing more. Transport into the portal is the portal's concern.
 
-## Questions the portal side needs answered
+## Questions the portal side asked in v0.1
 
-These are listed in section 8 of the contract. The most important:
+All four are answered; see section 8 of the contract. In short: no diagrams, video or widgets in
+0.2; one bundle per spec version; localization is out of scope; `tryIt="false"` disables "Try it"
+for a sample.
 
-1. Is there content you need that the contract cannot express (diagrams, video, widgets)?
-2. Do guides need to span more than one spec version?
-3. Is localization in scope?
+Still open, and listed in the same section: transport (for milestone M5), capturing values whose
+keys are not plain identifiers, and linking to webhook documentation.

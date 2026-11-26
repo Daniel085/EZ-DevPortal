@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ez-devportal.dev/schemas/guides-report-0.2.json",
+  "title": "Guides bundle run report",
+  "description": "Optional report.json at the bundle root. See section 5.2 of guides-contract.md. Members not defined here are allowed at every level and are ignored by the portal. All text is shown as plain text.",
+  "type": "object",
+  "properties": {
+    "pages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["page", "outcome"],
+        "properties": {
+          "page": { "$ref": "#/$defs/slug" },
+          "outcome": { "enum": ["written", "skipped"] },
+          "reason": { "type": "string", "maxLength": 2000 },
+          "placeholderValues": { "type": "boolean" }
+        }
+      }
+    },
+    "gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "page": { "$ref": "#/$defs/slug" },
+          "message": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        }
+      }
+    },
+    "specProblems": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "pointer": { "type": "string", "maxLength": 2000 },
+          "message": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "slug": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+(/[a-z0-9-]+)*$"
+    }
+  }
+}
