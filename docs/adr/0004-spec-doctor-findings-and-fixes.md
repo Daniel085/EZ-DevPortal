@@ -16,6 +16,10 @@ and is recorded in ADR 0001 rule 5.
 Revised again that day for the user's decisions on live calls and host verification: "withheld"
 for a server points to the one rule in ADR 0003, and the verified domain suffix is placed in M4b
 beside a pointer to where host verification is to be designed. No finding or fix is changed.
+Revised again that day to close gaps a readiness audit found: "Fatal and degrading faults" says
+which faults stop a build; `PatchConflict` is defined; `example-invalid`, `webhook-not-rendered`
+and `callback-not-rendered` are named; rules take `diagnose`'s options; and the Public Suffix
+List snapshot is the one taken when the list is first vendored.
 
 ## Context
 
@@ -34,6 +38,8 @@ interface Finding {
   code: string;                 // stable, kebab-case: 'servers-missing', 'security-scheme-missing',
                                 // 'example-missing', 'operation-id-collision', 'ref-unresolved',
                                 // 'server-not-callable', 'controlled-header-required'
+                                // Codes that other documents or tests rely on are fixed in this
+                                // ADR and ADR 0003; the rest are the rule list's.
   severity: 'error' | 'warning' | 'info';
   message: string;              // plain text, one or two sentences, no Markdown
   location: { uri: string; pointer: string;
@@ -66,10 +72,78 @@ interface SpecPatch {
       | { op: 'add' | 'replace'; path: string; value: Json }
       | { op: 'remove'; path: string })[];
 }
+
+interface PatchConflict {       // returned by applyFixes; nothing of that patch was applied
+  patch: number; op: number;    // indexes into the patches given and into that patch's ops
+  path: string;
+  reason: 'test-failed' | 'path-missing' | 'forbidden-segment';   // the last: a `__proto__` segment
+}
 ```
 
 Severity: `error` blocks publishing (no correct model can be built). `warning` means the portal
 builds but calls or samples are likely wrong. `info` is advice. Lines and columns are 1-based.
+
+`location.pointer` is the offending node, or its parent when the fault is a missing key. A
+`$ref` fault points at the `$ref` member itself. A parse fault has pointer `''` and its place
+in `start` and `end`. This is the convention of `fixtures/specs/malformed/expected.json`, where
+a `null` pointer means none is asserted.
+
+### Fatal and degrading faults
+
+One rule: **a fault is fatal only when the engine cannot tell what the root document is.**
+Every other fault degrades. The engine throws in neither case.
+
+- Fatal means `buildModel` returns `model: null` and a finding of severity `error`. The two
+  always go together: `error` is used for nothing else by `parseDocument` and `buildModel`, and
+  `diagnose` never returns one, because it runs only on a model. An `error` in `buildRequest`'s
+  `issues` concerns that one request and no build.
+- The publisher decides what a fatal finding means: it writes nothing and exits non-zero after
+  printing each finding with its line or pointer (criterion 5). To make that possible it writes
+  no file before `buildModel` has returned a model. It computes `publishedHash` from bytes in
+  memory, and an output directory that already exists is left as it was.
+- The fatal faults are these four, a closed list. All concern the root document.
+
+  | Code | Fault | Stage in `expected.json` |
+  |---|---|---|
+  | `parse-error` | The text is not YAML or JSON, or is empty | parse |
+  | `limit-exceeded` | The text is past a parsing limit (ADR 0003, "Budgets") | parse |
+  | `not-openapi` | The root is not a mapping, or has neither an `openapi` nor a `swagger` key | structure |
+  | `unsupported-version` | `swagger` is present, or `openapi` is not a string naming 3.0.x, 3.1.x or 3.2.x | structure |
+
+- The first two in a document that is not the root are warnings: the document counts as
+  missing, and each reference into it is `ref-unresolved`.
+- **Everything else degrades** (criterion 6): the build completes, the fault is a `warning`, and
+  the model keeps all it can. A node that is missing or of the wrong type becomes the nearest
+  empty value the model allows; where there is none, the smallest item that holds it is dropped.
+
+  | Fault | What the model holds |
+  |---|---|
+  | `info` or `info.title` missing | `title: ''`, `version: ''`; the renderer shows fixed text of ours |
+  | A number or boolean where a string is required (`version: 1.0`) | The scalar's source text, `1.0` |
+  | `paths` missing in 3.0, or not a mapping | No operations |
+  | A path item or operation that is not a mapping | That path or operation is dropped |
+  | `parameters` not an array | The operation, with no parameters from that list |
+  | A parameter with no `name` or `in`; a response that is not a mapping | That parameter or response is dropped |
+  | `responses` missing in 3.0 | The operation, with `responses: []` |
+  | A schema keyword of the wrong type (`schema-invalid`) | The schema without that keyword |
+  | A schema `$ref` that does not resolve, or to a document not supplied (`ref-unresolved`) | An empty schema node of any type, at the `$ref`'s place |
+  | Any other `$ref` that does not resolve (`ref-unresolved`) | The parameter, response, body, header or example is dropped |
+  | A cycle of `$ref`s that reaches no schema (`ref-circular`) | Each member is an empty schema node. One finding, at the member whose pointer sorts first, with the others in `related` |
+  | An example that violates its schema (`example-invalid`) | Unchanged; the example is kept as declared |
+  | A duplicate `operationId` (`operation-id-collision`) | Both operations, with ids by contract 1.1 |
+
+- So of the 16 fixtures in `fixtures/specs/malformed/`, five are fatal: the three of stage
+  `parse`, `missing-openapi` and `unsupported-swagger-2.0`. The other seven of stage `structure`,
+  the three of `resolve` and the one of `semantic` build a portal with findings.
+
+Three more codes are fixed here because m1.md or ADR 0003 names their effect. None has a fix.
+
+- `example-invalid`, a warning: a declared example of a parameter, a media type or a schema
+  that `validateValue` finds in error (ADR 0003, "Schema validation"). The message names the
+  first violated keyword. A keyword that was not checked, such as `pattern`, never causes it.
+- `webhook-not-rendered` and `callback-not-rendered`, both info: one per entry of `webhooks`
+  and one per callback of an operation, at that entry. M1 gives them no page, navigation entry,
+  twin, `llms.txt` line or sample (m1.md, "Out of scope"). The model still holds them (ADR 0002).
 
 A fix is a **JSON Patch against the parsed document**, not a text edit. Every patch begins with
 `test` operations asserting what the rule saw, so a stale patch is detected, not misapplied.
@@ -103,12 +177,15 @@ How a caller applies accepted fixes:
 1. The caller stores each accepted fix in the project's **overlay**, in order: the fix id, the
    `inputs` the person supplied, and the patch `bindFix` returned for them. It stores dismissed
    fingerprints too. The engine stores nothing.
-2. On every publish: fetch, `parseDocument`, `applyFixes(docs, overlay)`, write the published
-   spec and hash it (ADR 0003, "The published spec"), then `buildModel` and `diagnose` on the
-   patched documents. Findings already fixed do not reappear.
+2. On every publish: fetch, `parseDocument`, `applyFixes(docs, overlay)`, hash the published
+   spec (ADR 0003, "The published spec"), then `buildModel` and `diagnose` on the
+   patched documents, then write. Nothing is written before `buildModel` returns a model
+   ("Fatal and degrading faults"). Findings already fixed do not reappear.
 3. `applyFixes` returns `conflicts` for patches whose `test` fails or whose path is gone. The caller
    shows them as "this fix no longer applies" and drops or re-proposes them. A conflict never
-   blocks the other patches.
+   blocks the other patches. The caller maps `PatchConflict.patch` to the fix id it stored and
+   passes the result to `buildPortalBundle` as `notApplied` (ADR 0003), so the doctor report
+   names the fix (criterion 28).
 4. `serializeDocument` returns the patched spec as text with comments and key order kept. The
    publisher writes that text as the published spec, and it is the same text that is offered for
    download or a pull request.
@@ -134,9 +211,10 @@ and not others, or removing one later, also leaves every id as it was. A test ru
 id-writing fix over the fixture corpus and asserts the ids before and after are equal. After the
 fix, `idSource` is `'declared'`, and the id no longer shifts if a colliding path is added upstream.
 
-Rules are pure functions `(model, docs) => Finding[]` in a registry inside the engine. The M1 rule
-list is for the product manager and engine developer; the areas are auth, servers, examples,
-identifiers and structure.
+Rules are pure functions `(model, docs, options) => Finding[]` in a registry inside the engine,
+where `options` is the object `diagnose` was given: `publicSuffixes` and `limits` (ADR 0003).
+The M1 rule list is for the product manager and engine developer; the areas are auth, servers,
+examples, identifiers and structure.
 
 Two findings are fixed here, because the proxy, MCP and the guides contract (4.3) depend on them.
 Both are warnings: the portal still builds and every code sample still renders.
@@ -210,7 +288,12 @@ Public Suffix List it is given (see "The Public Suffix List").
   By the default rule a single label that is not on the list (`internal`, `localhost`) is a
   public suffix.
 
-**Worked examples.** No variable has an `enum`. With the list snapshot of 2026-11-26:
+**Worked examples.** No variable has an `enum`. The table was written against the list as
+published on 2026-11-26. Nothing is vendored yet: `data/` does not exist. The pinned snapshot is
+the one taken when the list is first vendored, during the M1 build, and `SOURCE.json` records
+it. Before the row test is written the table is re-checked against that snapshot; a row whose
+result differs is corrected here by the architect and shown to the security reviewer, who signs
+off criterion 29.
 
 | Server URL | Result | Why | Fix |
 |---|---|---|---|
@@ -348,7 +431,7 @@ it is not compiled into the engine.
 ```ts
 parsePublicSuffixList(text: string): PublicSuffixList      // pure; throws on a malformed list,
                                                            // which is our data, not tenant input
-diagnose(model, docs, options: { publicSuffixes: PublicSuffixList | null }): Finding[]
+diagnose(model, docs, options: { publicSuffixes: PublicSuffixList | null; limits: Limits }): Finding[]
 ```
 
 - The caller reads the file and passes its text to `parsePublicSuffixList`. The caller is the

@@ -30,6 +30,12 @@ one: a private preview makes live "Try it" calls where the server's host is veri
 the tenant cannot verify by DNS gets no live calls at launch. "Live calls and example-response
 mode" now holds the one rule for when the console is live, and "Host verification: to be
 designed in M4b" lists what M4b must design. Not yet seen by the security reviewer.
+Revised again that day to close gaps a readiness audit found: `defaultLimits` has values and the
+local CLI's document cap differs from the fetch cap ("Budgets", "Spec fetch policy"); the bundle's
+files, page types and URL scheme are defined ("The portal bundle"); the schema validator is M1
+work and tenant `pattern`s are never executed ("Schema validation"); `buildPortalBundle` takes
+the doctor's findings; the thresholds of criterion 23 are confirmed ("Performance"). The raised
+cap, the new `Limits` fields and the `pattern` decision go to the security reviewer.
 
 ## Context
 
@@ -40,16 +46,21 @@ spec-doctor fixes patch the spec, so the parser must keep source positions.
 ## Decision
 
 All engine functions are **synchronous** and take and return plain data. They never throw on bad
-tenant input; they return findings (ADR 0004). They throw only on programmer error.
+tenant input; they return findings (ADR 0004). They throw only on programmer error. Which
+findings stop a build is in ADR 0004, "Fatal and degrading faults".
 
 ```ts
-// Budgets. Every field is required. The engine exports `defaultLimits`; a caller may only lower them.
+// Budgets. Every field is required. The engine exports `defaultLimits` (values under "Budgets")
+// and clamps each field it is given to that default, so a caller can only lower them.
 interface Limits {
-  inputBytes: number; depth: number; nodes: number; aliasExpansions: number;   // parsing
-  outputNodes: number; outputBytes: number;                                    // derived work, per call
+  inputBytes: number; depth: number; nodes: number; aliasExpansions: number;   // parsing, per document
+  outputNodes: number; outputBytes: number;                                    // derived work, per value
+  pageSchemas: number; pageBytes: number; bundleBytes: number;                 // buildPortalBundle
 }
 
 // 1. Parse one document. YAML or JSON. Keeps a source map (pointer -> line/column range).
+//    Opaque apart from these two fields. A parse fault is in `findings`, never thrown.
+interface ParsedDocument { readonly uri: string; readonly findings: Finding[] }
 parseDocument(input: { uri: string; text: string }, limits: Limits): ParsedDocument
 
 // 2. Which other documents does this one reference? Absolute URIs, resolved against doc.uri.
@@ -57,16 +68,18 @@ listExternalRefs(doc: ParsedDocument): string[]
 
 // 3. Build the model from a closed set of documents. Missing documents become findings.
 //    root and documents are the patched ones when an overlay exists (ADR 0004). The hashes are
-//    copied into model.source (ADR 0002).
+//    copied into model.source (ADR 0002). `findings` includes the documents' own parse findings.
+//    `model` is null exactly when a finding has severity 'error' (ADR 0004).
 buildModel(input: { root: ParsedDocument; documents: ParsedDocument[];
                     fetchedHash?: string; publishedHash?: string })
   : { model: ApiModel | null; findings: Finding[] }
 
 // 4. Spec doctor (ADR 0004).
 diagnose(model: ApiModel, docs: ParsedDocument[],
-         options: { publicSuffixes: PublicSuffixList | null }): Finding[]   // null: no list, so every
-                                       // host variable needs an enum (ADR 0004)
-parsePublicSuffixList(text: string): PublicSuffixList   // pure; the caller reads the file
+         options: { publicSuffixes: PublicSuffixList | null;   // null: no list, so every host
+                    limits: Limits }): Finding[]               // variable needs an enum (ADR 0004)
+parsePublicSuffixList(text: string): PublicSuffixList   // pure; the caller reads the file. The
+                                       // result is opaque.
 bindFix(fix: Fix, inputs: Record<string, string>): SpecPatch | null   // the engine's patch with inputs
                                        // placed; null if an input is over 2,048 characters or fails
                                        // its format or list rules (ADR 0004)
@@ -74,30 +87,66 @@ applyFixes(docs: ParsedDocument[], patches: SpecPatch[]): { docs: ParsedDocument
 serializeDocument(doc: ParsedDocument): string
 
 // 5. Requests and samples (ADR 0005).
-buildRequest(model, operationId, values: RequestValues | undefined, options: { limits: Limits; /* ... */ })
-  : { request: HttpRequest; issues: Finding[] }
+buildRequest(model, operationId, values: RequestValues | undefined, options: { limits: Limits })
+  : { request: HttpRequest; values: SampleValue[]; issues: Finding[] }   // values: where each
+                                       // filled-in value came from ("The portal bundle")
 renderSample(request: HttpRequest, language: SampleLanguage): Sample
 
-// 6. Projections of the model. The last three are bounded; see "Budgets" below.
+// 6. Projections of the model. All but the first two are bounded; see "Budgets" below.
 getOperation(model, id) / getSchema(model, id)
 resolveSchemaView(model, schema, limits: Limits): { node: SchemaNode; findings: Finding[] }   // allOf merged
 toJsonSchema(model, schema, { refs: 'keep' | 'inline'; maxDepth: number }, limits: Limits)
-  : { schema: Json; findings: Finding[] }                                                    // for M2 MCP
+  : { schema: Json; findings: Finding[] }                             // for the M2 MCP; not built in M1
 synthesizeExample(model, schema, limits: Limits): { value: Json; findings: Finding[] }       // deterministic
+validateValue(model, schema: Schema, value: Json, limits: Limits): ValueCheck   // "Schema validation"
 
-// 7. Everything the renderer needs, as data.
-buildPortalBundle(model: ApiModel, options: { languages: SampleLanguage[]; siteUrl?: string; limits: Limits })
+// 7. Everything the renderer needs, as data. `report` is what the doctor page shows: every
+//    finding the caller holds so far (from buildModel and diagnose) and the fixes not applied.
+//    The returned findings are only the ones this call adds; the doctor page shows both.
+buildPortalBundle(model: ApiModel,
+                  report: { findings: Finding[]; notApplied: NotAppliedFix[] },
+                  options: { languages: SampleLanguage[]; siteUrl?: string; limits: Limits })
   : { bundle: PortalBundle; findings: Finding[] }
 ```
 
-**Budgets.** `synthesizeExample`, `toJsonSchema`, `resolveSchemaView` and `buildPortalBundle` take
-node and byte budgets from `Limits`; `maxDepth` is required; over budget yields a finding and
-truncated output. The finding is `budget-exceeded`, a warning, located at the schema or operation
+**Budgets.** `synthesizeExample`, `toJsonSchema`, `resolveSchemaView`, `validateValue` and
+`buildPortalBundle` take node and byte budgets from `Limits`; `maxDepth` is required; over budget
+yields a finding and truncated output. The finding is `budget-exceeded`, a warning, located at the schema or operation
 being expanded. Cutting recursion on the second visit to a schema is not a bound: twelve acyclic
 schemas with ten properties each, every one referring to the next, expand to 10^12 nodes. The
 budget counts nodes and bytes produced, so it bounds that case too. `buildRequest` passes its
 `limits` to the example synthesis it does. The budget for `buildPortalBundle` covers the whole
 bundle, and each page's share of it is bounded as well.
+
+`defaultLimits`. A byte figure is counted as string length in UTF-16 code units, which the engine
+can measure without an encoder and which is never more than the UTF-8 byte count; the caller
+checks the true size of a file before it decodes it. "Largest fixture" was measured on
+`fixtures/specs/` on 2026-11-27.
+
+| Field | Default | What is counted | Largest fixture |
+|---|---|---|---|
+| `inputBytes` | 16,777,216 (16 MiB) | The document's text | 14,401,584 bytes (`large/github-api-3.1.json`) |
+| `depth` | 64 | Nesting of maps and sequences | 27 (`large/stripe.json`) |
+| `nodes` | 500,000 | Every map, sequence and scalar value; keys are not counted; a subtree reached through an alias is counted each time | 279,102 (`large/github-api-3.1.json`) |
+| `aliasExpansions` | 1,000 | Alias nodes in the document | 2 (`openai.yaml`) |
+| `outputNodes` | 10,000 | Per value: JSON values in one synthesized example; schema nodes in one view or one `toJsonSchema` result; keyword evaluations in one `validateValue` call | Estimate |
+| `outputBytes` | 1,048,576 (1 MiB) | The serialized JSON of that one value or view | Estimate: the largest inline schema, `GET /emojis` in the GitHub fixtures, is 166 KB as written |
+| `pageSchemas` | 32 | Named schemas inlined in one page file ("The portal bundle") | Not a truncation; see below |
+| `pageBytes` | 2,097,152 (2 MiB) | One file under `pages/` or one twin | Estimate |
+| `bundleBytes` | 536,870,912 (512 MiB) | The sum of all files' `content` | Estimate |
+
+- `synthesizeExample` and `validateValue` also nest no deeper than `depth`.
+- Past a parsing limit, parsing stops and the document has a `limit-exceeded` finding; for the
+  root document that is fatal (ADR 0004). Past a derived budget, the value is cut and the finding
+  is `budget-exceeded`.
+- The twelve-schema case under these values: its synthesized example is cut at 10,000 nodes; a
+  page file holds each of the twelve named schemas once, because a reference stays a reference
+  (see `SchemaSection`); and the renderer never expands a reference while rendering (ADR 0006,
+  rule 7). A test builds that spec and asserts the bundle is under 1 MB.
+- The four parsing values are set from measurement. The five derived values are estimates, because
+  no code exists. A test asserts that no fixture, committed or fetched, yields `limit-exceeded`
+  or `budget-exceeded`. If one does, the value is changed in this table, not in code, and the
+  change is shown to the security reviewer. `pageSchemas` is tuned downward only, on Stripe.
 
 **Lookups keyed by tenant text.** Pointer traversal and every lookup keyed by tenant text use own
 properties only. Reads use `Object.hasOwn` or a `Map`; writes use `Object.defineProperty` or a
@@ -109,13 +158,199 @@ resolver a `$ref` with a `__proto__` segment does not resolve and is reported as
 A schema or property named `constructor` or `prototype` resolves like any other. The engine runs
 in a process shared between tenants, so a write to `Object.prototype` would cross tenants.
 
-`PortalBundle` is a list of files as data, `{ path, mediaType, content }[]`, with `bundleVersion: 1`:
+### The portal bundle
 
-| Path | Content |
+`PortalBundle` is a list of files as data. JSON files are written with object keys in the order
+the types declare them, so the same model gives the same bytes.
+
+```ts
+interface PortalBundle { bundleVersion: 1; files: BundleFile[] }   // sorted by path, by code point
+interface BundleFile { path: string; mediaType: string; content: string }
+```
+
+| Path | Type | Content |
+|---|---|---|
+| `manifest.json` | `Manifest` | Versions, navigation, the index of pages |
+| `model.json` | `ApiModel` | The full model, for the proxy and MCP in M2. The M1 renderer does not read or export it. |
+| `pages/<page path>.json` | `PageData` | One page. Everything that page shows is in this one file. |
+| `static/<page path>.md` | Markdown | The twin of an operation, tag or schema page |
+| `static/llms.txt` | Markdown | The index of twins for this unit |
+| `static/doctor-report.json` | `DoctorReport` | The machine-readable doctor report, complete |
+
+`search.json` is not a bundle file in M1: m1.md puts search of any kind in M5. Its shape is
+fixed now so M5 adds a file and changes none: `SearchRecord[]`, flat records, not a
+library-specific index.
+
+**Pages and paths.** A page path is relative to the unit's base and is built from slugs (ADR
+0002), never from ids. These are all the pages M1 has. Webhooks and callbacks get none (ADR 0004,
+`webhook-not-rendered`).
+
+| Kind | Page path | One per | Twin |
+|---|---|---|---|
+| `home` | `index` | unit | No. `llms.txt` is the agent's entry point. |
+| `tag` | `tags/<Tag.slug>` | `model.tags` entry | Yes |
+| `operation` | `operations/<Operation.slug>` | `model.operations` entry | Yes |
+| `schema` | `schemas/<NamedSchema.slug>` | `model.schemas` entry | Yes |
+| `doctor` | `doctor` | unit | No |
+
+**Fragments.** Each is fixed text of ours plus a status or a slug, so none is raw tenant text.
+
+| Content | Fragment |
 |---|---|
-| `manifest.json` | versions, navigation tree, page index (slug, title, kind, path) |
-| `model.json` | the full `ApiModel`, for the proxy and MCP |
-| `pages/<path>.json` | one self-contained page: the operation or schema, the named schemas it reaches, samples per language, examples |
+| Sections of an operation page | `parameters`, `request-body`, `responses`, `security`, `samples` |
+| One response on an operation page | `response-` + the status in lower case: `response-200`, `response-4xx`, `response-default` |
+| A named schema shown on an operation or schema page | `schema-` + `NamedSchema.slug` |
+
+**Stability (criterion 11).** A page path depends only on its own slug and a fragment only on a
+status or a slug, so rebuilding an unchanged spec gives the same URLs. Adding an operation
+changes an existing URL in one case only: the new operation takes the id or the slug an existing
+one had, under the collision rules of contract 1.1 and ADR 0002. Both are reported
+(`operation-id-collision`, `slug-collision`). Those two operations are not "unrelated" in
+criterion 11's sense.
+
+**Types.** `Operation`, `Parameter`, `Response`, `Server`, `SecurityScheme`, `SchemaNode` and
+`Markdown` are the model's (ADR 0002); `Sample` and `SampleLanguage` are ADR 0005's; `Finding` is
+ADR 0004's. Where a page file holds a model type, every inline `SchemaNode` in it, at any depth,
+is the merged view `resolveSchemaView` returns, so no `allOf` is left; a `SchemaRef` stays a
+reference.
+
+```ts
+type PageKind = 'home' | 'tag' | 'operation' | 'schema' | 'doctor';
+
+interface Manifest {
+  bundleVersion: 1; modelVersion: 1;
+  title: string; version: string;      // info.title and info.version, for display
+  languages: SampleLanguage[];         // as passed to buildPortalBundle; the first is the default
+  nav: NavGroup[];                     // one per Tag in model order, then one of kind 'schemas' if any
+  pages: PageRef[];                    // every page, sorted by path
+}
+interface NavGroup { kind: 'tag' | 'schemas'; title: string; page?: string; items: NavItem[] }
+interface NavItem { title: string; page: string; method?: Operation['method']; deprecated: boolean }
+interface PageRef { path: string; kind: PageKind; title: string; description: string }
+
+type PageData = HomePage | TagPage | OperationPage | SchemaPage | DoctorPage;
+interface PageBase { path: string; title: string; truncated: boolean }
+
+interface HomePage extends PageBase { kind: 'home';
+  info: ApiModel['info']; servers: Server[]; securitySchemes: SecurityScheme[];
+  externalDocs?: ApiModel['externalDocs'];
+  tags: { title: string; page: string; description?: Markdown; operations: number }[] }
+
+interface TagPage extends PageBase { kind: 'tag'; name: string; description?: Markdown;
+  operations: OperationSummary[] }
+interface OperationSummary { id: string; page: string; method: Operation['method']; path: string;
+  title: string; deprecated: boolean }
+
+interface OperationPage extends PageBase { kind: 'operation';
+  operation: Pick<Operation, 'id' | 'idSource' | 'method' | 'path' | 'summary' | 'description'
+                           | 'deprecated' | 'servers' | 'externalDocs'>;
+  tags: { title: string; page: string }[];
+  parameters: Parameter[];                    // name, type, required, default, enum, constraints
+  requestBody?: Operation['requestBody'];
+  responses: Response[];                      // every one, in model order: codes, ranges, 'default'
+  security: SecurityStatement;
+  samples: Sample[];                          // one per manifest language, in that order
+  sampleValues: SampleValue[];
+  schemas: SchemaSection[]; schemaLinks: SchemaLink[] }
+
+interface SchemaPage extends PageBase { kind: 'schema'; schema: SchemaSection;
+  schemas: SchemaSection[]; schemaLinks: SchemaLink[] }
+
+interface SchemaSection { id: string; slug: string; recursive: boolean;
+  node: SchemaNode }                          // the named schema's merged view
+interface SchemaLink { schemaId: string; slug: string;
+  onPage: boolean }                           // true: '#schema-<slug>'. false: page 'schemas/<slug>'
+
+interface SecurityStatement {                 // criterion 4
+  alternatives: CredentialUse[][] }           // outer OR, inner AND, in model order. []: the spec
+                                              // declares no credential for this operation. An empty
+                                              // inner list: calling with no credential is allowed.
+interface CredentialUse { schemeId: string;
+  type: SecurityScheme['type'] | 'undefined'; // 'undefined': the spec does not define the scheme
+  in?: 'header' | 'query' | 'cookie'; name?: string;   // the exact name: 'X-API-Key', 'Authorization'
+  prefix?: string;                            // 'Bearer ', 'Basic ', with its space
+  scopes: string[] }
+
+interface SampleValue {                       // criterion 7
+  in: 'path' | 'query' | 'header' | 'cookie' | 'body'; name: string;   // '' for the body
+  origin: 'example' | 'default' | 'enum' | 'synthesized';
+  unchecked: string[] }                       // for a synthesized value: keywords of its schema that
+                                              // were not checked, such as 'pattern'
+
+interface DoctorPage extends PageBase { kind: 'doctor';
+  counts: { warning: number; info: number };  // of the whole report, also when `truncated`
+  findings: Finding[]; notApplied: NotAppliedFix[];
+  synthesized: { operationId: string; page: string; values: SampleValue[] }[] }
+interface DoctorReport { reportVersion: 1; findings: Finding[]; notApplied: NotAppliedFix[];
+  synthesized: DoctorPage['synthesized'] }
+interface NotAppliedFix { fixId: string; path: string; reason: PatchConflict['reason'] }   // ADR 0004
+
+interface SearchRecord { id: string; kind: PageKind; title: string; path: string; text: string }   // M5
+```
+
+Rules, each one sentence a builder would otherwise have to guess:
+
+- **Titles.** An operation's title is its `summary`, else the method in upper case, a space and
+  the path. A schema's is its id, a tag's its name, the home page's `info.title`.
+  `PageRef.description` is the first line of the item's description source, with white space
+  collapsed, cut at 200 characters and escaped as twin text is; empty if there is none.
+- **Navigation.** A tag group lists the tag's operations in `Tag.operationIds` order; an
+  operation with several tags is in each group and has one page. The `schemas` group lists the
+  schema pages in model order.
+- **Named schemas on a page.** `schemas` holds named schemas the page's content refers to,
+  nearest first: those referred to directly, then those they refer to, breadth-first, ties in
+  order of first reference, each once, until there are `pageSchemas` of them. `schemaLinks` has
+  one entry for every schema id referred to anywhere in the file, saying whether it is on the
+  page. Stripe is why there is a bound and why schema pages exist: every Stripe operation reaches
+  about 1,060 named schemas (1.2 MB as written), while no GitHub operation reaches more than 62.
+- **The security statement** is computed by the code that places credentials in `buildRequest`
+  (ADR 0005), so a page and its samples cannot disagree. `apiKey`: `in` and `name` from the
+  scheme, no prefix. `http` `bearer`, `oauth2` and `openIdConnect`: header `Authorization`,
+  prefix `Bearer `. `http` `basic`: header `Authorization`, prefix `Basic `. Any other `http`
+  scheme: header `Authorization`, and the scheme as written plus a space. `mutualTLS` and
+  `undefined`: no `in`, `name` or `prefix`.
+- **Variant names (criterion 1).** A `oneOf` or `anyOf` member that is a reference is named by
+  the target's `title`, else its id; an inline member by its `title`, else `Option` and its
+  1-based position. Twins and HTML both use this.
+- **`allOf` merging.** Members are merged in order: `properties` by name, a property in several
+  members being merged the same way; `required` is the union; for any other keyword that
+  members give different values, the first is kept and `schema-allof-conflict`, an info, is
+  reported.
+- **Samples.** `samples` are `renderSample` of one `buildRequest(model, id, undefined, { limits })`, and
+  `sampleValues` is that call's `values`. The only synthesized values in any page file are
+  inside `samples`, and `sampleValues` identifies each. A value's `origin` is `example`,
+  `default` or `enum` only when the whole value was taken unchanged from that place in the spec;
+  a body assembled from parts is `synthesized`.
+- **The doctor page and report.** `findings` is `report.findings` followed by the findings this
+  call adds, sorted by severity (warning before info), then `location.uri`, `location.pointer`,
+  `code` and `fingerprint`, by code point. `synthesized` lists each operation that has a
+  `synthesized` sample value, with those values only. The report file is complete; the page
+  holds the findings that fit in `pageBytes`, in that order.
+- **Over `pageBytes`.** The page is reduced in this order until it fits, `truncated` is set and
+  `budget-exceeded` is reported: drop `schemas` entries from the end (they become links); drop
+  the `value` of declared examples from the last to the first; drop `samples` code. Reaching
+  `pageSchemas` is not truncation and is not reported. Past `bundleBytes`, no further page is
+  written, and the pages left out are named in one `budget-exceeded` finding.
+
+**Twins and `llms.txt` (criterion 17).** A twin is built from its page file and nothing else.
+
+- An operation's twin, in this order: `# ` title; the method and path in a code span; the
+  description; `## Security`, the statement in fixed sentences of ours; `## Parameters`;
+  `## Request body`; `## Responses` with one `### ` per status; `## Example request`, the cURL
+  sample in a fenced block, whatever `languages` holds; `## Schemas`, one `### ` per entry of
+  `schemas`. A schema is written as a nested list: name, type, required, default, every enum
+  value, constraints, description. A schema that is not on the page is a link to its twin.
+- A tag's twin lists its operations as links to their twins. A schema's twin is the `## Schemas`
+  part alone.
+- Descriptions are copied as the Markdown they are. Every other tenant string is written in a
+  code span or fenced block whose fence is longer than any run of backticks inside it, or with
+  Markdown's special characters escaped. There is no HTML of ours and no navigation.
+- `llms.txt`: `# ` and `info.title`; `> ` and `info.summary` if there is one; `## Tags`, a list
+  of the tag twins; then one `## ` per tag listing its operations, each operation under its
+  first tag only; then `## Schemas`. Each entry is `- [title](link): description`, so every twin
+  is listed exactly once.
+- Links are relative to the file that holds them: `operations/get-pet.md` from `llms.txt`,
+  `../schemas/pet.md` from an operation's twin.
 
 **Declared examples stay apart from synthesized values. This binds M1.** An operation's page
 file carries each response as the model has it: by status, then by media type, each with its
@@ -124,8 +359,6 @@ schema. A value the engine synthesized is never written among them. If a page sh
 synthesized value anywhere, it is in a field of its own that says so. M2's example-response
 mode ("Live calls and example-response mode") reads declared examples from the page file
 in the browser and must be able to tell the two apart without the network.
-| `search.json` | flat search records (id, kind, title, path, text). Not a library-specific index. |
-| `static/<path>.md`, `static/llms.txt` | Markdown twins and `llms.txt` |
 
 **One unit per call.** `buildModel` takes one spec and `buildPortalBundle` takes one model: one
 version of one API, the unit of ADR 0002. A portal with several APIs or versions is several
@@ -133,9 +366,9 @@ bundles, composed by the control plane and the renderer and keyed by (project, A
 The engine does not see the key. These rules bind M1, so that nothing is redone when M4 adds a
 second unit:
 
-- Every `path` in the bundle, and every path in `manifest.json` and `search.json`, is relative
-  to the **unit's base**: no leading `/`, no scheme or host, and no project, API or version
-  segment. In M1 the unit's base is the portal root; from M4 it is below it. The engine never
+- Every `path` in the bundle, and every path in `manifest.json`, in a page file and in
+  `search.json`, is relative to the **unit's base**: no leading `/`, no scheme or host, and no
+  project, API or version segment. In M1 the unit's base is the portal root; from M4 it is below it. The engine never
   bakes in a base path, so subpath hosting (`host.com/docs`) and the unit's prefix are the
   renderer's concern alone.
 - A link that the engine writes inside a file under `static/`, in a twin or in `llms.txt`, is
@@ -156,7 +389,8 @@ Who does the I/O:
 | Write the published spec and compute its SHA-256 (`publishedHash`); see "The published spec" | Caller (`publisher`) |
 | Read the Public Suffix List snapshot and pass its text to the engine (ADR 0004) | Caller (`publisher`; in M2 also the proxy) |
 | Parse each allowed-host value with the WHATWG `URL` parser when a fix is accepted (ADR 0004) | Caller. `URL` does not compile in the engine (ADR 0001 rule 4). |
-| Fetch external `$ref` targets: loop `listExternalRefs` -> fetch -> `parseDocument` until the set is closed or a cap is reached | Caller, under the spec fetch policy below |
+| Fetch external `$ref` targets: loop `listExternalRefs` -> fetch -> `parseDocument` until the set is closed or a cap is reached | Caller, under the spec fetch policy below. Not in M1: the CLI reads one file. |
+| Decide that a build fails, and write nothing when it does (ADR 0004, "Fatal and degrading faults") | Caller (`publisher`) |
 | Write bundle files | Caller |
 | Timestamps, UUIDs, any randomness | Caller passes them in, or they are left out |
 | Bound the time a publish may take | Caller. The engine has no clock. |
@@ -255,10 +489,84 @@ Libraries:
   and nodes and bytes produced by derived work.
 - **`$ref` resolution is our own code**: JSON Pointer lookup across the supplied documents, by own
   properties only, a few hundred lines. See the alternative below.
-- **No schema validator dependency.** Where values must be checked against a schema (M2, M5), the
-  engine interprets its own normalized schema. Ajv is ruled out because it compiles schemas to
-  JavaScript, which is tenant content compiled to code. Tenant `pattern` regexes are not executed
-  without a bound; that design goes to the security reviewer when it is needed.
+- **No schema validator dependency.** Values are checked against a schema by `validateValue`,
+  which interprets the engine's own normalized schema. It is M1 work; see "Schema validation".
+  Ajv is ruled out because it compiles schemas to JavaScript, which is tenant content compiled
+  to code.
+
+### Schema validation
+
+M1 needs it twice: the doctor reports a declared example that violates its schema (criterion 6),
+and every synthesized value is checked against its schema (criterion 7). M2 and M5 reuse it.
+
+```ts
+interface ValueCheck {
+  errors: ValueIssue[];      // a keyword the value violates. Valid means: none.
+  unchecked: ValueIssue[];   // a keyword that applies and was not evaluated
+  truncated: boolean;        // the budget ran out; the result is incomplete
+}
+interface ValueIssue { pointer: string;      // into the value, RFC 6901
+                       keyword: string; schema: Loc }   // the schema node that holds the keyword
+```
+
+- **Checked in M1**, with 3.1 semantics on the normalized `SchemaNode` (ADR 0002): `types`,
+  `enum`, `const`, `properties` and `required`, `additionalProperties`, `items`, `prefixItems`,
+  `allOf`, `oneOf`, `anyOf`, `not`, a `SchemaRef` and its `nullable`, `minimum`, `maximum`,
+  `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`, `minLength` and `maxLength` in code
+  points, `minItems`, `maxItems`, `uniqueItems`, `minProperties`, `maxProperties`. That is every
+  validation keyword in the fixtures except `pattern`, `patternProperties` and those the model
+  does not hold, all three covered below.
+- **`format`** is checked for a closed list, each by a hand-written check of ours that runs in
+  time linear in the value: `date`, `date-time`, `email`, `uri`, `uuid`, `hostname`, `ipv4`,
+  `int32`, `int64`. `synthesizeExample` writes a value of the right form for each of them. Any
+  other format is `unchecked`, and its synthesized value is a plain string.
+- **`pattern` and `patternProperties` are never executed in M1.** The engine does not compile a
+  regular expression from tenant text anywhere: no `new RegExp` and no `RegExp(...)` with an
+  argument that is not a literal of ours, by a lint rule on `packages/engine` and a test. A
+  JavaScript regular expression has no time bound, and the engine has no clock to stop one. A
+  value's conformance to `pattern` is reported as `unchecked`, never as valid or invalid. Where
+  a schema has `patternProperties`, a property not named in `properties` is `unchecked` too,
+  and so is `additionalProperties` for it. A bounded matcher is not designed; if a later
+  milestone needs one it goes to the security reviewer first. This settles the question the
+  first review left open, and the security reviewer confirms it at the code gate.
+- **Keywords the model does not hold** are not evaluated, and a value is never rejected because
+  of one. For the assertion keywords of JSON Schema 2020-12 that ADR 0002 leaves out (`if`,
+  `then`, `else`, `contains`, `minContains`, `maxContains`, `propertyNames`, `dependentRequired`,
+  `dependentSchemas`, `unevaluatedProperties`, `unevaluatedItems`, `additionalItems`),
+  `buildModel` reports `schema-keyword-ignored`, an info, at the keyword. Any other unknown key
+  is ignored without a finding; an `x-` key goes to `extensions`. `discriminator` is not an
+  assertion: the `oneOf` or `anyOf` beside it decides.
+- **Three results, not two.** A schema with an unchecked keyword and no violated one is
+  "unknown". `oneOf`, `anyOf` and `not` combine pass, fail and unknown by Kleene logic, and an
+  unknown outcome is reported in `unchecked`, not in `errors`. So a pattern that was not run
+  never makes a valid example look invalid.
+- **Bounds.** Each keyword evaluation counts against `outputNodes`; nesting stops at `depth`;
+  a pair of schema id and value pointer already on the stack is unknown. Past any of them
+  `truncated` is true.
+- **Use in M1.** `diagnose` reports `example-invalid`, a warning, for a declared example of a
+  parameter, a media type or a schema that has `errors` (ADR 0004). `synthesizeExample` checks
+  its own result: with `errors`, it still returns the value and reports `synthesis-failed`, a
+  warning, at the schema, since some schemas admit no value. The `unchecked` keywords of a
+  synthesized sample value are carried in `SampleValue.unchecked`.
+
+### Performance
+
+Criterion 23's thresholds, confirmed with what each one measures. The reference machine is a
+4-core, 16 GB Linux CI runner.
+
+| Threshold | Verdict | Reason |
+|---|---|---|
+| Engine pass under 60 seconds, on `large/github-ghes.json` and `large/stripe.json` | Confirmed | Measured on 2026-11-27 with `yaml` 2.9.1 on Node 22, 4 cores: parsing with the source map takes 2.0 s, 1.7 s and 2.3 s for the two fixtures and `large/github-api-3.1.json`. Nothing else exists to measure, and the rest is linear in the model. |
+| Full build within 5 minutes, same two fixtures | Confirmed as a target, not measured | About 1,600 and 2,150 pages, which is 7 pages a second. If Stripe misses it, lower `pageSchemas` before asking for a longer time. |
+| New: the engine pass runs in Node's default heap, with no `--max-old-space-size` | Added | Parsing the three large fixtures in one process reached 1.2 GB resident. A pass that needs a raised heap would not fit a per-tenant worker. |
+
+- The engine pass is `parseDocument`, `applyFixes`, `buildModel`, `diagnose` and
+  `buildPortalBundle` in one process, timed by the test around the calls. It excludes reading
+  and writing files.
+- The full build is one `ezdp` command from start to a complete export directory: the engine
+  pass, writing the bundle, and the static export with highlighting. It excludes installing
+  dependencies, `fetch.sh` and the sample toolchains of criteria 13 and 14.
+- Criterion 24's page weight is in ADR 0006, "Page weight".
 
 Supported input in M1: OpenAPI 3.0.x and 3.1.x. Swagger 2.0 yields a single `unsupported-version`
 error. 3.2 is read as 3.1 with a warning.
@@ -299,9 +607,24 @@ Covers the root spec URL and every `$ref`.
   the GitHub App that proposes guides as pull requests (decided 2026-11-27; ADR 0007): it holds
   write access to tenants' repositories, and its design goes to the security reviewer before it
   starts.
-- Caps: 100 documents, 10 MB each, 50 MB total, 10 s each, 60 s total. Bytes are counted after
+- Caps when fetching: 100 documents, 10 MB each (10,000,000 bytes), 50 MB total (50,000,000),
+  10 s each, 60 s total. Bytes are counted after
   content decoding, so a compressed response is measured as the document it decodes to, and
-  decoding stops at the cap.
+  decoding stops at the cap. These are the security review's figures, unchanged. A publisher
+  that fetches passes `inputBytes: 10_000_000` to the engine.
+- **Local files in the CLI have a higher per-document cap: `defaultLimits.inputBytes`, 16 MiB.**
+  This raises the review's 10 MB figure, for a file read from the disk of the person running
+  the build and for nothing fetched. The evidence: two fixtures that criteria 3, 13 and 23 must
+  build are over 10 MB, `large/github-ghes.json` at 10,037,279 bytes and
+  `large/github-api-3.1.json` at 14,401,584, and 16 MiB is the next round figure above the
+  larger. The other caps are as above where they apply: 100 documents and 50 MB in total. The
+  time caps do not apply, since nothing is fetched.
+- In M1 the CLI reads exactly one file, because m1.md's input is one document already bundled.
+  It follows no `$ref` to another document, local or remote: the document is missing from the
+  set and the reference is `ref-unresolved`. Reading sibling files and fetching arrive with
+  ingestion in M4.
+- To decide before M4: under the 10 MB fetch cap the hosted product cannot publish either
+  GitHub description. Raising it is the security reviewer's and the product manager's call.
 - Uploaded specs get a synthetic URI. A relative `$ref` in an uploaded spec resolves only against
   other files of the same upload, by lookup; it is never fetched. The lookup is by the synthetic
   URI in the set of uploaded files; a target that is not in the set is a missing document. An

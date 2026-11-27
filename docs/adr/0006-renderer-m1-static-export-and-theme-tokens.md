@@ -6,6 +6,10 @@ review (`docs/reviews/2026-11-26-security-design-review.md`, H1, M5, M6, L9, L10
 rulings 9 and 10 and the encoder rule. They are applied in this text.
 Revised 2026-11-27 for the user's decision that a portal may hold several APIs and versions:
 "Units" is added.
+Revised again that day to close gaps a readiness audit found. Scope follows m1.md, which the
+product manager owns: dark mode (M3) and search (M5) are removed from M1's interactivity, and
+the rules for the export's layout, fragments and page weight are added. `Manifest` and
+`PageData` are defined in ADR 0003, "The portal bundle".
 
 ## Context
 
@@ -29,14 +33,16 @@ interface ContentSource {
 M1 has one implementation, which reads a bundle directory named by an environment variable at
 build time. Routes come from `generateStaticParams` over the manifest. Page components are
 presentational: they take `PageData` and nothing else, and do not know where it came from. M4 adds
-a second `ContentSource` keyed by tenant in front of the same components.
+a second `ContentSource` keyed by tenant in front of the same components. `Manifest`, `PageData`
+and the page paths are the engine's (ADR 0003, "The portal bundle"); `page(path)` takes a page
+path from the manifest.
 
 **Units.** A portal bundle is one unit: one version of one API (ADR 0002, ADR 0003). A
 `ContentSource` therefore serves one unit, and from M4 a portal has one per (project, API,
 version). Two prefixes stand in front of a bundle path, and they are different things: the
 **base path**, where the portal is mounted (`/docs`), which also carries the app's own build
 assets and the theme; and the **unit prefix**, where one API version sits below it. In M1 the
-unit prefix is empty. M1 still builds every URL of a page, a twin, `llms.txt` and `search.json`
+unit prefix is empty. M1 still builds every URL of a page, a twin and `llms.txt`
 through one function that takes both, and no component joins a bundle path to the base path
 itself or assumes that a bundle path starts at the portal root. `theme()` is on `ContentSource`
 for M1 only; a theme belongs to the portal, not to a unit, and M4 moves it.
@@ -45,14 +51,36 @@ Rules that keep pages exportable:
 
 1. No core page uses request-time APIs (`cookies`, `headers`, `searchParams` on the server), route
    handlers, server actions or middleware.
-2. Interactivity is client-side only: language choice (all languages are in the HTML; a stored
-   preference selects one), light/dark mode, and a simple filter over `search.json`.
-3. Markdown twins and `llms.txt` are copied from the bundle's `static/` into the export as files.
+2. Interactivity is client-side only, and in M1 it is this list: language choice, variant
+   switchers, schema expanders and copy buttons. M1 has no light/dark switch and no search,
+   filter or search index in the export: m1.md puts dark mode in M3 and search of any kind in
+   M5. All languages are in the HTML. The choice is kept in `localStorage` under one key of
+   ours, `ezdp.sampleLanguage`, read only as one of the manifest's languages, so it holds across
+   pages, reloads and tabs with no server state. With JavaScript off, every page shows the
+   manifest's first language, every variant and every schema section (criterion 16).
+3. Everything under the bundle's `static/` is copied into the export as files: the Markdown
+   twins, `llms.txt` and `doctor-report.json`. `manifest.json`, `model.json` and the page files
+   are build inputs and are not exported.
 4. All links and the URLs of the app's own build assets go through the configured base path, so
    the same build works at `/` and under `/docs`. Tenant-supplied files are the exception: see
    "Tenant assets" below.
 5. CI runs a full static export over the fixture corpus. If it fails, the change is rejected. This
    is the test of the standing constraint.
+6. Layout, so the export works from a plain file server (criterion 21). The export uses
+   `trailingSlash: true`: the page with path `P` is the file `P/index.html` and is linked as
+   `P/`; the home page, path `index`, is the unit's base itself. Its twin is the file `P.md`
+   beside that directory, which is what criterion 17 means by the page URL plus `.md`.
+   `llms.txt`, `doctor-report.json` and `spec/` sit at the unit's base. The first path segments
+   the engine uses are a closed list: `operations`, `schemas`, `tags`, `doctor` and `spec`. The
+   prefix reserved for guides in M5 (contract 3) must not be one of them.
+7. The HTML of a page is linear in its page file. A reference to a named schema is rendered as
+   a link or an expander that points at that schema's one section on the page
+   (`#schema-<slug>`) or at its own page; the renderer never renders a referenced schema inside
+   the schema that refers to it. This is what keeps a recursive schema finite (criterion 2) and
+   stops the expansion of ADR 0003, "Budgets".
+8. Fragments are the ones ADR 0003 lists, and no other `id` is promised. An element that
+   carries one is in the HTML as exported and is not inside content that starts collapsed, so
+   the URL loads directly to it with JavaScript off (criterion 11).
 
 "Try it" in M2 is a client component that calls the proxy, a separate service. Pages stay static.
 
@@ -88,8 +116,9 @@ publish worker and its time limit (ADR 0003).
 
 **Variables in samples.** Sample code arrives as a list of segments, literal strings and variables
 (ADR 0005). The highlighter is given the literal text with each variable's display text in place,
-and the renderer then puts a placeholder element at each variable's recorded offset. Client code
-fills only those elements, with a value passed through the variable's encoders. An unknown encoder
+and the renderer then puts a placeholder element at each variable's recorded offset. In M1
+nothing fills them: there is no credential entry (M2), and a copy button copies the display
+text. From M2, client code fills only those elements, with a value passed through the variable's encoders. An unknown encoder
 id means the placeholder is not filled. A typed scalar is written by JSON serialization. Nothing
 in the app searches text or code for `{{`.
 
@@ -127,8 +156,12 @@ Two decisions in the product brief are affected, and neither changes:
 
 **Theme.** `@ezdp/theme` exports the `ThemeTokens` type (JSON, `tokensVersion: 1`), a validator,
 `defaultTheme`, and `tokensToCss(tokens): string`. Token groups: color (background, surface, text,
-muted, border, accent, accent contrast, code background, syntax, HTTP method colors) for light and
-dark; font families and sizes; radius; spacing; shadow. A shadow is structured, never a string:
+muted, border, accent, accent contrast, code background, syntax, HTTP method colors), keyed by
+mode; font families and sizes; radius; spacing; shadow. M1 ships light only (m1.md): the color
+group's `light` is required and `dark` is optional, `defaultTheme` has no `dark`, and
+`tokensToCss` writes the light values and no `prefers-color-scheme` rule. Keeping the mode key
+in the type is all M1 does for dark mode, so that M3 adds values and not a new token format.
+A shadow is structured, never a string:
 a list of layers, each `{ x, y, blur, spread, color }`, with lengths and a color that go through
 the length and color serializers. The designer owns the list and values.
 
@@ -143,6 +176,16 @@ the length and color serializers. The designer owns the list and values.
   this over hostile token values. In M3 the brand extractor produces the same JSON and nothing
   else.
 - Fonts in M1 are system stacks. Font loading belongs with subpath hosting and M3.
+
+**Page weight.** Criterion 24's threshold is confirmed: no operation page of the GitHub fixture
+transfers more than 500 KB compressed, fonts excluded. It is measured as the sum, over the
+page's HTML file and every script and stylesheet that file loads, of each file's size under
+gzip at level 6, from the export directory with nothing cached. The largest GitHub operation,
+`GET /emojis`, is 166 KB of schema as written and 17 KB under gzip, so the budget is spent on
+the app's own scripts, not on content. "No page embeds the whole spec" is met by construction:
+a page is built from its page file, and `model.json` is not exported (rule 3). The navigation
+is the one part that grows with the spec; how it is delivered is the renderer developer's
+choice within this threshold. Criterion 23 is in ADR 0003, "Performance".
 
 ## Consequences
 

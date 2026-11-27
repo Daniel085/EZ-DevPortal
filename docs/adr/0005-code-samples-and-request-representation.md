@@ -16,6 +16,9 @@ and a write tool (ADR 0003, "MCP tools: reads and writes"). `CallValues` is unch
 input shape of both.
 Revised again that day for the user's decisions on live calls: the consequences below point to
 the one rule in ADR 0003 for when "Try it" sends. No type or function is changed.
+Revised again that day to close gaps a readiness audit found: "What an M1 sample shows" makes
+the base URL agree with criterion 15, `buildRequest` reports where each value came from, and
+"The local mock" says how tests run samples without calling a real API.
 
 ## Context
 
@@ -72,7 +75,9 @@ type JsonText =                                     // a JSON body whose string 
 
 interface HttpRequest {
   operationId: string; method: string;
-  baseUrl: Text;                                    // [{ var: 'base_url', ... }] unless a server is chosen
+  baseUrl: Text;                                    // the chosen server's URL as literal text; a
+                                                    // `base_url` Var only where the spec gives no
+                                                    // absolute URL. See "What an M1 sample shows".
   path: Text;                                       // serialized and percent-encoded
   query: { name: string; value: Text }[];
   headers: { name: string; value: Text }[];         // includes auth and Content-Type
@@ -83,6 +88,7 @@ interface HttpRequest {
          | { kind: 'binary'; filename: string };
 }
 
+type SampleLanguage = 'curl' | 'javascript' | 'python' | 'go' | 'java' | 'csharp' | 'php' | 'ruby';
 interface Sample { language: SampleLanguage; label: string; code: (string | Var)[]; highlight: string }
 ```
 
@@ -92,7 +98,10 @@ Rules:
   `examples`, `default`, first `enum` value, then `synthesizeExample` (deterministic, recursion cut
   on the second visit to a schema, and bounded by the node and byte budgets in `Limits`, ADR 0003).
   Over budget, the value is truncated and a finding goes into `issues`. Only required parameters
-  are filled when nothing is supplied.
+  are filled when nothing is supplied. A declared request body is always included, required or
+  not, in the media type that contract 4.3's sample rule picks. `buildRequest` also returns
+  `values`, one `SampleValue` for each value it filled, saying which of these places it came
+  from (ADR 0003, "The portal bundle"; criterion 7).
 - **Variables are structure, never marker text.** A variable is a `Var` part and nothing else. No
   engine function searches a string for `{{`, and no emitter writes `{{name}}` for a later step to
   find. A string that came from the spec (an example, a default, an enum value, a description) is
@@ -193,11 +202,62 @@ Rules:
   runtime value (M2, M5) needs the engine's encoders in the browser and nothing else from it.
 - Syntax highlighting is not the engine's job. It returns code and a language id (ADR 0006).
 
+### What an M1 sample shows
+
+A static M1 sample is `renderSample` of `buildRequest(model, id, undefined, { limits })`. No server is
+chosen, so (criterion 15):
+
+- **Base URL.** The first of the operation's effective servers (`Operation.servers[0]`, ADR
+  0002), written as literal text with each variable replaced by its `default`. A variable with
+  no `default` takes its first `enum` value; with neither, its `{name}` stays as written, and
+  the doctor has already reported it.
+- **No absolute URL.** If there is no server, or the first one's URL is relative, `baseUrl` is
+  the `base_url` variable followed by the relative URL, if any. This is the only case in which
+  a static sample has a `base_url` variable.
+- **Display text.** M1 has no client code that fills a variable, so every variable is shown as
+  fixed text, the same in the page, the copied code and the twin: `YOUR_` and the name in upper
+  case for a credential (`YOUR_API_KEY`, `YOUR_ACCESS_TOKEN`, `YOUR_USERNAME`,
+  `YOUR_PASSWORD`), and `https://YOUR_API_HOST` for `base_url`.
+- A sample is a complete program that runs as copied. The display text is what it sends until
+  the reader replaces it, and no sample or page has a field that accepts a real credential.
+
+### The local mock
+
+For criteria 14, 18 and 25. It is test code under the publisher's tests, never shipped, and it
+adds no dependency: Node's `http` module.
+
+- **Samples reach it through the spec, not through an option.** A test build uses an overlay
+  with one hand-written patch that replaces the first server's `url` with
+  `http://127.0.0.1:<port>` and the server's base path. The overlay file is its owner's to edit
+  (ADR 0004), so this is the ordinary publish path, and the samples of that build use the first
+  declared server as criterion 15 says. A build without that overlay is what readers see and is
+  unchanged. The matrix of criterion 14 is a fixture of QA's whose server is the mock already.
+- **It is built from the same patched spec** and may use these engine functions and no others:
+  `parseDocument`, `applyFixes`, `buildModel`, `getOperation`, `validateValue`,
+  `synthesizeExample` and the example-selection rule of ADR 0003. It matches a request to an
+  operation by method and path template and records the method, URL, headers and body bytes it
+  received.
+- **It accepts a request** when the operation exists, every required parameter is present, the
+  credential's display text is where the security scheme puts it, and a JSON body has no
+  `errors` under `validateValue`. It answers with the first 2xx response and its declared
+  example, else a synthesized one, else no body. Otherwise it answers 400 with the reason.
+- **Expected values are written by hand.** For criterion 14 the expected method, URL, headers
+  and body of each matrix row are in the fixture. They are not taken from `buildRequest` or
+  `HttpRequest`, or a serialization bug would agree with itself.
+- **It never calls a real API.** It listens on `127.0.0.1` only and makes no outbound request.
+  Before running any sample the harness checks that the sample's base URL is the mock's, and
+  fails otherwise, so a sample that still points at a real server is never run.
+
+Alternative rejected: an option on `buildRequest` or the CLI that overrides the base URL for
+tests. It is a second way to choose a destination, which every later reader of the proxy rules
+would have to rule out, and samples built with it would no longer show the first declared
+server.
+
 ## Consequences
 
 - Guides `<Sample>` (M5) is `buildRequest` with the block's values. Captured variables are `Var`
   parts with `scope: 'captured'`. Validation of supplied values against the schema is added to
-  `issues` then.
+  `issues` then, with the `validateValue` that M1 builds (ADR 0003).
 - "Try it" and MCP send exactly the request the sample shows, because both come from one
   `HttpRequest`. A serialization bug is fixed once.
 - In example-response mode "Try it" builds the same `HttpRequest` and shows it, and sends

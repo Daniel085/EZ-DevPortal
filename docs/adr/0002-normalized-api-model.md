@@ -8,6 +8,7 @@ Revised again that day for the user's decision that a portal may hold several AP
 several versions of one: "The unit" is added. The shape is unchanged.
 Revised again that day to state the order of `content` and `examples`, which ADR 0003's
 example-selection rule depends on. The shape is unchanged.
+Revised again that day to make the slug rule exact. The shape is unchanged.
 Milestone: M1. Longer than other ADRs because two developers code against it in parallel.
 
 ## Context
@@ -82,7 +83,13 @@ unit is the whole portal.
   `webhook_` + method + `_` + sanitized name.
 - **Slug**: `slug` on operations, tags and schemas is the URL segment. Lowercase, runs outside
   `[a-z0-9]` become `-`, trimmed, same collision rule with `-2`. Ids are for lookup; only slugs
-  appear in URLs.
+  appear in URLs. Made exact on 2026-11-27, because URLs must be stable (m1.md, criterion 11):
+  the source text is `Operation.id`, `Tag.name` or `NamedSchema.id`; lower-casing is ASCII
+  only; the result is cut to 120 characters and trimmed of `-` again; an empty result is `x`.
+  Operations, tags and schemas are three separate pools, since each has its own URL prefix (ADR
+  0003). Within a pool, items that share a slug are taken in order of source text by code
+  point: the first keeps it and the rest get `-2`, `-3`, the first unused. Each such item is
+  reported as `slug-collision`, an info.
 
 ### Shape
 
