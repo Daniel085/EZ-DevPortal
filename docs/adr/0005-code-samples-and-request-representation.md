@@ -11,11 +11,14 @@ Revised again that day to apply the security review of that fix
 (`docs/reviews/2026-11-27-security-review-allowed-hosts-and-published-spec.md`): the host clause
 under "Server variables" is replaced (F1), an empty `enum` allows no value, and the parsed host
 must equal the host built by position.
+Revised again that day for the user's decision to split the MCP's `call` tool into a read tool
+and a write tool (ADR 0003, "MCP tools: reads and writes"). `CallValues` is unchanged and is the
+input shape of both.
 
 ## Context
 
-M1 renders samples in several languages on every reference page. M2's "Try it" and MCP `call`
-tool send real requests for the same operations with caller-supplied values. M5's guides
+M1 renders samples in several languages on every reference page. M2's "Try it" and the MCP's two
+call tools send real requests for the same operations with caller-supplied values. M5's guides
 `<Sample>` names an operation and values and expects the portal to render every language. All of
 them need the same hard part done once: parameter serialization (`style`, `explode`), path and
 query encoding, body encoding and placing credentials.
@@ -45,7 +48,8 @@ interface RequestValues {                 // same keys as the guides contract's 
                                                    // /headers, /cookies or /body only.
 }
 
-type CallValues = Omit<RequestValues, 'templates'>; // the proxy and MCP input shape
+type CallValues = Omit<RequestValues, 'templates'>; // the proxy and MCP input shape, the same
+                                                    // for both MCP call tools; it has no method
 
 interface Var {
   var: string;                                      // 'base_url', 'payment_id', 'api_key'
@@ -202,8 +206,15 @@ Rules:
 - The proxy sends to `https` servers only. A sample is still rendered for an `http://` or
   localhost server, because a sample is text; "Try it" and MCP are withheld for it with the
   `server-not-callable` finding (ADR 0004).
-- MCP `call` rejects a parameter the operation does not declare. This is an M2 requirement. The
-  `undeclared-parameter` warning of contract 4.3 applies to guide samples and does not loosen it.
+- Both MCP call tools, the read tool and the write tool, reject a parameter the operation does
+  not declare. This is an M2 requirement. The `undeclared-parameter` warning of contract 4.3
+  applies to guide samples and does not loosen it.
+- `CallValues` is the input shape of both call tools, with an operation id beside it. It carries
+  no method and no choice of tool: the method comes from the operation in the published model,
+  so no value a caller sends can change whether an operation is a read or a write. Which tool an
+  operation belongs to, the tenant's write-only override, the refusal of a call to the wrong
+  tool and the rule that writes are off until the tenant enables each one are in ADR 0003, "MCP
+  tools: reads and writes".
 - Eight emitters mean eight sets of string-escaping rules, each a place where a hostile value
   could break out of a literal. Each emitter's encoder is tested with hostile values and goes to
   the security reviewer.
@@ -211,7 +222,7 @@ Rules:
   element (ADR 0006). Markdown twins and `llms.txt` show a fixed display text for each variable
   and are never substituted.
 - The MCP `describe` tool can return `CallValues`, which is `RequestValues` without `templates`, as
-  its input shape instead of inventing one.
+  the input shape of both call tools instead of inventing one.
 
 ## Alternative rejected
 

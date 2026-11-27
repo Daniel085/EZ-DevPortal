@@ -1,7 +1,8 @@
 # ADR 0001: Monorepo layout and tooling
 
 Status: accepted, 2026-11-27. Proposed 2026-11-26; it passed the security design review and
-re-review of that day unchanged. Milestone: M1.
+re-review of that day unchanged. Milestone: M1. Revised 2026-11-27: rule 5 records the user's
+decision on the Public Suffix List.
 
 ## Context
 
@@ -23,6 +24,7 @@ packages/theme       @ezdp/theme      token schema, default theme,      runtime 
 packages/publisher   @ezdp/publisher  the I/O shell and `ezdp` CLI      deps: engine, Node built-ins
 apps/portal          @ezdp/portal     Next.js renderer                  deps: engine, theme
 fixtures/specs/      spec corpus, owned by QA (not a package)
+data/public-suffix-list/   vendored list snapshot (not a package; rule 5, ADR 0004)
 docs/                brief, contracts, ADRs, milestones
 ```
 
@@ -44,9 +46,12 @@ Dependency rules:
    compile. ESLint bans `Date`, `Math.random`, `console` and `node:*` there.
 5. A new runtime dependency in any package needs an ADR line naming the package, its license and
    why our own code would not do. Permitted licenses: MIT, ISC, BSD, Apache-2.0.
-   Open, 2026-11-27: the Public Suffix List is a data file under MPL 2.0, which this rule does
-   not permit. ADR 0004 states the one-file exception it would need. This rule is unchanged
-   until the user decides.
+   One exception, decided by the user on 2026-11-27: one file, `public_suffix_list.dat` from
+   publicsuffix.org, is vendored and shipped under MPL 2.0 as data, byte for byte as downloaded,
+   with its header and the licence text beside it. It is not edited, not converted into a
+   checked-in derived file and not compiled into the source of any package. MPL-2.0 does not
+   become a permitted licence for dependencies. The design is in ADR 0004, "The Public Suffix
+   List".
 
 Fixtures: the spec corpus lives in `fixtures/specs/` at the repository root and is read only by
 tests and by the `ezdp` CLI in development. Tests may do I/O; library source may not. Expected

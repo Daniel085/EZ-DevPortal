@@ -94,11 +94,10 @@ doctor step. It changed three things the M1 code must follow:
 
 - **When a server with a host variable is callable.** The rule and a table of worked examples are
   in ADR 0004. Test the doctor against every row of that table.
-- **The Public Suffix List.** The rule needs it, and its licence (MPL 2.0) is outside the
-  dependency policy in ADR 0001. The user has not yet decided whether to allow the exception that
-  ADR 0004 describes. **Until that is decided, do not vendor the list: pass `publicSuffixes: null`,
-  which is the strict mode** where every host variable without an `enum` is not callable. The
-  engine interface is the same either way, so nothing built is wasted.
+- **The Public Suffix List.** The rule needs it. The user allowed a narrow licence exception on
+  2026-11-27 (ADR 0001 rule 5): the one file is vendored unmodified at `data/public-suffix-list/`
+  with `SOURCE.json` and its licence text, and passed to the engine as input. Vendor it as ADR 0004
+  describes, and test both modes: with the list, and with `publicSuffixes: null`, the strict mode.
 - **The published spec.** The CLI prints that the file is public and holds the whole root document,
   including comments and `x-` fields, and a flag omits it (ADR 0003, "Who can read it").
 

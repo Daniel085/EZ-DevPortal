@@ -1114,9 +1114,18 @@ engine and renderer. They are here so they are written down on the portal side.
   (4.3). This is an M2 requirement.
 - The hosted portal does not serve the published spec for public download unless the tenant
   chose that, and gives the guides module an authenticated path to it (1.2; ADR 0003). M4 and M5.
-- MCP `call` rejects a parameter the operation does not declare. This is an M2 requirement. The
-  `undeclared-parameter` warning in 4.3 is about values a guide sample sends; it does not make MCP
-  accept them.
+- The MCP has four meta-tools: find operations, describe an operation, call a read operation and
+  call a write operation (decided 2026-11-27; ADR 0003, "MCP tools: reads and writes"). Which call
+  tool an operation belongs to is decided server-side from the published model by its method:
+  `GET` and `HEAD` are reads, and every other method, `OPTIONS` included, is a write. A tenant may
+  mark a read as a write, never a write as a read. A call to the wrong tool is refused, with a
+  result that names the right one. Writes are off until the tenant enables each operation,
+  enforced server-side, and the write tool refuses one that is not enabled. Both call tools
+  refuse the controlled headers of 4.3, `X-HTTP-Method-Override` among them, and reject a
+  parameter the operation does not declare. Tool names are under 60 characters, and tool input
+  schemas contain no `$ref`, `oneOf`, `anyOf` or `allOf`. These are M2 requirements. The
+  `undeclared-parameter` warning in 4.3 is about values a guide sample sends; it does not make
+  MCP accept them.
 - Extraction enforces the section 2 limits on actual bytes, counted after content decoding, and
   rejects links, absolute paths and `..` (section 6).
 - Publishing a bundle runs under the same per-tenant worker and time limit as publishing a spec
@@ -1266,6 +1275,8 @@ Product decisions of 2026-11-27, also made before 0.2 was released:
   written by a spec-doctor fix and so present in the published spec. This decision did not change
   the rule in 4.3 (1.2, 4.3, 8).
 - One item is added to the open list: specs split over several files (8).
+- The MCP's `call` tool is split into a read tool and a write tool (9). Nothing in a bundle
+  names an MCP tool, so a generator is not affected.
 
 Required by the security review of 2026-11-27, also made before 0.2 was released. None of it
 changes what a generator writes:
@@ -1317,7 +1328,7 @@ means it says something different, and a generator built on the assumption needs
 | 12 | Identifier characters | Changed: widened | Any identifier is accepted. In attributes and frontmatter it is written verbatim; only `"` and line breaks cannot be written. In link targets, characters outside `A-Z a-z 0-9 _ . - / : ~ @ $ ! * + , ; =` are percent-encoded and the portal decodes once. Ids matching the module's current pattern need no encoding. A target that is not valid UTF-8 after decoding is `link-not-allowed`. (4.5) |
 | 13 | Nav labels | Confirmed | `label` is optional on a page entry and replaces the title in the sidebar only. (3) |
 | 14 | Hand-written request code | Changed | A warning, not an error. The portal's check is: an ordinary code block that contains `{{base_url}}` is `api-request-code`. `curl` to another host is not flagged. A generator may be stricter with its own output. (4.4) |
-| 15 | Unknown header in a sample | Changed | An undeclared header or query parameter is the warning `undeclared-parameter` and is sent, unless it is one of the following, which are `invalid-sample`: a header the portal controls, declared or not (the list in 4.3, which includes forwarding, hop-by-hop and method-override headers, `Proxy-*`, `Sec-*` and `X-Ezdp-*`); a name that carries a credential; a header name that is not an RFC 9110 token; a header value with CR, LF or NUL. An unknown `path` name is `invalid-sample`. These are bundle checks; the proxy and MCP enforce the same rules server-side on every request, the proxy strips `X-Ezdp-*` from inbound requests, and MCP `call` rejects undeclared parameters. (4.3, 9) |
+| 15 | Unknown header in a sample | Changed | An undeclared header or query parameter is the warning `undeclared-parameter` and is sent, unless it is one of the following, which are `invalid-sample`: a header the portal controls, declared or not (the list in 4.3, which includes forwarding, hop-by-hop and method-override headers, `Proxy-*`, `Sec-*` and `X-Ezdp-*`); a name that carries a credential; a header name that is not an RFC 9110 token; a header value with CR, LF or NUL. An unknown `path` name is `invalid-sample`. These are bundle checks; the proxy and MCP enforce the same rules server-side on every request, the proxy strips `X-Ezdp-*` from inbound requests, and both MCP call tools reject undeclared parameters. (4.3, 9) |
 | 16 | OpenAPI 3.2 | Confirmed | The contract covers 3.0 and 3.1. A 3.2 document is read as 3.1; 3.2-only constructs are ignored and cannot be referenced. (1.1) |
 | 17 | Bare URLs in prose | Confirmed, and tightened | GFM autolink literals are off: a bare URL is text. Angle-bracket autolinks are `disallowed-syntax`. The module does not need to break URLs up. (4.1) |
 | 18 | Entities | Confirmed, and extended, as a requirement on the portal | A variable exists only where its braces are literal characters in the source. Braces from character references, backslash escapes or JSON `\u` escapes are text. Substitution is a single pass and its output is never parsed again. Published output carries variables as structure, never as marker text; client-side substitution fills only those placeholders and never searches text or code for `{{`; text taken from the spec never contains a variable. The feedback's example, `{{api_key}}`, is no longer a variable at all. (4.6) |

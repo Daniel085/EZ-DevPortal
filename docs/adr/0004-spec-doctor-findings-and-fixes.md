@@ -11,8 +11,8 @@ variable" is added, `Fix.inputs` gains `format` and `list`, and `bindFix` checks
 extends what the re-review confirmed for `bindFix` and goes to the security reviewer.
 That review (`docs/reviews/2026-11-27-security-review-allowed-hosts-and-published-spec.md`)
 passed it subject to required fixes: rulings 1 to 5 and F1. They are applied in this text, and
-"The Public Suffix List" is added. One decision there is open and is the user's: the licence
-exception.
+"The Public Suffix List" is added. Its licence exception was granted by the user on 2026-11-27
+and is recorded in ADR 0001 rule 5.
 
 ## Context
 
@@ -158,7 +158,7 @@ Both are warnings: the portal still builds and every code sample still renders.
 - `controlled-header-required`: an operation that declares a required header parameter whose name
   is on the controlled-header list of contract 4.3. The portal never lets a caller set those
   headers, so it cannot make the call as the spec describes it. "Try it" is withheld for the
-  operation, and MCP `call` with it, since both go through the same proxy. OpenAPI already says a
+  operation, and both MCP call tools with it, since all go through the same proxy. OpenAPI already says a
   header parameter named `Accept`, `Content-Type` or `Authorization` is ignored, and the model
   drops those three, so declaring `Authorization` as a parameter does not raise this finding; the
   doctor's auth rules cover that case.
@@ -222,7 +222,7 @@ Public Suffix List it is given (see "The Public Suffix List").
 | `https://example.com:{port}/v1` | Callable | There is no host variable. The port rule applies: a value matches `[0-9]{1,5}`. A value the URL parser refuses as a port, above 65535, is not sent. | None needed |
 
 A test asserts every row against the pinned snapshot. When no list is given, the first two rows
-are not callable either; see "If the exception is declined".
+are not callable either; see "Strict mode".
 
 **Input.** One input, `values`, declared with `list: { maxItems: 32, ... }`.
 
@@ -349,7 +349,8 @@ diagnose(model, docs, options: { publicSuffixes: PublicSuffixList | null }): Fin
   has no `URL` and no IDNA library. A test in the publisher, where Node's `URL` is available,
   compares the encoder's output with the URL parser's for every rule in the snapshot.
 - No npm package is added. The packages that do this (`tldts`, `psl`) carry the same list inside
-  them, so they would not remove the licence question below; they would hide it.
+  them, so they would not avoid its licence; they would hide it, and the exception below covers
+  one vendored file, not a dependency.
 - Passed in and not compiled in, because: the file is 345 KB and the engine also runs in the
   browser, which never needs the list; the engine package then holds no third-party content; and
   a new snapshot is not an engine release.
@@ -379,11 +380,11 @@ job, whose diff is the list's diff. The examples test and the provenance test ru
 snapshot can change `server-not-callable` for an unchanged spec, in either direction, on the
 next publish; it never changes the published spec's bytes or `publishedHash`.
 
-**Licence: an open decision for the user.** Read from the file's header on 2026-11-27: the list
-is under the Mozilla Public License 2.0. ADR 0001 rule 5 permits MIT, ISC, BSD and Apache-2.0
-only. The rule is written for runtime dependencies and the list is a data file, but we would
-ship it, so the rule's intent covers it. This ADR does not widen the policy. The design above
-is conditional on this exception, which only the user can grant:
+**Licence: exception granted by the user, 2026-11-27.** Read from the file's header on
+2026-11-27: the list is under the Mozilla Public License 2.0. ADR 0001 rule 5 permits MIT, ISC,
+BSD and Apache-2.0 only. The rule is written for runtime dependencies and the list is a data
+file, but we ship it, so the rule's intent covers it. The user allowed this exception, exactly
+as worded, and ADR 0001 rule 5 records it. The policy is not widened beyond it:
 
 > One file, `public_suffix_list.dat` from publicsuffix.org, may be vendored and shipped under
 > MPL 2.0, as data, byte for byte as downloaded, with its header and the licence text beside it.
@@ -394,13 +395,16 @@ Our reading, not legal advice: MPL 2.0 is a file-level licence, an unmodified fi
 its notice meets it, and it places no terms on our own code. Keeping the file unmodified is
 what keeps the exception this narrow.
 
-**If the exception is declined.** Callers pass `publicSuffixes: null` and the snapshot is not
-vendored. The host clause then reads: "With no `enum`, a variable in the host is not callable.
-Every host variable needs an `enum`." This is stricter than the review requires and needs no
-list. Its cost is that `https://{tenant}.example.com` loses "Try it" and MCP until the tenant
-adds an `enum` in its source spec, since the fix is offered only for a variable that ends the
-host, and a tenant with unbounded subdomains has no route until the verified domain suffix of
-M6. Contract 4.3, ADR 0003 and ADR 0005 would be edited to that sentence.
+**Strict mode: `publicSuffixes: null`.** The publisher passes the vendored list by default, and
+in M2 the proxy passes the same snapshot. `null` stays a supported mode, for a caller that does
+not carry the list. The host clause then has the effect: "With no `enum`, a variable in the
+host is not callable. Every host variable needs an `enum`." This is stricter than the review
+requires and needs no list. Its cost is that `https://{tenant}.example.com` loses "Try it" and
+MCP until the tenant adds an `enum` in its source spec, since the fix is offered only for a
+variable that ends the host, and a tenant with unbounded subdomains has no route until the
+verified domain suffix of M6. The publisher and the proxy of one deployment use the same mode.
+Both modes meet the review's rule, so a mismatch is not unsafe, but the spec doctor's findings
+would then disagree with what the proxy sends.
 
 **Residual risk, accepted by the security review.** Shared-hosting domains that are not on the
 list, and a tenant's own subdomains that serve user content. A stale snapshot adds to the first.

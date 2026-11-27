@@ -12,6 +12,9 @@ Revised again that day to apply the security review of the allowed-hosts fix and
 spec (`docs/reviews/2026-11-27-security-review-allowed-hosts-and-published-spec.md`): the host
 clause (F1), the parsed-host invariant (ruling 5), the Public Suffix List as an input to
 `diagnose`, and who may fetch the published spec.
+Revised again that day for two decisions by the user: the Public Suffix List licence exception
+is granted (ADR 0001 rule 5, ADR 0004), and the MCP's `call` tool is split into a read tool and
+a write tool ("MCP tools: reads and writes").
 
 ## Context
 
@@ -189,8 +192,8 @@ To check at M4, before the hosted portal serves either file:
 Libraries:
 
 - **The Public Suffix List is data, not a library**, and it is passed to the engine, not shipped
-  in it. Its licence, MPL 2.0, is outside ADR 0001 rule 5, and the exception is an open decision
-  for the user (ADR 0004).
+  in it. Its licence is MPL 2.0. The user granted a one-file exception to ADR 0001 rule 5 for it
+  on 2026-11-27 (ADR 0004).
 - **`yaml`** (ISC, no dependencies) parses YAML and JSON and exposes node ranges, which gives the
   source map, and it can re-serialize a patched document with comments kept. It is the engine's only
   runtime dependency. `Limits` caps alias expansion, depth, node count and input size while parsing,
@@ -253,7 +256,8 @@ documents or 60 seconds. The content of a refused URL never reaches a portal.
 
 ### Proxy destination policy
 
-Covers every request the M2 proxy sends, for "Try it" and for MCP `call` (guides contract 4.3).
+Covers every request the M2 proxy sends, for "Try it" and for the MCP's two call tools (guides
+contract 4.3; "MCP tools: reads and writes" below).
 These are requirements on M2's design.
 
 - The portal sends none of its own credentials or cookies. The end user's credential is sent only
@@ -291,11 +295,54 @@ These are requirements on M2's design.
   is a separate design and needs its own security review.
 - The final method and path must match an operation the tenant enabled. The controlled-header
   list of contract 4.3 applies, and the proxy strips every `X-Ezdp-` header from inbound requests.
-- MCP `call` rejects a parameter the operation does not declare. The proxy and MCP input shape
-  excludes `templates` and rejects it (ADR 0005).
+- Both MCP call tools reject a parameter the operation does not declare. The proxy and MCP input
+  shape excludes `templates` and rejects it (ADR 0005).
 - The document caps above are about fetching specs and do not apply here. M2 sets its own limits
   on request and response size, counted after content decoding.
 - The end user's credential is passed through for that one request and is never stored or logged.
+
+### MCP tools: reads and writes
+
+Decided by the user on 2026-11-27. These are requirements on M2's design; nothing here is built
+in M1.
+
+- The MCP exposes four meta-tools, not one per endpoint: find operations, describe an operation,
+  call a read operation, call a write operation. They are called `find`, `describe`, `call_read`
+  and `call_write` here; M2 fixes the names. The two call tools replace the single `call` tool
+  of the earlier design, so that any MCP client can apply its ordinary per-tool approval to
+  writes only.
+- **Classification.** Each operation belongs to exactly one call tool. The server decides which,
+  from the published model, by `Operation.method` (ADR 0002): `get` and `head` are reads; every
+  other method is a write, which covers `post`, `put`, `patch`, `delete`, `options` and `trace`.
+  The read set is an allowlist of the two methods an agent reads with. `options` and `trace` are
+  safe methods in RFC 9110, but an agent has little use for either, and a wrong "write" costs
+  one approval where a wrong "read" skips one. The caller supplies no method: `CallValues` has
+  none (ADR 0005), so nothing in a request can change the classification.
+- **A tenant override, toward write only.** Some APIs change state on `GET`. A tenant must be
+  able to mark a read operation as a write. No override moves an operation from write to read:
+  the stored form can only name operations to treat as writes and has no value that means
+  "read", so missing or damaged override data leaves the method rule in force. Where it is
+  stored is an M2/M4 design question. An operation marked this way is a write in every respect
+  below.
+- **The wrong tool.** A call to a tool the operation does not belong to is refused before any
+  request is built or sent, and the result names the tool to use. `describe` says which tool
+  calls an operation and, for a write, whether the tenant has enabled it.
+- **Writes are off by default.** The tenant enables them per operation, and the server enforces
+  that from the published model and the tenant's settings. `call_write` refuses a write the
+  tenant has not enabled. The client's approval is added to the tenant's enablement and does
+  not replace it. Neither rule is enforced on the client: tool annotations (read-only,
+  destructive) are set to match and are hints only.
+- Both call tools go through the proxy and meet the whole destination policy above. The
+  controlled-header list of contract 4.3 applies to both: `X-HTTP-Method-Override`,
+  `X-HTTP-Method`, `X-Method-Override` and the rest are refused, so a read cannot become a write
+  on the wire. Both reject a parameter the operation does not declare, and both reject
+  `templates`.
+- The input of both call tools is an operation id and `CallValues` (ADR 0005). Tool names are
+  under 60 characters, and tool input schemas contain no `$ref`, `oneOf`, `anyOf` or `allOf`.
+  `CallValues` can be written that way: its keys are fixed, and parameter values and `body` are
+  unconstrained JSON.
+- There is one classification. Wherever the portal distinguishes writes, including which
+  operations a tenant must enable, it uses this one.
 
 ## Consequences
 
