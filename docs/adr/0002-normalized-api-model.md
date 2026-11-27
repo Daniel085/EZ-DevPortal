@@ -4,6 +4,8 @@ Status: accepted, 2026-11-27. Proposed 2026-11-26; it passed the security design
 re-review of that day unchanged. Revised on acceptance for the product decision that guides are
 generated from the patched spec: `source` carries two hashes, and ids are computed on the patched
 document. The dropped header parameters, already stated in ADR 0004, are written down here.
+Revised again that day for the user's decision that a portal may hold several APIs, and later
+several versions of one: "The unit" is added. The shape is unchanged.
 Milestone: M1. Longer than other ADRs because two developers code against it in parallel.
 
 ## Context
@@ -16,6 +18,31 @@ responses), and carry stable identifiers that the guides module computes indepen
 
 `ApiModel` is plain JSON data: no cycles, no class instances, no functions, no `undefined` holes.
 Building it twice from the same input gives byte-identical JSON. It carries `modelVersion: 1`.
+
+### The unit: one version of one API
+
+Decided by the user on 2026-11-27: a portal may hold several APIs (M4) and later several
+versions of one API, and content is keyed by project, API and version from the start.
+
+- One `ApiModel` is built from one spec, meaning one root document and the documents it refers
+  to, and describes one version of one API. One spec in, one model and one portal bundle out
+  (ADR 0003): that is the **unit**. No engine function takes two specs or merges two models.
+- A portal is several units. Composing them is done by the control plane and the renderer, which
+  key each unit by (project, API, version). The key is theirs. It is not in the model and not an
+  input to the engine, so the same spec gives the same model wherever it is used.
+  `info.version` is the spec's own text, for display; it is not the version key.
+- **Every id is unique within one unit only**: operation ids, schema ids, tag ids, security
+  scheme ids and slugs. The collision rules below run over one unit. Two units of one portal may
+  both have `createPayment`. Whatever stores or passes an id outside the unit carries the unit's
+  key with it: a tenant setting that names an operation (MCP write enablement, the
+  read-as-write override of ADR 0003), a proxy or MCP call, a search record merged across units.
+- Nothing in the model is a portal URL. A `slug` is one URL segment below the unit's base, which
+  the renderer supplies (ADR 0003, ADR 0006).
+- `source.publishedHash` is the hash of this unit's published spec, and one guides bundle
+  belongs to one unit (contract section 3).
+
+M1 builds and serves exactly one unit. It needs no key, and nothing in it may assume that the
+unit is the whole portal.
 
 ### References and recursion
 

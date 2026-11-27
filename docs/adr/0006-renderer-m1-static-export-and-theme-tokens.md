@@ -4,6 +4,8 @@ Status: accepted, 2026-11-26. Milestone: M1. Revised the same day to apply the s
 review (`docs/reviews/2026-11-26-security-design-review.md`, H1, M5, M6, L9, L10). The re-review
 (`docs/reviews/2026-11-26-security-design-re-review.md`) passed it subject to required fixes:
 rulings 9 and 10 and the encoder rule. They are applied in this text.
+Revised 2026-11-27 for the user's decision that a portal may hold several APIs and versions:
+"Units" is added.
 
 ## Context
 
@@ -28,6 +30,16 @@ M1 has one implementation, which reads a bundle directory named by an environmen
 build time. Routes come from `generateStaticParams` over the manifest. Page components are
 presentational: they take `PageData` and nothing else, and do not know where it came from. M4 adds
 a second `ContentSource` keyed by tenant in front of the same components.
+
+**Units.** A portal bundle is one unit: one version of one API (ADR 0002, ADR 0003). A
+`ContentSource` therefore serves one unit, and from M4 a portal has one per (project, API,
+version). Two prefixes stand in front of a bundle path, and they are different things: the
+**base path**, where the portal is mounted (`/docs`), which also carries the app's own build
+assets and the theme; and the **unit prefix**, where one API version sits below it. In M1 the
+unit prefix is empty. M1 still builds every URL of a page, a twin, `llms.txt` and `search.json`
+through one function that takes both, and no component joins a bundle path to the base path
+itself or assumes that a bundle path starts at the portal root. `theme()` is on `ContentSource`
+for M1 only; a theme belongs to the portal, not to a unit, and M4 moves it.
 
 Rules that keep pages exportable:
 

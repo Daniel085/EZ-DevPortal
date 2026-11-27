@@ -15,6 +15,12 @@ clause (F1), the parsed-host invariant (ruling 5), the Public Suffix List as an 
 Revised again that day for two decisions by the user: the Public Suffix List licence exception
 is granted (ADR 0001 rule 5, ADR 0004), and the MCP's `call` tool is split into a read tool and
 a write tool ("MCP tools: reads and writes").
+Revised again that day for four more decisions by the user: the bundle is one unit and its paths
+are relative to the unit's base ("One unit per call"); the portal runs the guides module and
+passes it the published spec, so no fetch path is built (ADR 0007); a private preview serves
+nothing without sign-in ("Who can read it"); and "Reader keys". No security ruling is changed.
+The private-preview wording, the reader-key requirements and ADR 0007 have not been to the
+security reviewer.
 
 ## Context
 
@@ -104,8 +110,26 @@ in a process shared between tenants, so a write to `Object.prototype` would cros
 | `search.json` | flat search records (id, kind, title, path, text). Not a library-specific index. |
 | `static/<path>.md`, `static/llms.txt` | Markdown twins and `llms.txt` |
 
-Paths in the bundle are relative to the portal root. The engine never bakes in a base path, so
-subpath hosting (`host.com/docs`) is the renderer's concern alone.
+**One unit per call.** `buildModel` takes one spec and `buildPortalBundle` takes one model: one
+version of one API, the unit of ADR 0002. A portal with several APIs or versions is several
+bundles, composed by the control plane and the renderer and keyed by (project, API, version).
+The engine does not see the key. These rules bind M1, so that nothing is redone when M4 adds a
+second unit:
+
+- Every `path` in the bundle, and every path in `manifest.json` and `search.json`, is relative
+  to the **unit's base**: no leading `/`, no scheme or host, and no project, API or version
+  segment. In M1 the unit's base is the portal root; from M4 it is below it. The engine never
+  bakes in a base path, so subpath hosting (`host.com/docs`) and the unit's prefix are the
+  renderer's concern alone.
+- A link that the engine writes inside a file under `static/`, in a twin or in `llms.txt`, is
+  relative to the file that contains it, so the files work wherever the unit is mounted. If
+  `siteUrl` is given, absolute URLs are built from it, and it is the unit's base URL, not the
+  portal's.
+- `static/llms.txt`, `search.json`, the navigation tree and `model.json` cover one unit. A
+  portal-wide `llms.txt` or search over several units is composed outside the engine, in M4.
+- The published spec is per unit: `spec/openapi.json` or `spec/openapi.yaml` beside that unit's
+  bundle.
+- Ids and slugs are unique within the unit only (ADR 0002).
 
 Who does the I/O:
 
@@ -169,10 +193,21 @@ hash.
   and without it, and the person running the build hands the spec to the guides module another
   way.
 - *Hosted, recorded now and built in M4.* Public download of the published spec is the tenant's
-  explicit choice and is off by default. The guides module fetches it over an authenticated
-  path. If any feature hides part of the spec from the portal, the public file is not served.
-  The authenticated path is designed with transport in M5 (guides contract 6) and goes to the
-  security reviewer first.
+  explicit choice and is off by default. If any feature hides part of the spec from the portal,
+  the public file is not served. The guides module does not fetch the file: the control plane
+  runs the module and passes it the bytes (decided 2026-11-27; ADR 0007; guides contract 6). The
+  authenticated path this ADR planned is therefore not built.
+- *Private preview.* Decided 2026-11-27: a portal is a free private preview until the tenant
+  pays to make it public. "Publish" and "published spec" in this ADR and in the contract name
+  the publisher's run and its output, not public availability: a private preview has a published
+  spec, because its pages and its guides are built from one. While a portal is a private preview
+  nothing of it is served to anyone who is not signed in as a member of the tenant's account:
+  pages, twins, `llms.txt`, `search.json`, `model.json`, the published spec, files on the asset
+  origin and the MCP endpoint. Public download of the published spec cannot be switched on in
+  that state. The asset origin is not the dashboard's origin, so a member's session does not
+  reach it by itself; how a request to it is authorized in a private preview is designed in M4
+  and goes to the security reviewer first. The M1 CLI is unaffected: a static build has no
+  private state, which is why it prints its warning.
 - *Origin and headers, hosted.* The hosted portal serves it only from the per-tenant asset
   origin, never the page origin, with `Content-Type` fixed by the file name (`application/json`
   or `application/yaml`, `charset=utf-8`), `nosniff`, `Content-Disposition: attachment`,
@@ -240,7 +275,10 @@ Covers the root spec URL and every `$ref`.
 - Address vetting, as above, on the first request and on every redirect hop.
 - Redirects are re-vetted per hop, maximum 3.
 - No credentials or cookies are sent. Tokens for private spec URLs and Git sync are not covered
-  by this policy; they need their own reviewed path before either is built.
+  by this policy; they need their own reviewed path before either is built. The same holds for
+  the GitHub App that proposes guides as pull requests (decided 2026-11-27; ADR 0007): it holds
+  write access to tenants' repositories, and its design goes to the security reviewer before it
+  starts.
 - Caps: 100 documents, 10 MB each, 50 MB total, 10 s each, 60 s total. Bytes are counted after
   content decoding, so a compressed response is measured as the document it decodes to, and
   decoding stops at the cap.
@@ -343,6 +381,26 @@ in M1.
   unconstrained JSON.
 - There is one classification. Wherever the portal distinguishes writes, including which
   operations a tenant must enable, it uses this one.
+
+### Reader keys
+
+Decided by the user on 2026-11-27. Requirements on M2's design; nothing here is built in M1, and
+the security reviewer has not seen it.
+
+- We never issue keys. The reader's key comes from the tenant's own system.
+- In M2 the tenant supplies a "get a key" URL as a setting. The portal renders it as a link of
+  its own, beside the control a reader pastes a key into and in the reference's authentication
+  section (guides contract 9). It is tenant-supplied text: it passes the external link checks of
+  contract 4.5 and is rendered as a link, never as markup. It is a setting, not part of the spec
+  or the model, so the engine does not see it and `model.json` is the same with and without it.
+- The reader pastes a key into "Try it". It is held in the reader's browser only and sent with
+  each request the reader makes; the proxy passes it through for that one request and never
+  stores or logs it, as the destination policy above says. Nothing of it is in published
+  content. Where in the browser it is held is for M2 and the security reviewer: under subpath
+  hosting the page shares an origin with the customer's site, so anything kept in web storage is
+  readable by that site's scripts.
+- Later, a sign-in handoff may pass the reader's key from the tenant's site. It is not designed,
+  it must keep "never stored or logged by us", and it needs its own security review.
 
 ## Consequences
 

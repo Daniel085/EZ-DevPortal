@@ -12,6 +12,10 @@ allowed hosts of a server with an open host variable are listed as its `enum` (4
 The security review of 2026-11-27 is applied the same way: the rule for a host variable with no
 `enum` is tightened (4.3), and the published spec of a hosted portal is not a public download by
 default (1.2).
+Four further decisions by the user on 2026-11-27 are recorded the same way: the portal runs the
+guides module and delivers its output as a pull request on the tenant's repository (4.7, 6); the
+portal provides the "get a key" link (9); a portal that is a private preview serves nothing
+without sign-in (9); and one bundle belongs to one version of one API (3).
 Awaiting the guides module's re-sync and confirmation.
 
 This is the interface between two projects:
@@ -20,7 +24,9 @@ This is the interface between two projects:
 - **EZ-DevPortal** (this project): renders the API reference, code samples, theme and hosting, and
   ingests the guides.
 
-The guides module produces a **guides bundle**. The portal validates it, renders it, and never edits it.
+The guides module produces a **guides bundle**. The portal runs the module, validates the bundle and
+renders it. It never changes what a bundle says: a bundle's content is the module's output and the
+edits people make to it in Git (4.7, 6).
 
 The words **must**, **must not** and **may** are normative. Where a rule names an error code, a
 validator on either side reports that code for that violation.
@@ -36,6 +42,7 @@ validator on either side reports that code for that violation.
 | Theme, layout, navigation chrome, search, `llms.txt`, Markdown twins | Portal |
 | Resolving links to operations, schemas and other guides | Portal |
 | Substituting the reader's API key and base URL | Portal |
+| Running the guides module, and proposing its output to the tenant's repository as a pull request | Portal |
 | Transport of the bundle into the portal | Portal |
 
 The rule that follows from this table: **a guide never contains hand-written API request code.** It
@@ -94,24 +101,27 @@ tenant's original document.**
 - Its bytes are fixed at publish time. If no fix was applied to the root document, the published
   spec is the document as the portal fetched it, byte for byte. Otherwise it is the portal's
   serialization of the patched document, in the source's format (YAML or JSON), encoded as UTF-8.
-- The guides module takes the published spec from the portal, generates from those bytes, and
+- The guides module is given the published spec by the portal, generates from those bytes, and
   hashes those bytes (section 3). It must not parse and re-serialize the document before hashing,
   and must not generate from the tenant's original.
 - Where the bytes come from depends on how the portal is run. A static build writes the file
   beside the portal's other output as `spec/openapi.json` or `spec/openapi.yaml`, unless the
   person running the build chose to omit it; they then hand the same bytes over another way. A
-  hosted portal does not offer the file for public download unless its tenant chooses that, so
-  the guides module must not assume a public URL: it fetches the published spec over an
-  authenticated path, which is settled with transport in M5 (section 6). The bytes and the hash
-  are the same whichever way they arrive (ADR 0003, "The published spec").
+  hosted portal runs the guides module itself, as a step of its own pipeline, and passes it the
+  bytes (section 6; decided 2026-11-27). The guides module fetches nothing: there is no URL for
+  it to read the published spec from, public or authenticated, and it must not assume one. A
+  hosted portal does not offer the file for public download unless its tenant chooses that. The
+  bytes and the hash are the same whichever way they arrive (ADR 0003, "The published spec").
 - The published spec holds the whole root document, including comments and `x-` fields. The
   portal removes nothing from it.
 - A spec-doctor fix never changes an operation id. Where a fix adds an `operationId`, the value it
   writes is exactly the id the algorithm in 1.1 gave that operation before the fix (ADR 0004). So
   accepting or removing such a fix leaves every id as it was.
 - The order of events is: the portal fetches the spec; the spec doctor reports findings; the tenant
-  accepts fixes; the portal publishes, which produces the published spec; the guides module
-  generates a bundle from it; the portal ingests the bundle.
+  accepts fixes; the portal publishes, which produces the published spec; the portal runs the
+  guides module on it, which writes a bundle; the bundle reaches the tenant's repository as a
+  pull request, or is held by the portal while no repository is connected (section 6); the
+  portal ingests the bundle.
 - The published spec changes whenever its bytes change: the tenant's document changed upstream, a
   further fix was accepted (including one that lists a server's allowed hosts, 4.3), an accepted
   fix was removed, or an accepted fix stopped applying because the upstream document changed
@@ -206,8 +216,13 @@ The JSON Schema is in [`guides-manifest.schema.json`](./guides-manifest.schema.j
   guides were generated from: the patched root document exactly as the portal published it, with no
   normalization. When no fix was applied, those are the bytes of the tenant's original document.
   The portal compares the value with the hash of the published spec it is serving and reports
-  `spec-hash-mismatch` (a warning) when they differ. A bundle is pinned to one published spec; the
-  portal holds one bundle per spec version.
+  `spec-hash-mismatch` (a warning) when they differ. A bundle is pinned to one published spec.
+- **One bundle belongs to one version of one API.** A portal may hold several APIs, and later
+  several versions of one API (decided 2026-11-27). Each has its own published spec and its own
+  bundle, and the portal keys both by project, API and version. Nothing in a bundle names that
+  key: an operation id, a schema name, a `guide:` slug and an `asset:` path resolve within the
+  bundle's own API version and cannot point into another. A generator sees one spec and writes
+  one bundle, as before.
 - `generatedAt` is optional. A generator may leave it out to make output byte-identical.
 - `nav` is the single source of ordering and grouping. A group at the top level of `nav` is at depth
   1; a group inside it is at depth 2. A group at depth 4 or deeper is `nav-depth`. Pages may appear
@@ -215,8 +230,9 @@ The JSON Schema is in [`guides-manifest.schema.json`](./guides-manifest.schema.j
   and stops at the first group that is too deep; it does not build the tree first.
 - A `page` value is the file path under `pages/` without the `.md` extension. It is the page's
   **slug**. The portal builds the page's URL from it; the URL itself is the portal's.
-- Guides are served under a prefix reserved for them. No slug can therefore collide with one of
-  the portal's own routes, and a generator may use any slug the path rules in section 2 allow.
+- Guides are served under a prefix reserved for them, below the base URL of their API version. No
+  slug can therefore collide with one of the portal's own routes or with a guide of another API,
+  and a generator may use any slug the path rules in section 2 allow.
 - Every page file must appear in `nav` exactly once. A nav entry with no file is `missing-page`. A
   file under `pages/` with no nav entry is `unlisted-page`. A slug that appears twice is
   `duplicate-page`.
@@ -784,9 +800,10 @@ Two markers let a generator say that content is waiting for a person.
 - **`<Todo>`**, a block component that says what is missing:
 
 ```markdown
-<Todo title="How credentials are issued">
+<Todo title="Rate limits">
 
-The spec does not say how a developer obtains an API key. Add the steps here.
+The spec does not state the request limits or what a client should do when it is limited. Add
+them here.
 
 </Todo>
 ```
@@ -798,25 +815,69 @@ Both are **visible in preview and block publishing**:
 
 These two codes have the severity `blocker` (section 5). A bundle whose only findings are blockers
 and warnings is valid: the portal stages it and shows it in preview, with each `<Todo>` rendered as
-a clearly marked placeholder. It cannot be published until a new commit of the bundle arrives
-without them. A `<Todo>` therefore never appears in a published page, a Markdown twin, `llms.txt`,
+a clearly marked placeholder. It cannot be published until a bundle arrives without them: a new
+commit in the tenant's repository, or a regenerated bundle. A `<Todo>` therefore never appears in a published page, a Markdown twin, `llms.txt`,
 the search index or the docs MCP.
 
 `draft` and `review` block publishing equally. The difference is information for people.
 
-**Incomplete content is resolved in Git.** The bundle lives in a Git repository. A person resolves
-a `<Todo>`, or finishes a `draft` or `review` page, by editing the page file in that repository:
-replacing the `<Todo>` with the missing content, or setting `status: ready`. The portal ingests the
-new commit and validates it like any other bundle. The portal never edits a bundle and offers no
-editor for one.
+**Incomplete content is resolved in Git.** Once the tenant has connected a repository, the bundle
+lives there (section 6). A person resolves a `<Todo>`, or finishes a `draft` or `review` page, by
+editing the page file in that repository: replacing the `<Todo>` with the missing content, or
+setting `status: ready`. The portal ingests the new commit and validates it like any other bundle.
+The portal offers no editor for a bundle and never changes what a page says. What it sends to the
+repository is the guides module's output, as a pull request that a person merges (section 6).
+
+**Before a repository is connected** the portal holds the generated bundle, and it is read-only:
+there is nowhere to edit it. The rules above already cover this case and nothing is added for it.
+A held bundle with a `todo-present` or `page-not-ready` finding is staged and shown in preview,
+and is not publishable, so no such page is published. The unit is the bundle, not the page:
+`publishable` is one value for the whole bundle (section 5) and publishing replaces a bundle as a
+whole (section 6), so one such page keeps every page of that bundle unpublished until the tenant
+connects a repository and resolves it, or a regeneration no longer produces it. Publishing the
+ready pages of a bundle while withholding the others would be a change to this contract. It is
+not made in 0.2.
 
 Two things follow.
 
-- Guides are generated, so **regenerating must not overwrite a person's edits.** A page a person
-  has edited in the repository keeps those edits when the guides module runs again, including when
-  it runs because the published spec changed. How the guides module does this is its own design.
-  The requirement is the portal's, because a publish that loses a person's work is a defect of the
-  product whichever side caused it.
+- Guides are generated, so **regenerating must not overwrite a person's edits.** The requirement
+  is the portal's, because a publish that loses a person's work is a defect of the product
+  whichever side caused it. It is met in two parts.
+
+  *The portal's part.* A regeneration reaches the repository only as a pull request (section 6).
+  The portal never commits to the branch it ingests from and never merges. Nothing a person wrote
+  is replaced until a person has seen the difference and accepted it.
+
+  *The guides module's part.* The pull request is only reviewable if its difference is small and
+  true. Three requirements bind the guides module:
+
+  1. **Deterministic.** The same inputs give a byte-identical bundle directory, `report.json`
+     included. The inputs are the bytes of the published spec, the existing bundle when one is
+     given, the module's settings and the module's version. Output does not depend on the clock,
+     randomness, locale, environment or the order in which a directory is listed. A module run by
+     the portal therefore leaves `generatedAt` out (section 3).
+  2. **Stable.** A file changes between two runs only for a reason in the inputs. When the
+     published spec changes, a page whose content does not depend on what changed comes out byte
+     for byte as before, with the same slug and the same place in `nav`. Rewrapped lines,
+     reordered keys and changed whitespace with no cause in the inputs do not conform.
+     `guides.json` changes on every spec change, because `spec.sha256` does; that is the one
+     expected difference. A new version of the module may change its output, and that difference
+     is then reviewed like any other.
+  3. **Does not revert a person's edits.** The module accepts the existing bundle directory as an
+     optional input: the bundle as it stands on the branch the portal ingests from. When it is
+     given, no change a person made to a page since the module wrote it is dropped or reverted in
+     the output. Emitting an edited page byte for byte as given always conforms. Merging newly
+     generated content into an edited page conforms only if every change the person made
+     survives. Without an existing bundle, on a first run or before a repository is connected,
+     the module generates in full.
+
+  *Still the guides module's own design:* how it tells a page a person edited from one it wrote;
+  and what it does with an edited page that no longer fits the new spec, for example one that
+  names a removed operation, provided it keeps the person's text and says so in `report.json`
+  (5.2). The bundle root allows no file of the module's own (section 2); `report.json` accepts
+  members the schema does not define (5.2). If the module needs an input beyond the two named
+  here, such as its own previous output, it says so and the portal side decides whether to
+  supply it.
 - Every rule in this contract applies to the bundle as ingested, whoever wrote each line. Where the
   contract says "a generator writes", an edit made by hand is held to the same rule and gets the
   same finding.
@@ -961,23 +1022,45 @@ The JSON Schema is in [`guides-report.schema.json`](./guides-report.schema.json)
 ## 6. Delivery
 
 **The directory layout in section 2 is the contract.** A generator's obligation ends when it has
-written a conforming bundle directory. It does not upload, archive or push anything.
+written a conforming bundle directory. It does not upload, archive, commit or push anything.
 
-The bundle directory is kept in a Git repository, and that repository is where people edit it
-(4.7). How a commit of it reaches the portal is the portal's concern and will be settled in
-milestone M5. The candidates are ingestion from a directory in a connected Git repository, and an
-upload of an archive of the directory made from a commit. Neither changes the layout, and neither
-is part of 0.2.
+Decided by the user on 2026-11-27, and built in M5. Earlier drafts of 0.2 said that transport would
+be settled in M5 and named two candidates. This replaces that.
 
-What is fixed now:
+- **The portal runs the guides module**, for a tenant, as a step of the portal's own pipeline. The
+  tenant does not run it. The step's inputs are the bytes of the published spec (1.2) and,
+  optionally, the existing bundle directory (4.7). Its output is a bundle directory, with
+  `report.json` in it if the module writes one. The step is given no network access and no
+  credential, and needs neither.
+- **Once the tenant has connected a repository**, the portal's GitHub App proposes the generated
+  bundle as a pull request on the tenant's repository. The tenant reviews it, edits it and merges
+  it. The portal ingests the bundle from that repository. A regeneration arrives the same way, as
+  a pull request against the bundle that is there. The portal never commits to the branch it
+  ingests from and never merges a pull request.
+- **Before a repository is connected**, the portal holds the generated bundle. It is read-only:
+  there is no editor and no upload. It is validated and staged like any other bundle, and the
+  blocker rules decide whether it can be published (4.7).
+- **Where the bundle root lives in the tenant's repository is a setting**, not part of this
+  contract: a directory in the repository, set per API version (section 3), that holds the bundle
+  and nothing else. Section 2 applies from that directory down. Its name and its place in the
+  repository are not significant.
 
-- Git is the editing surface. The portal reads bundles and never writes to one, in the repository
-  or anywhere else.
-- The guides module takes the published spec from the portal (1.2). For a hosted portal it is
-  fetched over an authenticated path and not from a public URL; public download is the tenant's
-  choice and is off by default. What that path is, and whether a spec that is staged but not yet
-  published can be fetched, are settled with transport in M5.
-- A valid bundle is staged, not published. Publishing is a separate step.
+Not designed yet, and for M5: the GitHub App's permissions and how its tokens are held; branch
+and pull request naming; what happens to an open pull request when a newer regeneration is ready;
+how the portal learns of a merge; hosts other than GitHub. The App holds write access to tenants'
+repositories, so its design goes to the security reviewer before it starts (ADR 0007).
+
+What is fixed besides:
+
+- Git is the editing surface. The portal writes to a tenant's repository only by opening or
+  updating a pull request that carries the guides module's output. It never changes a bundle on
+  the branch it ingests from, and never changes one it holds.
+- The guides module is handed the published spec by the portal (1.2) and fetches nothing. A
+  hosted portal's published spec is not a public download unless the tenant chooses that.
+- A valid bundle is staged, not published. Publishing is a separate step. Publishing a bundle
+  makes it part of the portal's content. Whether the portal itself is public or a private preview
+  is a separate state: a bundle published into a private preview is still seen only by signed-in
+  members of the tenant's account (section 9).
 - Publishing is atomic. A bundle replaces the previous one as a whole, and a failed bundle leaves
   the live portal unchanged.
 - Whatever the transport, the step that extracts or reads the bundle enforces the section 2 limits
@@ -1006,7 +1089,7 @@ What is fixed now:
 | Question | Answer |
 |---|---|
 | Content the contract cannot express | A marker for incomplete content was needed and is added (4.7). Diagrams, video and widgets are not in 0.2. A `mermaid` block is shown as code. Rendering diagrams is a candidate for a later version and needs a security review first. |
-| More than one spec version per guide | No. A bundle is pinned to one spec document by hash. The portal holds one bundle per spec version. |
+| More than one spec version per guide | No. A bundle is pinned to one spec document by hash. One bundle belongs to one version of one API, and the portal keys bundles by project, API and version (section 3). |
 | Localization | Out of scope. If it comes into scope, it will be one bundle per locale, not a locale dimension in the layout. |
 | Disabling "Try it" per sample | Yes: `tryIt="false"` (4.3). |
 
@@ -1016,14 +1099,18 @@ Decided on 2026-11-27:
 |---|---|
 | Which document guides are generated from, and which hash is compared | The published spec: the root document with the accepted spec-doctor fixes applied, as the portal published it (1.2, 3). |
 | How a `<Todo>` or a page that is not `ready` gets resolved | A person edits the bundle in its Git repository and the portal ingests the new commit. Regenerating must not overwrite those edits (4.7). |
+| Transport: how a bundle reaches the portal | The portal runs the guides module. With a repository connected, the portal's GitHub App proposes the bundle as a pull request on the tenant's repository, the tenant merges it, and the portal ingests from that repository. A regeneration is another pull request. Before a repository is connected the portal holds the bundle, read-only (6). Built in M5. |
+| How the guides module gets the published spec | The portal passes the bytes to the step that runs the module. Nothing is fetched (1.2, 6). |
+| Who keeps a regeneration from overwriting edits | Both sides. The portal delivers a regeneration only as a pull request. The guides module's output is deterministic and stable, and it does not revert an edited page when given the existing bundle (4.7). |
+| How a reader learns where to get a key | The portal renders a "get a key" link from a URL the tenant supplies. A guide does not need to say how credentials are issued (9). The portal never issues keys. |
+| Several APIs in one portal, and versions of one API | One bundle per API version. Nothing in the bundle format changes (3). |
 | Swagger 2.0 | Out of scope. The portal rejects it with a clear message (1.1). |
 | Where the allowed hosts are listed for a server with an open host variable, such as `https://{host}/v1` with no `enum` | In the spec, as the variable's `enum`. The tenant supplies the values through a spec-doctor fix, so they are in the published spec. This decision did not change the rule in 4.3; the security review of the same day tightened it (10). A generator is not affected. A verified domain suffix, for hosts that cannot be listed, is planned for a later milestone and is not part of this contract. |
 
 Still open, and not blocking 0.2:
 
-1. Transport (section 6), for M5: how a commit of the bundle reaches the portal, and the
-   authenticated path by which the guides module fetches the published spec from a hosted portal.
-   That Git is the editing surface is decided, and so is that the path is authenticated.
+1. The design of the GitHub App and of ingestion from the tenant's repository (section 6), for
+   M5, after a security review. Transport itself is decided.
 2. Capturing a value whose key is not a plain identifier, such as `user-id`. The path grammar in 4.3
    cannot express it.
 3. Linking to a webhook's documentation. There is no link form for it.
@@ -1032,6 +1119,9 @@ Still open, and not blocking 0.2:
    does not change with that file. Operation ids are not affected, because a fix never changes an
    id. Whether the portal also publishes the patched referenced files is not decided; it does not
    block M1.
+5. Whether a guide can ask for the "get a key" link at a particular place. In 0.2 it cannot: the
+   portal places the link and nothing in a bundle refers to it (9). A way to place it would be an
+   addition to the contract and needs a security review first.
 
 ## 9. What the portal must handle
 
@@ -1086,6 +1176,22 @@ engine and renderer. They are here so they are written down on the portal side.
 - Substitute reader-specific variables in the browser, into placeholders only. Published pages are
   static and carry no `{{` marker text for client code to find (4.6, item 6).
 - Render `<Todo>` in preview only.
+- Render the "get a key" link (decided 2026-11-27, for M2). The tenant supplies the URL as a
+  setting. The portal renders the link itself, as its own element: where it shows the control a
+  reader pastes a key into, which every sample that needs a credential has; in the reference's
+  authentication section; and, if the portal chooses, on a guide page whose `type` is
+  `quickstart`. A guide page about authentication cannot be told from a bundle (the slug
+  `authentication` is the generator's habit, not a rule), so the link reaches it through a
+  sample's credential control only; see section 8, open item 5. Nothing in a
+  bundle places it, names it or carries its URL, and no variable or component stands for it. A
+  guide therefore does not need to say how credentials are issued, and a generator should not
+  leave a `<Todo>` for that alone; it may still report the gap in `report.json`. The URL is
+  tenant-supplied: it is held to the external link checks of 4.5 and rendered as a link with the
+  `rel` value there, never as markup. The setting and where it is rendered go to the security
+  reviewer with M2.
+- Build every URL of a guide, a reference page and a twin from the base of the page's own API
+  version (section 3; ADR 0003). An `op:`, `schema:`, `guide:` or `asset:` target resolves within
+  the bundle's own API version.
 - Guide slugs are chosen by the generator and include fixed names such as `authentication`, `errors`,
   `pagination`, `idempotency`, `rate-limits` and `webhooks`. That is why section 3 reserves a prefix
   for guides.
@@ -1113,7 +1219,16 @@ engine and renderer. They are here so they are written down on the portal side.
 - The proxy does not send a request whose parsed host differs from the host built by position
   (4.3). This is an M2 requirement.
 - The hosted portal does not serve the published spec for public download unless the tenant
-  chose that, and gives the guides module an authenticated path to it (1.2; ADR 0003). M4 and M5.
+  chose that. It passes the bytes to the step that runs the guides module, so no path exists for
+  fetching them (1.2, 6; ADR 0003, ADR 0007). M4 and M5.
+- Run the guides module as an isolated step: in the per-tenant worker and under its time limit
+  (ADR 0003), with no network access and no credential. Its output is untrusted and is validated
+  like any bundle, whoever ran the module (ADR 0007).
+- The reader's key is supplied by the reader. The portal never issues one. A key pasted into
+  "Try it" is held in the reader's browser only and is passed through per request; it is never
+  stored or logged by the portal (4.6, item 5; ADR 0003, "Reader keys"). A later handoff of the
+  reader's key from the tenant's site after sign-in is not designed and needs a security review.
+- Key every bundle, published spec and model by project, API and version (section 3; ADR 0002).
 - The MCP has four meta-tools: find operations, describe an operation, call a read operation and
   call a write operation (decided 2026-11-27; ADR 0003, "MCP tools: reads and writes"). Which call
   tool an operation belongs to is decided server-side from the published model by its method:
@@ -1132,8 +1247,11 @@ engine and renderer. They are here so they are written down on the portal side.
   (ADR 0003).
 - Publishing a spec writes the published spec (1.2) as a file with fixed bytes and records its
   SHA-256. The publisher does this; the engine only serializes (ADR 0003, "The published spec").
-- Never write to a bundle or to its repository. Incomplete content is resolved by a person in Git
-  (4.7).
+- Write to a tenant's repository only by opening or updating a pull request that carries the
+  guides module's output. Never commit to the branch the bundle is ingested from, never merge,
+  and never change a bundle the portal holds. Incomplete content is resolved by a person in Git
+  (4.7, 6). The GitHub App that opens the pull request has write access to tenants' repositories
+  and is designed only after a security review (ADR 0007).
 - Serve assets as section 2 says: svg, pdf, json and zip always from the dedicated per-tenant
   asset origin with the headers listed there; png, jpg, webp and gif from the asset origin, or,
   once re-encoded, on the page origin with `nosniff`.
@@ -1162,6 +1280,13 @@ engine and renderer. They are here so they are written down on the portal side.
   files, and whoever hosts the export either keeps using the asset origin we host or runs a second
   origin that sends the same headers. Copying svg, pdf, json or zip files into the export beside
   the pages does not conform, and neither does copying any image as it came in the bundle.
+- *Private preview.* Decided 2026-11-27: a portal is a free private preview until the tenant pays
+  to make it public. Until then nothing of it is served to anyone who is not signed in as a
+  member of the tenant's account, and that includes files on the asset origin and the published
+  spec. The asset origin is a different origin from the dashboard, so a member's session does not
+  reach it by itself, and the headers in section 2 authorize nobody. How a request to the asset
+  origin is authorized for a private preview is designed in M4 with the security reviewer. The
+  headers in section 2 are unchanged in either state.
 - The naming and isolation of the asset origin are designed with custom domains (M5 and M6) and
   go to the security reviewer.
 
@@ -1208,8 +1333,9 @@ Changed:
   which no validator could check without rejecting ordinary sentences. Nothing is evaluated either way.
 - File paths may contain one extension; v0.1's character list omitted the `.`.
 - The bundle root is the directory that holds `guides.json`; v0.1 showed it as `guides/`.
-- Delivery: the upload endpoint and Git ingestion are no longer proposed here. Transport moves to
-  M5. The bundle is kept in a Git repository, which is where people edit it (6).
+- Delivery: the upload endpoint of v0.1 is gone. The portal runs the guides module and delivers
+  the bundle as a pull request on the tenant's repository, which is where people edit it; see the
+  decisions of 2026-11-27 below (6).
 - Versioning: 0.x minors may break; the portal accepts exactly one 0.x version.
 
 Required by the security design review of 2026-11-26 and its re-review, and made before 0.2 was
@@ -1289,8 +1415,35 @@ changes what a generator writes:
 - After substitution the parsed host must equal the host built by position, or the request is
   not sent (4.3, 9).
 - The published spec of a hosted portal is not a public download unless the tenant chooses that.
-  The guides module fetches it over an authenticated path, settled in M5. The portal removes
-  nothing from the published spec (1.2, 6, 8).
+  The portal removes nothing from the published spec (1.2, 6, 8). The review's authenticated
+  path for the guides module was replaced the same day: the portal passes the bytes to the
+  module, so nothing is fetched (below).
+
+Required by four further decisions of the user on 2026-11-27 (guides delivery, reader keys, free
+private preview, several APIs per portal), also made before 0.2 was released:
+
+- Delivery is decided. The portal runs the guides module as a step of its pipeline, with the
+  published spec bytes and optionally the existing bundle as inputs and no network access. With
+  a repository connected, the portal's GitHub App proposes the bundle, and each regeneration, as
+  a pull request on the tenant's repository, and the portal ingests from that repository. Before
+  that the portal holds the bundle, read-only. Where the bundle root sits in the repository is a
+  setting (1.2, 6, 8).
+- "The portal never writes to a bundle" is restated: the portal never changes what a bundle
+  says, never commits to the branch it ingests from and never merges; it does open pull requests
+  that carry the guides module's output (4.7, 6, 9).
+- Regenerating without losing edits is split between the two sides, and the guides module's
+  part is stated as three requirements: deterministic output, stable output, and no reverting of
+  an edited page when the existing bundle is given. A module run by the portal leaves
+  `generatedAt` out (4.7). **This binds a generator.**
+- A bundle held by the portal before a repository is connected follows the existing blocker
+  rules, which act on the whole bundle (4.7). No rule changed.
+- The portal renders the "get a key" link from a URL the tenant supplies. No variable or
+  component is added for it, and a guide need not explain how credentials are issued. The
+  example `<Todo>` in 4.7 was about that and is replaced (4.7, 8, 9).
+- A portal that is a private preview serves nothing without sign-in, the asset origin and the
+  published spec included (9). No rule for a generator changed.
+- One bundle belongs to one version of one API, and the portal keys bundles by project, API and
+  version. Nothing in the bundle format changed (3, 8, 9).
 
 ## 11. Decisions on the v0.1 feedback
 
