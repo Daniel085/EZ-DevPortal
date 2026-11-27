@@ -79,3 +79,33 @@ Errors: `missing-manifest`, `invalid-manifest`, `unsupported-contract-version`, 
 `invalid-code-info`, `api-request-code`, `unsupported-syntax`.
 
 Warnings: `spec-hash-mismatch`, `deprecated-operation`, `image-missing-alt`, `page-unreferenced`.
+
+## On v0.2
+
+Added 2026-11-27, after the module moved to v0.2. Sections 10 and 11 of the contract decided
+everything above. These are new.
+
+**A gap in 4.3.**
+
+- A required parameter with no value is `invalid-sample`, and a header the portal controls or a
+  name that carries a credential is `invalid-sample` when a sample sets it. A spec can declare such
+  a header as a required parameter (for example `Authorization`, or the API key header). Both rules
+  then apply to the same sample and it cannot be valid. The module assumes the portal supplies
+  these values itself: it never sends them, and its validator does not count them as missing.
+
+**Proposals.**
+
+1. **Withhold an invalid page instead of blocking the bundle, when a person wrote it.** Under 4.7
+   the module must keep an edited page that no longer fits the spec, for example one that names a
+   removed operation. Its finding is an `error`, so under section 5 no page of the bundle is
+   published until a person fixes or deletes that one page.
+2. **A place in `specProblems` for severity and a fix.** The module's spec audit gives each problem
+   a severity, a count and a one-line fix. They are extra members today and the portal ignores them.
+
+**Questions.**
+
+1. **Should a page a person deleted stay deleted?** 4.7 speaks of changes "to a page". The module
+   has no record of a deletion, so it generates the page again and the pull request shows it as new.
+2. **The module recognises an edit by a hash it records in `report.json`.** If that file is deleted
+   in the tenant's repository, every existing page is kept as it is from then on. Should the
+   description of the repository say that `report.json` is to be left in place?

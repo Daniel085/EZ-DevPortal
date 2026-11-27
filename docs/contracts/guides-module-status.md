@@ -161,6 +161,11 @@ keeps every existing page as it is.
   their order, groups, labels and `hidden` stand, entries for pages that are gone are removed, and
   new pages are appended to the group for their type. Otherwise the module orders it.
 - Assets in the existing bundle are carried over unchanged.
+- **A page a person deleted is generated again** if the spec still supports it; the pull request
+  shows it as a new file. Deleting a kept page is also the only way to get the generated version
+  back: a kept page stays kept on every later run.
+- Hashes are recorded for the first 1,000 report entries only. Pages beyond that are treated as
+  edited on the next run. No bundle so far has come near that many.
 
 ## What it was run against
 
@@ -185,6 +190,9 @@ somewhere; the first real ingestion should be treated as a test of both.
   measures nesting by component depth only; it looks up `example` in the sample media type only;
   it does not apply the WHATWG host comparison to external links, which the contract leaves to the
   portal.
+- **Its report has the contract's shape** (section 5): `findings` with the severities `error`,
+  `blocker` and `warning`, `publishable`, and `withheld`. It reports `todo-present`,
+  `page-not-ready` and `link-to-withheld-page` on bundles a person has edited.
 - **Stricter with its own output:** a generated page that would draw `api-request-code` is left out,
   though the contract makes that a warning.
 - **Placeholder values.** Where a spec has no examples, sample values are built from types
@@ -201,12 +209,19 @@ somewhere; the first real ingestion should be treated as a test of both.
   of that is fixed yet. Fixing it will change titles, step titles and navigation grouping, and may
   change slugs; a bundle regenerated after that will differ widely from one generated now.
 
-## Questions for the portal side
+## Questions and proposals for the portal side
+
+1 and 3 are answered by 0.2 as written (4.7 and 5; 5.2) and are proposals for a later version.
+2 and 4 are open. All four, and one gap in 4.3, are recorded in
+[`guides-contract-feedback.md`](./guides-contract-feedback.md) under "On v0.2".
 
 1. **An edited page that no longer fits the spec blocks the whole bundle**, because its finding is
    an `error`. The module keeps the person's text, as 4.7 requires, and cannot make the page valid.
-   Is that the intended outcome, or should there be a way to withhold only that page?
-2. **`report.json` must survive in the tenant's repository** for edits to be recognised. Should the
-   portal say so where it describes the repository, or protect the file?
-3. **Should the portal show the audit's severity and fix text** from `specProblems`, beside its own
-   spec doctor findings? Today those are extra members, which the portal ignores.
+   Proposal: a way to withhold only that page.
+2. **`report.json` must survive in the tenant's repository** for edits to be recognised. The portal
+   never changes a bundle on the ingested branch (section 6), so it cannot protect the file; should
+   it say so where it describes the repository (M5)?
+3. **Showing the audit's severity and fix text** from `specProblems`, beside the portal's own spec
+   doctor findings. Today those are extra members, which the portal ignores.
+4. **Should a deleted page stay deleted?** The contract does not mention deletion. Today the module
+   generates the page again.
