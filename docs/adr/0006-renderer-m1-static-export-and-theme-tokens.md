@@ -10,6 +10,10 @@ Revised again that day to close gaps a readiness audit found. Scope follows m1.m
 product manager owns: dark mode (M3) and search (M5) are removed from M1's interactivity, and
 the rules for the export's layout, fragments and page weight are added. `Manifest` and
 `PageData` are defined in ADR 0003, "The portal bundle".
+Revised again that day to close gaps a second audit found: the base path and the unit prefix
+are settings of the M1 build ("Units"); "The export command" says how the export is produced
+and who puts each file in it; and tenant text is rendered from the engine's safe form with the
+engine's parser ("Tenant text"). The last goes to the security reviewer.
 
 ## Context
 
@@ -30,8 +34,8 @@ interface ContentSource {
 }
 ```
 
-M1 has one implementation, which reads a bundle directory named by an environment variable at
-build time. Routes come from `generateStaticParams` over the manifest. Page components are
+M1 has one implementation, which reads the bundle directory named by the environment variable
+`EZDP_BUNDLE_DIR` at build time ("The export command"). Routes come from `generateStaticParams` over the manifest. Page components are
 presentational: they take `PageData` and nothing else, and do not know where it came from. M4 adds
 a second `ContentSource` keyed by tenant in front of the same components. `Manifest`, `PageData`
 and the page paths are the engine's (ADR 0003, "The portal bundle"); `page(path)` takes a page
@@ -41,11 +45,61 @@ path from the manifest.
 `ContentSource` therefore serves one unit, and from M4 a portal has one per (project, API,
 version). Two prefixes stand in front of a bundle path, and they are different things: the
 **base path**, where the portal is mounted (`/docs`), which also carries the app's own build
-assets and the theme; and the **unit prefix**, where one API version sits below it. In M1 the
-unit prefix is empty. M1 still builds every URL of a page, a twin and `llms.txt`
-through one function that takes both, and no component joins a bundle path to the base path
-itself or assumes that a bundle path starts at the portal root. `theme()` is on `ContentSource`
-for M1 only; a theme belongs to the portal, not to a unit, and M4 moves it.
+assets and the theme; and the **unit prefix**, where one API version sits below it
+(`payments/v2`). Both are settings of the M1 build, because criterion 21 tests an export at the
+root, under `/docs` and under `/docs/payments/v2`.
+
+| Setting | CLI option (ADR 0003) | Given to the portal as | Form | Default |
+|---|---|---|---|---|
+| Base path | `--base-path` | `EZDP_BASE_PATH` | Empty, or `/` and a segment, repeated, with no `/` at the end: `^(/[A-Za-z0-9._~-]+)*$`, no segment `.` or `..` | Empty |
+| Unit prefix | `--unit-prefix` | `EZDP_UNIT_PREFIX` | Empty, or segments joined by `/` with none at either end: `^[a-z0-9][a-z0-9-]*(/[a-z0-9][a-z0-9-]*)*$` | Empty |
+
+- A value that does not match stops the build before anything is written. A unit prefix
+  cannot begin with `_`, so it never collides with the build assets' directory.
+- The base path is fixed when the export is built. Criterion 21's three cases are three
+  builds, each served from a plain file server at its own base path.
+- **One function builds every URL**: `unitUrl(settings: { basePath: string; unitPrefix: string },
+  path: string): string`, where `path` is a bundle path or a path below the unit's base. It
+  returns the base path, then `/` and the unit prefix if there is one, then `/` and `path`:
+  `unitUrl({ basePath: '/docs', unitPrefix: 'payments/v2' }, 'operations/get-pet/')` is
+  `/docs/payments/v2/operations/get-pet/`. No component joins a bundle path to a prefix itself
+  or assumes that a bundle path starts at the portal root. Next adds its `basePath` to router
+  links by itself, so the one wrapper around `<Link>` calls `unitUrl` with an empty base path;
+  a link to a file Next does not route (a twin, `llms.txt`, `doctor-report.json`, the published
+  spec) is a plain anchor with the full `unitUrl`.
+
+`theme()` is on `ContentSource` for M1 only; a theme belongs to the portal, not to a unit, and
+M4 moves it. In M1 it returns `defaultTheme`.
+
+**The export command.** `apps/portal` has one package script, `export`, and it is the only way
+an M1 export is made. `ezdp build` runs it as a child process in the portal's directory (ADR
+0003, "The M1 command line"); the portal does not import the publisher and the publisher does
+not import the portal (ADR 0001, rule 2).
+
+- **In**, as environment variables: `EZDP_BUNDLE_DIR`, an absolute path to a directory holding
+  the `PortalBundle` files at their paths; `EZDP_OUT_DIR`, an absolute path to an empty or
+  missing directory; `EZDP_BASE_PATH` and `EZDP_UNIT_PREFIX`, as above.
+- **It does two things.** It runs the Next.js build with `output: 'export'`,
+  `trailingSlash: true` and `basePath` set to the base path, which writes the pages and the
+  app's build assets. Then it copies everything under the bundle's `static/` to
+  `<EZDP_OUT_DIR>/<unit prefix>/`.
+- **Out**: `EZDP_OUT_DIR` is the complete export except `spec/`, which the publisher adds. It
+  exits non-zero on any failure.
+- One export runs at a time in a portal directory. Tests that build exports run one at a time.
+
+**Where each file is.** The export directory is what is served at the base path. `U` is the
+unit prefix, and is nothing when the prefix is empty.
+
+| File in the export directory | URL | Put there by |
+|---|---|---|
+| `_next/…`, the app's build assets | `<base path>/_next/…` | The Next.js build. Not under the unit prefix. |
+| `U/index.html` | `<base path>/U/`, the unit's base | The Next.js build |
+| `U/<page path>/index.html` | `<base path>/U/<page path>/` | The Next.js build |
+| `U/<page path>.md`, `U/llms.txt`, `U/doctor-report.json` | The same path below the base path | The export command, from `static/` |
+| `U/spec/openapi.json` or `.yaml` | The same path below the base path | The publisher (`ezdp build`), unless `--no-published-spec` |
+
+The theme is a `<style>` block in each page, so it has no file. With a unit prefix the
+directory above it has no page in M1; M4d's product switcher is what goes there.
 
 Rules that keep pages exportable:
 
@@ -58,11 +112,13 @@ Rules that keep pages exportable:
    ours, `ezdp.sampleLanguage`, read only as one of the manifest's languages, so it holds across
    pages, reloads and tabs with no server state. With JavaScript off, every page shows the
    manifest's first language, every variant and every schema section (criterion 16).
-3. Everything under the bundle's `static/` is copied into the export as files: the Markdown
-   twins, `llms.txt` and `doctor-report.json`. `manifest.json`, `model.json` and the page files
-   are build inputs and are not exported.
-4. All links and the URLs of the app's own build assets go through the configured base path, so
-   the same build works at `/` and under `/docs`. Tenant-supplied files are the exception: see
+3. Everything under the bundle's `static/` is copied into the export as files, by the export
+   command: the Markdown twins, `llms.txt` and `doctor-report.json`. `manifest.json`,
+   `model.json` and the page files are build inputs and are not exported. The published spec
+   is not in the bundle; the publisher writes it into the export ("The export command").
+4. All links go through `unitUrl`, and the URLs of the app's own build assets through the
+   configured base path, so the same source builds for `/`, for `/docs` and for
+   `/docs/payments/v2`. Tenant-supplied files are the exception: see
    "Tenant assets" below.
 5. CI runs a full static export over the fixture corpus. If it fails, the change is rejected. This
    is the test of the standing constraint.
@@ -70,7 +126,8 @@ Rules that keep pages exportable:
    `trailingSlash: true`: the page with path `P` is the file `P/index.html` and is linked as
    `P/`; the home page, path `index`, is the unit's base itself. Its twin is the file `P.md`
    beside that directory, which is what criterion 17 means by the page URL plus `.md`.
-   `llms.txt`, `doctor-report.json` and `spec/` sit at the unit's base. The first path segments
+   `llms.txt`, `doctor-report.json` and `spec/` sit at the unit's base, which is the base path
+   and the unit prefix ("Where each file is"). The first path segments
    the engine uses are a closed list: `operations`, `schemas`, `tags`, `doctor` and `spec`. The
    prefix reserved for guides in M5 (contract 3) must not be one of them.
 7. The HTML of a page is linear in its page file. A reference to a named schema is rendered as
@@ -84,16 +141,25 @@ Rules that keep pages exportable:
 
 "Try it" in M2 is a client component that calls the proxy, a separate service. Pages stay static.
 
-**Tenant text.** Descriptions in the model are untrusted Markdown. The renderer parses them with
-`mdast-util-from-markdown` into a syntax tree and maps a fixed set of node types to React elements
-with our own code. The GFM extensions are loaded individually, four of them: tables, task lists,
-strikethrough and footnotes. `mdast-util-gfm` is not used, because it also turns on autolink
-literals, which the guides contract forbids (4.1) and which would make links out of the bare URLs
-in spec descriptions.
+**Tenant text.** Descriptions in the model are untrusted Markdown. A `Markdown` field of a page
+file is not that text: it is the safe form the engine made with `sanitizeMarkdown` (ADR 0003,
+"Tenant Markdown"), in which raw HTML and autolinks are already text, images are their alt
+text and refused links are their link text. The twin is written from the same string, so the
+page and the twin agree. The renderer parses the field with the engine's `parseMarkdown` into a
+syntax tree and maps a fixed set of node types to React elements with our own code. It has no
+Markdown parser of its own and imports none (lint), so the engine and the renderer cannot
+disagree about what a text contains. The parser is `mdast-util-from-markdown` with four GFM
+extensions loaded individually: tables, task lists, strikethrough and footnotes.
+`mdast-util-gfm` is not used, because it also turns on autolink literals, which the guides
+contract forbids (4.1) and which would make links out of the bare URLs in spec descriptions.
+
+The rules below stay in force on the safe form. They are the renderer's own check and do not
+rely on the engine having run: a page file is data, and the renderer trusts none of it.
 
 - HTML nodes are rendered as text. `dangerouslySetInnerHTML` is banned in the app by lint.
-- Link targets are limited to `https:`, `mailto:` and in-page anchors. An `https:` target must
-  match the regex in contract 4.5 and have no `\`. The renderer also parses it with the WHATWG
+- Link targets are limited to `https:`, `mailto:` and in-page anchors, as the engine's
+  `linkDestinationAllowed` decides (ADR 0003): an `https:` target must match the regex in
+  contract 4.5 and have no `\`. The renderer also parses it with the WHATWG
   parser and rejects it if the parsed host differs from the host in the text. A target that fails
   any of these is rendered as its text. External links are rendered with
   `rel="noopener noreferrer nofollow ugc"`. This is the rule in contract 4.5, and one function
@@ -191,10 +257,12 @@ choice within this threshold. Criterion 23 is in ADR 0003, "Performance".
 
 - Changing a theme is changing a JSON document; no build of tenant-specific code or CSS files.
 - The static-export CI job makes the constraint mechanical instead of a review judgement.
-- New runtime dependencies in `apps/portal`: `next`, `react`, `react-dom`, `shiki`,
-  `mdast-util-from-markdown`, and the `micromark-extension-gfm-*` and `mdast-util-gfm-*` packages
-  for `table`, `task-list-item`, `strikethrough` and `footnote`. All MIT. That is eight small
-  packages in place of two umbrella packages, which is the cost of leaving autolink literals out.
+- New runtime dependencies in `apps/portal`: `next`, `react`, `react-dom` and `shiki`. All
+  MIT. The Markdown parser, `mdast-util-from-markdown` with the `micromark-extension-gfm-*` and
+  `mdast-util-gfm-*` packages for `table`, `task-list-item`, `strikethrough` and `footnote`, is
+  a dependency of the engine since 2026-11-27 (ADR 0001, rule 5) and reaches the portal through
+  `parseMarkdown`. That is eight small packages in place of two umbrella packages, which is
+  the cost of leaving autolink literals out.
 
 ## Alternative rejected
 

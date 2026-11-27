@@ -20,6 +20,11 @@ Revised again that day to close gaps a readiness audit found: "Fatal and degradi
 which faults stop a build; `PatchConflict` is defined; `example-invalid`, `webhook-not-rendered`
 and `callback-not-rendered` are named; rules take `diagnose`'s options; and the Public Suffix
 List snapshot is the one taken when the list is first vendored.
+Revised again that day to close gaps a second audit found: "The M1 rule table" lists every
+code, its severity and its fix; `SpecPatch` gains the `absent` op, which the "add what is
+missing" fixes need; `bindFix` returns `null` for a missing input and `checkFixInputs` says why;
+"The overlay file" defines the CLI's file. The `absent` op and the new fixes go to the security
+reviewer with the patch code.
 
 ## Context
 
@@ -38,8 +43,7 @@ interface Finding {
   code: string;                 // stable, kebab-case: 'servers-missing', 'security-scheme-missing',
                                 // 'example-missing', 'operation-id-collision', 'ref-unresolved',
                                 // 'server-not-callable', 'controlled-header-required'
-                                // Codes that other documents or tests rely on are fixed in this
-                                // ADR and ADR 0003; the rest are the rule list's.
+                                // Every code M1 can produce is in "The M1 rule table".
   severity: 'error' | 'warning' | 'info';
   message: string;              // plain text, one or two sentences, no Markdown
   location: { uri: string; pointer: string;
@@ -59,7 +63,8 @@ interface Fix {
 
 interface FixInput {
   name: string; label: string;
-  pointer: string;              // where in the patch the value is placed
+  pointer: string;              // where the value is placed: an RFC 6901 pointer into this
+                                // fix's `patch` object, so it begins `/ops/<n>/value`
   format?: 'host-name' | 'host-suffix';   // closed list. Every value must match. Absent: any string.
   list?: { maxItems: number;    // the input holds several values, one per line (LF). They are
            firstPointer: string };  // placed at `pointer` as an array of strings, and the first
@@ -69,8 +74,15 @@ interface FixInput {
 interface SpecPatch {
   uri: string;                  // which document
   ops: ({ op: 'test'; path: string; value: Json }      // RFC 6902 subset
+      | { op: 'absent'; path: string }                 // ours, not RFC 6902; see below
       | { op: 'add' | 'replace'; path: string; value: Json }
       | { op: 'remove'; path: string })[];
+}
+
+interface FixInputIssue {       // returned by checkFixInputs
+  name: string;                 // the input's name
+  reason: 'missing' | 'unknown' | 'too-long' | 'format' | 'list';
+  line?: number;                // for a `list` input: the 1-based line of the value that failed
 }
 
 interface PatchConflict {       // returned by applyFixes; nothing of that patch was applied
@@ -131,10 +143,31 @@ Every other fault degrades. The engine throws in neither case.
   | A cycle of `$ref`s that reaches no schema (`ref-circular`) | Each member is an empty schema node. One finding, at the member whose pointer sorts first, with the others in `related` |
   | An example that violates its schema (`example-invalid`) | Unchanged; the example is kept as declared |
   | A duplicate `operationId` (`operation-id-collision`) | Both operations, with ids by contract 1.1 |
+  | Any other field OpenAPI requires that is absent: a server's `url`, a tag's `name`, a security scheme's `type` and the rest | What ADR 0002 says, "Fields OpenAPI requires and real specs omit" |
+
+  A row that names no code is reported as `structure-invalid`. A map key that YAML reads as a
+  number or a boolean, such as the response key `200:`, is the key's source text; that is not
+  a fault and is not reported.
 
 - So of the 16 fixtures in `fixtures/specs/malformed/`, five are fatal: the three of stage
   `parse`, `missing-openapi` and `unsupported-swagger-2.0`. The other seven of stage `structure`,
   the three of `resolve` and the one of `semantic` build a portal with findings.
+- The code each of the 16 must produce, at the pointer `expected.json` already gives. The file's
+  `$comment` says codes are not fixed yet; they are now, and QA adds them to it.
+
+  | Code | Fixtures |
+  |---|---|
+  | `parse-error` | `empty.yaml`, `invalid-yaml.yaml`, `invalid-json.json` |
+  | `not-openapi` | `missing-openapi.yaml` |
+  | `unsupported-version` | `unsupported-swagger-2.0.yaml` |
+  | `structure-invalid` | `missing-info.yaml`, `missing-info-title.yaml`, `missing-paths-3.0.yaml`, `missing-responses-3.0.yaml`, `wrong-type-paths.yaml`, `wrong-type-info-version.yaml`, `wrong-type-parameters.yaml` |
+  | `ref-unresolved` | `dangling-ref.yaml`, `external-ref.yaml` |
+  | `ref-circular` | `circular-ref.yaml` |
+  | `operation-id-collision` | `duplicate-operation-id.yaml` |
+
+  The eleven that build produce other findings as well, since none declares a server or a
+  security scheme. The test asserts that a finding with this code is at this pointer, not that
+  it is the only one.
 
 Three more codes are fixed here because m1.md or ADR 0003 names their effect. None has a fix.
 
@@ -148,6 +181,13 @@ Three more codes are fixed here because m1.md or ADR 0003 names their effect. No
 A fix is a **JSON Patch against the parsed document**, not a text edit. Every patch begins with
 `test` operations asserting what the rule saw, so a stale patch is detected, not misapplied.
 
+`absent` is the one op that is not in RFC 6902. It asserts that the member at `path` does not
+exist; it holds too when an ancestor does not exist. A fix that adds something missing begins
+with it, because RFC 6902 cannot assert absence and its `add` replaces a member that exists:
+without `absent`, a fix that adds an `operationId` would overwrite one the tenant added
+upstream later. A failed `absent` is a conflict with reason `test-failed`. `add`, `replace`
+and `remove` behave as RFC 6902 says.
+
 Patches are written by the engine and by nothing else. Pointer traversal and every lookup keyed by
 tenant text use own properties only. Reads use `Object.hasOwn` or a `Map`; writes use
 `Object.defineProperty` or a `Map`, never assignment with a tenant key. A `__proto__` segment is a
@@ -158,17 +198,26 @@ by fix id; clients send a fix id and `inputs` only, never ops.
 - `applyFixes` returns a `PatchConflict` for an op whose path has a `__proto__` segment, and
   applies nothing from that patch. It does this for every patch it is given, whoever stored it. A
   path through `constructor` or `prototype` is applied like any other, as an own property.
-- `bindFix(fix, inputs)` returns the fix's patch with each supplied input placed, as a JSON string,
+- `bindFix(fix, inputs)` returns the fix's patch with each input placed, as a JSON string,
   at the position its `inputs[].pointer` names. An input cannot add an op, change a path or supply
   a value that is not a string. The one exception is an input the fix declares with `list`: the
   engine splits it and places an array of strings. The fix decides that, not the input.
+- Every input a fix declares is required; there is no optional input. `bindFix` returns `null`
+  when `inputs` lacks one of them or holds a name the fix does not declare, compared as own
+  properties. It never returns a patch with a value left unplaced. An empty string is a value.
+  This is how criterion 10's "a fix whose input is not supplied is not applied" is met: the
+  caller gets `null`, stores nothing, and the finding remains with the fix and its
+  `inputs[].label` in the report.
 - Each input is at most 2,048 characters. `bindFix` returns `null` when an input is longer, and
   the caller stores nothing and tells the person which input was too long. For a `list` input the
   cap is on the whole input, all lines together.
 - `bindFix` also returns `null` when a value does not match the input's `format`, or a `list`
   input breaks the list rules below. `format` and `list` come from the fix the engine produced,
-  never from the client. The engine exports the format checks as pure functions, so a caller can
-  say which value failed.
+  never from the client.
+- `checkFixInputs(fix, inputs)` is the pure function that makes all of these checks and returns
+  one `FixInputIssue` per failure, so a caller can say which input or which line failed.
+  `bindFix` returns `null` exactly when it returns at least one issue. A `list` input that
+  declares no `format` is reported with reason `list`.
 - The caller looks a fix up by id in the findings the engine produced on the server for the
   current spec. It never accepts a `SpecPatch` from a browser or an API client.
 
@@ -176,7 +225,8 @@ How a caller applies accepted fixes:
 
 1. The caller stores each accepted fix in the project's **overlay**, in order: the fix id, the
    `inputs` the person supplied, and the patch `bindFix` returned for them. It stores dismissed
-   fingerprints too. The engine stores nothing.
+   fingerprints too. The engine stores nothing. The M1 CLI's file is defined in "The overlay
+   file".
 2. On every publish: fetch, `parseDocument`, `applyFixes(docs, overlay)`, hash the published
    spec (ADR 0003, "The published spec"), then `buildModel` and `diagnose` on the
    patched documents, then write. Nothing is written before `buildModel` returns a model
@@ -189,6 +239,44 @@ How a caller applies accepted fixes:
 4. `serializeDocument` returns the patched spec as text with comments and key order kept. The
    publisher writes that text as the published spec, and it is the same text that is offered for
    download or a pull request.
+
+### The overlay file
+
+The M1 CLI's overlay (ADR 0003, "The M1 command line"). One JSON file, UTF-8, two-space
+indent, LF line ends, keys in the order below.
+
+```ts
+interface OverlayFile {
+  overlayVersion: 1;
+  accepted: { fixId: string;                  // applied in this order
+              inputs: Record<string, string>;
+              patch: SpecPatch }[];
+  dismissed: string[];                        // fingerprints. Reserved for M4: the M1 CLI
+}                                             // writes [] and does not read it.
+```
+
+- **Name.** The spec's path plus `.ezdp-overlay.json` (`petstore.yaml.ezdp-overlay.json`),
+  beside the spec. `--overlay <file>` names any other file, which is how one spec has both a
+  fixes overlay and a mock-server overlay. Where QA keeps its overlays is QA's choice.
+- **`patch.uri`** is the root document's `uri`, which in the CLI is the spec's base name, so a
+  committed overlay works on any machine.
+- **A build applies `patch` as stored.** It does not bind again. `fix accept` writes an entry
+  only with a patch `bindFix` returned.
+- **A hand-written entry** has a `fixId` that begins `manual:`. A fingerprint begins with its
+  finding's code and no code is `manual`, so the two never collide. The file is its owner's to
+  edit, and `applyFixes` treats every patch the same, whoever wrote it.
+- **The mock-server overlay** (ADR 0005, "The local mock") is one hand-written entry:
+
+  ```json
+  { "overlayVersion": 1,
+    "accepted": [ { "fixId": "manual:mock-server", "inputs": {},
+      "patch": { "uri": "petstore.yaml", "ops": [
+        { "op": "test", "path": "/servers/0/url", "value": "https://petstore3.swagger.io/api/v3" },
+        { "op": "replace", "path": "/servers/0/url", "value": "http://127.0.0.1:14010/api/v3" } ] } } ],
+    "dismissed": [] }
+  ```
+- A file that is not JSON or not of this shape stops the command with exit code 2 before
+  anything is written.
 
 The model carries two hashes of the root document (ADR 0002): `source.fetchedHash`, of the spec as
 fetched, before the overlay, and `source.publishedHash`, of the published spec. The guides module
@@ -213,8 +301,85 @@ fix, `idSource` is `'declared'`, and the id no longer shifts if a colliding path
 
 Rules are pure functions `(model, docs, options) => Finding[]` in a registry inside the engine,
 where `options` is the object `diagnose` was given: `publicSuffixes` and `limits` (ADR 0003).
-The M1 rule list is for the product manager and engine developer; the areas are auth, servers,
-examples, identifiers and structure.
+
+### The M1 rule table
+
+Every code a build can put in a doctor report in M1; a code that is not here is not emitted. "By" is the
+function that reports it: P `parseDocument`, M `buildModel`, D `diagnose`, B
+`buildPortalBundle` and what it calls. Which rules offer a fix is scope, and the product
+manager may cut one: the cell becomes "None" and the message states what to change.
+
+| Code | Severity | Trigger | Fix | By |
+|---|---|---|---|---|
+| `parse-error` | error | Not YAML or JSON, or empty | None | P |
+| `limit-exceeded` | error | Past a parsing limit, or `bytes` over `inputBytes` (ADR 0003) | None | P |
+| `not-openapi` | error | The root is not a mapping, or has neither `openapi` nor `swagger` | None | M |
+| `unsupported-version` | error | `swagger` present, or `openapi` not naming 3.0.x, 3.1.x or 3.2.x; at that key | None | M |
+| `version-read-as-3.1` | warning | `openapi` names 3.2.x; at `/openapi` | None | M |
+| `structure-invalid` | warning | A node OpenAPI requires is missing, or a node has the wrong type ("Fatal and degrading faults") | None | M |
+| `ref-unresolved` | warning | A `$ref` that does not resolve, or points to a document not supplied | None | M |
+| `ref-circular` | warning | A cycle of `$ref`s that reaches no schema | None | M |
+| `ref-siblings-ignored` | info | A 3.0 `$ref` with sibling keys, which are dropped (ADR 0002) | None | M |
+| `schema-invalid` | warning | A schema keyword of the wrong type | None | M |
+| `schema-keyword-ignored` | info | An assertion keyword the model does not hold (ADR 0003) | None | M |
+| `slug-collision` | info | Two items of one pool share a slug (ADR 0002) | None | M |
+| `operation-id-missing` | info | An operation with no `operationId`, or an empty one, whose derived id needed no suffix | Patch | D |
+| `operation-id-collision` | warning | An operation that did not get the id it asked for: an earlier operation took its declared `operationId`, or its derived id needed a suffix. At the `operationId` member, else at the operation; the operation that holds the id is in `related` | Patch | D |
+| `security-schemes-none` | warning | The spec defines no security scheme; at the root | None | D |
+| `security-scheme-missing` | warning | A security requirement names a scheme that is not defined; at the requirement | None | D |
+| `operation-security-missing` | warning | An operation that declares no `security`, in a spec whose root declares none | Patch, when the spec defines exactly one scheme | D |
+| `operation-security-none` | info | An operation whose effective `security` is declared as `[]` | None | D |
+| `authorization-parameter-ignored` | warning | A header parameter named `Authorization`, which the model drops (ADR 0002) | None | D |
+| `header-parameter-ignored` | info | A header parameter named `Accept` or `Content-Type`, which the model drops | None | D |
+| `controlled-header-required` | warning | Below | None | D |
+| `servers-missing` | warning | Root `servers` is absent or empty and at least one operation has no server of its own; at the root | Patch with input | D |
+| `server-url-placeholder` | warning | A server whose literal host is `example.com`, `example.org` or `example.net`, a name under one of them, or a name whose last label is `example`, `test` or `invalid` | None | D |
+| `server-variable-no-default` | warning | A declared server variable with no `default` | Patch, when it has a non-empty `enum` | D |
+| `server-not-callable` | warning | Below | Patch with input, for an open host variable only | D |
+| `example-missing` | info | A parameter declaration, or the sample media type of a request body declaration, with no named example, no schema `examples`, no `default` and no `enum`, so that a sample value for it is synthesized. One per declaration, by `loc`, however many operations share it through a `$ref` | Patch, when the synthesized value is clean | D |
+| `example-invalid` | warning | A declared example with `errors` under `validateValue` | None | D |
+| `webhook-not-rendered`, `callback-not-rendered` | info | One per webhook and per callback | None | D |
+| `request-invalid` | warning | `buildRequest` could not place a value as the spec describes it: a header name or value RFC 9110 forbids, or two credentials for one header (ADR 0005) | None | B |
+| `synthesis-failed` | warning | A synthesized value that has `errors` (ADR 0003, "Schema validation") | None | B |
+| `budget-exceeded` | warning | Derived work cut at a budget (ADR 0003, "Budgets") | None | B |
+| `schema-allof-conflict` | info | `allOf` members give different values for a keyword (ADR 0003) | None | B |
+| `markdown-not-rendered` | info | A description shown as a code block (ADR 0003, "Tenant Markdown") | None | B |
+
+What each patch writes. `O` is the operation's pointer, `V` the variable's and `S` the
+declaration's. `safe` and `review` are `Fix.confidence`.
+
+| Code | Confidence | Patch |
+|---|---|---|
+| `operation-id-missing` | safe | `absent` `O/operationId`, or `test` it against `""` when it is empty; `add` `O/operationId`: `Operation.id` |
+| `operation-id-collision` | review | With a declared id: `test` `O/operationId` against it; `replace` it with `Operation.id`. With none: as `operation-id-missing`. |
+| `operation-security-missing` | review | `absent` `/security`; `absent` `O/security`; `test` `/components/securitySchemes` against the object seen, which holds one scheme; `add` `O/security`: `[{ "<scheme id>": [] }]` |
+| `servers-missing` | review | `absent` `/servers`, or `test` it against `[]`; `add` `/servers`: `[{ "url": "https://{host}", "variables": { "host": { "enum": [], "default": "" } } }]`. One input, `values`: `list` with `maxItems: 32`, `format: 'host-name'`, placed at that `enum` and its first value at that `default`. Its input rules, its label and the caller's URL check are those of "The fix for an open host variable". Title: "Add a server. The hosts are published in the spec, and the first one becomes the default." |
+| `server-variable-no-default` | review | `test` `V` against the object seen; `add` `V/default`: the first `enum` value |
+| `server-not-callable` | review | "The fix for an open host variable" |
+| `example-missing` | review | `absent` `S/example`; `absent` `S/examples`; `add` `S/example`: the value `synthesizeExample` gives. Offered only when that value has no `errors`, no unchecked keyword and was not cut, and, for a parameter, when it has a `schema`. Request side only: no fix ever writes a response example. |
+
+Rules for the table:
+
+- **A warning says what to do.** The `message` of a warning that carries no fix ends with what
+  the buyer must supply or change (criterion 10).
+- **One fault, one finding, one fix.** Applying a fix must remove the finding that carried it
+  and no other (criterion 10), so no two findings share a cause:
+  - An operation with no `operationId` whose derived id needed a suffix is reported as
+    `operation-id-collision` only, and that finding carries the fix. Its message says the
+    operation declares no `operationId`.
+  - A variable for which `server-not-callable` offers the allowed-hosts fix is not also
+    reported as `server-variable-no-default`: that fix writes its `default`.
+  - `diagnose` synthesizes values only to build `example-missing` fixes. It does not report
+    `synthesis-failed` or `budget-exceeded` for them; it offers no fix.
+  - The doctor report holds one finding per `fingerprint`. `buildPortalBundle` drops a finding
+    whose fingerprint is in `report.findings` or that it has already added.
+- **A fix adds no finding** when its input is valid. The `servers-missing` fix writes a host
+  variable with an `enum`, which is callable, and `server-url-placeholder` reads literal hosts
+  only.
+- **Not measured: how many findings the large fixtures produce.** The doctor page holds what
+  fits in `pageBytes` (ADR 0003), and the test that no fixture yields `budget-exceeded` covers
+  that page. If it fails there, the remedy is the architect's: a change to this table, not a
+  raised limit.
 
 Two findings are fixed here, because the proxy, MCP and the guides contract (4.3) depend on them.
 Both are warnings: the portal still builds and every code sample still renders.
@@ -507,7 +672,7 @@ list, and a tenant's own subdomains that serve user content. A stale snapshot ad
 
 ## Consequences
 
-- In M1 the `ezdp` CLI keeps the overlay in a file beside the spec. In M4 the control plane keeps
+- In M1 the `ezdp` CLI keeps the overlay in a file beside the spec ("The overlay file"). In M4 the control plane keeps
   it per project. Neither changes the engine. The CLI's file is its owner's to edit; in the control
   plane the stored patches are only ever ones the engine generated, and the dashboard posts a fix
   id and inputs.

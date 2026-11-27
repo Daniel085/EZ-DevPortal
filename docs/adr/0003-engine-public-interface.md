@@ -36,6 +36,11 @@ files, page types and URL scheme are defined ("The portal bundle"); the schema v
 work and tenant `pattern`s are never executed ("Schema validation"); `buildPortalBundle` takes
 the doctor's findings; the thresholds of criterion 23 are confirmed ("Performance"). The raised
 cap, the new `Limits` fields and the `pattern` decision go to the security reviewer.
+Revised again that day to close gaps a second audit found: "Tenant Markdown" says how a
+description is written so that no twin or page holds live HTML, and the engine gains a Markdown
+parser; "The M1 command line" defines `ezdp`; `selectResponseExample` and `checkFixInputs` are
+named; `parseDocument` takes the file's size; "Build order in M1" is added. "Tenant Markdown",
+its two fixed bounds and the new dependency go to the security reviewer.
 
 ## Context
 
@@ -61,7 +66,9 @@ interface Limits {
 // 1. Parse one document. YAML or JSON. Keeps a source map (pointer -> line/column range).
 //    Opaque apart from these two fields. A parse fault is in `findings`, never thrown.
 interface ParsedDocument { readonly uri: string; readonly findings: Finding[] }
-parseDocument(input: { uri: string; text: string }, limits: Limits): ParsedDocument
+parseDocument(input: { uri: string; text: string;
+                       bytes?: number },   // the file's true size, when the caller knows it
+              limits: Limits): ParsedDocument
 
 // 2. Which other documents does this one reference? Absolute URIs, resolved against doc.uri.
 listExternalRefs(doc: ParsedDocument): string[]
@@ -80,9 +87,11 @@ diagnose(model: ApiModel, docs: ParsedDocument[],
                     limits: Limits }): Finding[]               // variable needs an enum (ADR 0004)
 parsePublicSuffixList(text: string): PublicSuffixList   // pure; the caller reads the file. The
                                        // result is opaque.
+checkFixInputs(fix: Fix, inputs: Record<string, string>): FixInputIssue[]   // [] means usable (ADR 0004)
 bindFix(fix: Fix, inputs: Record<string, string>): SpecPatch | null   // the engine's patch with inputs
-                                       // placed; null if an input is over 2,048 characters or fails
-                                       // its format or list rules (ADR 0004)
+                                       // placed; null exactly when checkFixInputs returns an issue:
+                                       // an input missing, unknown, over 2,048 characters, or
+                                       // failing its format or list rules (ADR 0004)
 applyFixes(docs: ParsedDocument[], patches: SpecPatch[]): { docs: ParsedDocument[]; conflicts: PatchConflict[] }
 serializeDocument(doc: ParsedDocument): string
 
@@ -99,6 +108,14 @@ toJsonSchema(model, schema, { refs: 'keep' | 'inline'; maxDepth: number }, limit
   : { schema: Json; findings: Finding[] }                             // for the M2 MCP; not built in M1
 synthesizeExample(model, schema, limits: Limits): { value: Json; findings: Finding[] }       // deterministic
 validateValue(model, schema: Schema, value: Json, limits: Limits): ValueCheck   // "Schema validation"
+selectResponseExample(model, operationId: string, status?: string): ResponseExample | null
+                                       // "Which example, when there are several"; built in M1
+
+// 6a. Tenant Markdown ("Tenant Markdown"). All four are pure and take no limits.
+parseMarkdown(text: string): MarkdownRoot                 // the one parser configuration; mdast `Root`
+sanitizeMarkdown(text: Markdown): { text: Markdown; fallback: boolean }   // the safe form
+escapeMarkdownText(text: string): string                  // any string as inert Markdown text, one line
+linkDestinationAllowed(destination: string): boolean
 
 // 7. Everything the renderer needs, as data. `report` is what the doctor page shows: every
 //    finding the caller holds so far (from buildModel and diagnose) and the fixes not applied.
@@ -120,8 +137,12 @@ bundle, and each page's share of it is bounded as well.
 
 `defaultLimits`. A byte figure is counted as string length in UTF-16 code units, which the engine
 can measure without an encoder and which is never more than the UTF-8 byte count; the caller
-checks the true size of a file before it decodes it. "Largest fixture" was measured on
-`fixtures/specs/` on 2026-11-27.
+checks the true size of a file before it decodes it. The caller does not make the finding. It
+passes the size as `bytes`, and `parseDocument` reports `limit-exceeded` without parsing when
+`bytes`, or the text's length, is over `inputBytes`. A caller that sees from the size on disk
+that a file is over the cap passes `text: ''` with `bytes` and never reads the file. So the
+engine is the one emitter of `limit-exceeded`, as of every finding. "Largest fixture" was
+measured on `fixtures/specs/` on 2026-11-27.
 
 | Field | Default | What is counted | Largest fixture |
 |---|---|---|---|
@@ -293,7 +314,8 @@ Rules, each one sentence a builder would otherwise have to guess:
 - **Titles.** An operation's title is its `summary`, else the method in upper case, a space and
   the path. A schema's is its id, a tag's its name, the home page's `info.title`.
   `PageRef.description` is the first line of the item's description source, with white space
-  collapsed, cut at 200 characters and escaped as twin text is; empty if there is none.
+  collapsed and cut at 200 characters; empty if there is none. It is plain text, not Markdown:
+  the renderer shows it as text, and `llms.txt` writes it through `escapeMarkdownText`.
 - **Navigation.** A tag group lists the tag's operations in `Tag.operationIds` order; an
   operation with several tags is in each group and has one page. The `schemas` group lists the
   schema pages in model order.
@@ -308,7 +330,10 @@ Rules, each one sentence a builder would otherwise have to guess:
   scheme, no prefix. `http` `bearer`, `oauth2` and `openIdConnect`: header `Authorization`,
   prefix `Bearer `. `http` `basic`: header `Authorization`, prefix `Basic `. Any other `http`
   scheme: header `Authorization`, and the scheme as written plus a space. `mutualTLS` and
-  `undefined`: no `in`, `name` or `prefix`.
+  `undefined`: no `in`, `name` or `prefix`. `bearer` and `basic` are matched without regard to
+  ASCII case. For `basic` the statement also says, in fixed text of ours, that the value after
+  the prefix is the Base64 of `username:password`; how a request carries it is ADR 0005, "Basic
+  authentication".
 - **Variant names (criterion 1).** A `oneOf` or `anyOf` member that is a reference is named by
   the target's `title`, else its id; an inline member by its `title`, else `Option` and its
   1-based position. Twins and HTML both use this.
@@ -342,9 +367,12 @@ Rules, each one sentence a builder would otherwise have to guess:
   value, constraints, description. A schema that is not on the page is a link to its twin.
 - A tag's twin lists its operations as links to their twins. A schema's twin is the `## Schemas`
   part alone.
-- Descriptions are copied as the Markdown they are. Every other tenant string is written in a
-  code span or fenced block whose fence is longer than any run of backticks inside it, or with
-  Markdown's special characters escaped. There is no HTML of ours and no navigation.
+- A description is written in its safe form, the `Markdown` string of the page file, which
+  `sanitizeMarkdown` produced ("Tenant Markdown"). It is never the text as authored. Inside a
+  list item, every line of it after the first is indented to the item's content column. Every
+  other tenant string is written in a code span or fenced block whose fence is longer than any
+  run of backticks inside it, or through `escapeMarkdownText`. There is no HTML of ours and no
+  navigation.
 - `llms.txt`: `# ` and `info.title`; `> ` and `info.summary` if there is one; `## Tags`, a list
   of the tag twins; then one `## ` per tag listing its operations, each operation under its
   first tag only; then `## Schemas`. Each entry is `- [title](link): description`, so every twin
@@ -368,9 +396,11 @@ second unit:
 
 - Every `path` in the bundle, and every path in `manifest.json`, in a page file and in
   `search.json`, is relative to the **unit's base**: no leading `/`, no scheme or host, and no
-  project, API or version segment. In M1 the unit's base is the portal root; from M4 it is below it. The engine never
-  bakes in a base path, so subpath hosting (`host.com/docs`) and the unit's prefix are the
-  renderer's concern alone.
+  project, API or version segment. The unit's base is the base path followed by the unit
+  prefix. Both are settings of the build in M1, empty by default (ADR 0006, "Units"), so an M1
+  export can already sit below the portal root (criterion 21). The engine never bakes in
+  either, so subpath hosting (`host.com/docs`) and the unit's prefix are the renderer's concern
+  alone.
 - A link that the engine writes inside a file under `static/`, in a twin or in `llms.txt`, is
   relative to the file that contains it, so the files work wherever the unit is mounted. If
   `siteUrl` is given, absolute URLs are built from it, and it is the unit's base URL, not the
@@ -402,6 +432,83 @@ share a worker with another tenant's.
 
 Enforcement: ADR 0001 rule 4 (restricted `lib`, no Node types, lint bans), no `async` in the public
 interface, and a test that builds the same fixture twice and compares bytes.
+
+### Tenant Markdown
+
+Decided 2026-11-27, after the second audit. No twin may contain HTML and hostile spec text must
+be inert in pages and twins (criteria 17 and 19), so a description is never copied as written.
+The engine rewrites it once into a **safe form**, and the page and the twin are both made from
+that one string.
+
+- **One parser, owned by the engine.** `parseMarkdown` is `mdast-util-from-markdown` with four
+  GFM extensions (tables, task lists, strikethrough, footnotes) and without autolink literals.
+  The renderer parses with this function and has no Markdown parser of its own (ADR 0006), so
+  the tree the engine checked is the tree the renderer gets.
+- **The safe form** is Markdown whose parse by `parseMarkdown` has no `html` node, no `image`
+  or `imageReference`, no `definition` or `linkReference`, and no `link` whose destination
+  fails `linkDestinationAllowed`. `sanitizeMarkdown` reaches it by rewriting the source text at
+  each node's range:
+
+  | Construct in the source | Written as |
+  |---|---|
+  | Raw HTML, block or inline: a tag, a comment, `<script>`, a processing instruction, a declaration, CDATA | The same characters with each `<` written `&lt;`. It shows as the text that was typed. |
+  | An autolink, `<https://…>` or `<name@example.com>` (a `link` whose source begins with `<`) | Its `<` written `&lt;`. Text, not a link. A bare URL was never a link. |
+  | An inline link whose destination is allowed | Unchanged |
+  | A reference link whose definition's destination is allowed | The inline form, `[text](destination)`, with `(` and `)` in the destination written `%28` and `%29`. The title is dropped. |
+  | A link of either form whose destination is refused: `javascript:`, `data:`, `http:`, any other scheme, a relative or absolute path | Its link text alone. The destination and the title are dropped. |
+  | An image of either form, whatever its source | `escapeMarkdownText` of its alt text. Never an image, so no remote host is contacted. The source is dropped. |
+  | A link reference definition | Removed, so a description's meaning never depends on text outside it |
+  | Anything else, including code spans, code blocks and `{{…}}` | Unchanged. A `<` inside code is already text. |
+
+- **Repeat until nothing is found.** A rewrite can expose a new construct: text that was
+  inside an HTML block becomes Markdown, and a code fence can move. So `sanitizeMarkdown`
+  parses, rewrites and parses again until a parse finds nothing to rewrite. The last parse is
+  the proof that the result is the safe form.
+- **Fallback.** Three cases are not rewritten: text longer than 65,536 code units, which is
+  not parsed; a tree nested deeper than 32, counted as contract 4.1 counts it; and text that
+  still needs a rewrite after 8 passes. Each is returned as one fenced code block holding the
+  text as authored, with a fence longer than any run of backticks in it, and `fallback: true`.
+  `buildPortalBundle` then reports `markdown-not-rendered`, an info, at the item. The bounds are
+  fixed and are not `Limits` fields, so the page and the twin agree whatever limits a caller
+  passes.
+- **Closed.** If the result ends inside a fenced code block that has no closing fence, one is
+  appended, so a description cannot swallow what follows it in a twin.
+- **`linkDestinationAllowed`** takes the destination as CommonMark yields it, after escapes and
+  character references. Three forms pass. (1) `https:`: it matches the regex of contract 4.5,
+  has no `\`, and the last label of its host is not a number (digits only, or `0x` and hex
+  digits, as in ADR 0004's clause (c)), which is the one form that regex admits and a URL
+  parser rewrites. (2) `mailto:`: it matches
+  `^mailto:[A-Za-z0-9._%+-]+@[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$`. (3) An in-page anchor:
+  `^#[A-Za-z0-9_-]{1,120}$`. The engine has no `URL`; the renderer also parses an `https:`
+  target and shows one it refuses as text (ADR 0006).
+- **`escapeMarkdownText`** is for a tenant string that is not Markdown and is not put in code:
+  a title, a summary, a name, an image's alt text. Line ends and tabs become one space and the
+  ends are trimmed. A backslash is put before each of `` \ ` * _ [ ] < > & ~ | ``, and, at the
+  start of the string only, before `#`, `+`, `-` or `=`, and before the `.` or `)` that
+  follows leading digits.
+- **Where it is applied.** `buildPortalBundle` puts the safe form in every `Markdown` field of
+  every page file, and a twin copies the field from its page file. `model.json` keeps the text
+  as authored: `Markdown` in the model stays untrusted (ADR 0002), and an M2 consumer of the
+  model calls `sanitizeMarkdown` or shows the text as text.
+- **Speed.** A text with no `<`, no `[` and no run of three backticks or tildes is already in
+  the safe form and need not be parsed. Results may be remembered per distinct text within one
+  `buildPortalBundle` call.
+- **Tests.** For every fixture and QA's hostile-content fixture: each twin, parsed by
+  `parseMarkdown`, has no `html`, `image`, `imageReference` or `definition` node, and each
+  `link` in it either is one the engine wrote to another twin or passes
+  `linkDestinationAllowed`; `sanitizeMarkdown` of a safe form returns it unchanged; and a test
+  in the portal, where `URL` exists, asserts that the renderer keeps every link the engine
+  kept in the fixtures.
+- **Known difference.** Footnote labels are kept as written. A twin that holds two
+  descriptions using the same label shows the first definition for both; the page parses each
+  description by itself.
+
+Alternatives rejected. A small scanner of our own that escapes `<` outside code: it has to
+find code spans and blocks exactly as CommonMark does, and where it is wrong a live tag
+remains. Escaping every `<`, code included: sound without a parser, but `` `List<Pet>` `` would
+show a backslash. Carrying the description in the page file as a syntax tree, not text: it
+removes the renderer's parse, but it is a larger change to the page types than M1 should take
+now, and page files grow.
 
 ### The published spec
 
@@ -478,15 +585,82 @@ To check at M4, before the hosted portal serves either file:
   are exposed whatever is decided for the published spec.
 - External `$ref` URLs stay as written in the published file and may reveal internal hostnames.
 
+### The M1 command line
+
+`ezdp` is the publisher's binary (ADR 0001). `<spec>` is one local file. M1 has these commands
+and no others.
+
+| Command | What it does |
+|---|---|
+| `ezdp build <spec> --out <dir>` | The full build of criterion 23: the engine pass, the bundle, the static export and the published spec |
+| `ezdp doctor <spec>` | The engine pass up to `diagnose`. Prints each finding with its fix ids and their inputs; `--json` prints the `Finding[]`. Writes nothing. |
+| `ezdp fix accept <spec> <fix-id>` | Stores one accepted fix in the overlay file (ADR 0004, "The overlay file") |
+| `ezdp fix accept <spec> --all` | Stores the first fix of every finding that has one |
+| `ezdp fix remove <spec> <fix-id>` | Removes that entry from the overlay file |
+
+| Option | On | Meaning |
+|---|---|---|
+| `--out <dir>` | `build`, required | The export directory. Replaced as a whole when the build succeeds; untouched when it fails. |
+| `--overlay <file>` | all | The overlay file. Default: the spec's path plus `.ezdp-overlay.json`, used if it exists. A file named here that does not exist is an error, except for `fix accept`, which creates it. |
+| `--base-path <path>` | `build` | Where the portal is mounted. Default: empty (ADR 0006, "Units"). |
+| `--unit-prefix <path>` | `build` | Where this unit sits below the base path. Default: empty. |
+| `--no-published-spec` | `build` | Omits `spec/` from the export ("Who can read it") |
+| `--bundle-dir <dir>` | `build` | Also keeps the bundle files there, `model.json` included. Without it they are in a temporary directory that is removed. |
+| `--portal-dir <dir>` | `build` | The portal app. Default: `apps/portal` under the workspace root, found by walking up from the CLI's own file to `pnpm-workspace.yaml`. |
+| `--input <name>=<value>` | `fix accept <fix-id>` | One input. Repeating a name joins the values with LF in the order given, which is how a `list` input is written. |
+| `--inputs <file>` | `fix accept` | JSON: `{ "<fix-id>": { "<name>": "<value>" } }`. The way to supply inputs with `--all`. |
+
+`ezdp build`, in order. The dependency rule of ADR 0001 holds: the publisher imports only the
+engine and starts the portal as a process.
+
+1. Check the file's size, read it, read the overlay. The root document's `uri` is the file's
+   base name (`petstore.yaml`), never a path, so reports, `model.json` and overlay files are
+   the same on every machine (criterion 20). `fetchedHash` is the SHA-256 of the file's bytes.
+2. The engine pass: `parseDocument`, `applyFixes`, the published spec's bytes and
+   `publishedHash` in memory, `buildModel`, `diagnose` with the vendored Public Suffix List,
+   `buildPortalBundle` with all eight languages in the order of `SampleLanguage` and no
+   `siteUrl`. On a fatal finding: print the findings, write nothing, exit 1.
+3. Write the bundle files to a temporary directory outside `--out`, or to `--bundle-dir`.
+4. Run the portal's export command as a child process (ADR 0006, "The export command"), giving
+   it the bundle directory, an empty export directory beside the bundle, the base path and the
+   unit prefix. It writes the pages, the build assets and everything under `static/`.
+5. Unless `--no-published-spec`, write the published spec into that export directory at
+   `<unit prefix>/spec/openapi.json` or `.yaml`. The publisher does this, not the portal: the
+   file is not a bundle file and the portal never reads it.
+6. Replace `--out` with the export directory, print the published-spec notice, exit 0.
+
+- **Exit codes.** 0: built. 1: a fatal finding in the spec (criterion 5). 2: anything else,
+  such as a bad option, an unreadable file, a malformed overlay, a refused input or a failed
+  export. Nothing in `--out` changes unless the exit code is 0.
+- **Findings are printed** one per line to standard error: severity, code, `uri:line:column`,
+  the JSON pointer, the message.
+- **`fix accept`.** Run the engine pass with the current overlay; look the fix up by id in its
+  findings; call `checkFixInputs` and, on any issue, print it, store nothing and exit 2; call
+  `bindFix`; for each input whose `format` is `host-name` or `host-suffix`, make the URL check
+  of ADR 0004 on every value and store nothing if one fails (criterion 31); append the entry
+  and write the file. With `--all`, a fix whose inputs are not all in `--inputs` is skipped and
+  printed with the names of the inputs it needs; its finding stays (criterion 10).
+- **Not in M1:** a server, a watch mode, a strict-mode flag (`publicSuffixes: null` is tested
+  through the engine), `siteUrl`, and any command that dismisses a finding.
+
+Rejected: a top-level package that depends on both `publisher` and `portal` and holds the
+command. The portal is an app, not a library, so the dependency would only be a way to find a
+directory, and it would break "nothing depends on `portal`" for a process launch. The hosted
+pipeline in M4 publishes without a Next.js build and must not inherit one.
+
 Libraries:
 
 - **The Public Suffix List is data, not a library**, and it is passed to the engine, not shipped
   in it. Its licence is MPL 2.0. The user granted a one-file exception to ADR 0001 rule 5 for it
   on 2026-11-27 (ADR 0004).
 - **`yaml`** (ISC, no dependencies) parses YAML and JSON and exposes node ranges, which gives the
-  source map, and it can re-serialize a patched document with comments kept. It is the engine's only
-  runtime dependency. `Limits` caps alias expansion, depth, node count and input size while parsing,
+  source map, and it can re-serialize a patched document with comments kept. `Limits` caps alias expansion, depth, node count and input size while parsing,
   and nodes and bytes produced by derived work.
+- **`mdast-util-from-markdown`** and four GFM extension pairs (all MIT) parse tenant Markdown.
+  It is the engine's second runtime dependency; the licence line and the reason are in ADR
+  0001, rule 5, and the use is "Tenant Markdown". It is in a module of its own and the package
+  is marked free of side effects, so a browser bundle that imports only the request code does
+  not carry it.
 - **`$ref` resolution is our own code**: JSON Pointer lookup across the supplied documents, by own
   properties only, a few hundred lines. See the alternative below.
 - **No schema validator dependency.** Values are checked against a schema by `validateValue`,
@@ -556,20 +730,41 @@ Criterion 23's thresholds, confirmed with what each one measures. The reference 
 
 | Threshold | Verdict | Reason |
 |---|---|---|
-| Engine pass under 60 seconds, on `large/github-ghes.json` and `large/stripe.json` | Confirmed | Measured on 2026-11-27 with `yaml` 2.9.1 on Node 22, 4 cores: parsing with the source map takes 2.0 s, 1.7 s and 2.3 s for the two fixtures and `large/github-api-3.1.json`. Nothing else exists to measure, and the rest is linear in the model. |
+| Engine pass under 60 seconds, on `large/github-ghes.json` and `large/stripe.json` | Confirmed | Measured on 2026-11-27 with `yaml` 2.9.1 on Node 22, 4 cores: parsing with the source map takes 2.0 s, 1.7 s and 2.3 s for the two fixtures and `large/github-api-3.1.json`. ADR 0001 requires Node 24, so these figures are indicative only and are measured again on Node 24 before criterion 23 is marked. Nothing else exists to measure, and the rest is linear in the model. |
 | Full build within 5 minutes, same two fixtures | Confirmed as a target, not measured | About 1,600 and 2,150 pages, which is 7 pages a second. If Stripe misses it, lower `pageSchemas` before asking for a longer time. |
-| New: the engine pass runs in Node's default heap, with no `--max-old-space-size` | Added | Parsing the three large fixtures in one process reached 1.2 GB resident. A pass that needs a raised heap would not fit a per-tenant worker. |
+| New: the engine pass runs in Node's default heap, with no `--max-old-space-size` | Added | Parsing the three large fixtures in one process reached 1.2 GB resident, on Node 22 as above; to be measured again on Node 24. A pass that needs a raised heap would not fit a per-tenant worker. |
 
 - The engine pass is `parseDocument`, `applyFixes`, `buildModel`, `diagnose` and
   `buildPortalBundle` in one process, timed by the test around the calls. It excludes reading
   and writing files.
-- The full build is one `ezdp` command from start to a complete export directory: the engine
-  pass, writing the bundle, and the static export with highlighting. It excludes installing
+- The full build is one `ezdp build` command from start to a complete export directory ("The
+  M1 command line"): the engine pass, writing the bundle, the static export with highlighting,
+  which the command runs as a child process, and the published spec. It excludes installing
   dependencies, `fetch.sh` and the sample toolchains of criteria 13 and 14.
 - Criterion 24's page weight is in ADR 0006, "Page weight".
 
+### Build order in M1
+
+The order the engine's functions are built in, by what each needs. The kickoff's step order
+follows this table.
+
+| Step | Built | Needs |
+|---|---|---|
+| 1 | `parseDocument` with limits and the source map, `$ref` resolution, `buildModel` and the operation-id algorithm, `getOperation`, `getSchema`, `applyFixes`, `serializeDocument` | Nothing |
+| 2 | `resolveSchemaView`, `validateValue`, `synthesizeExample`, `selectResponseExample` | 1 |
+| 3 | The spec doctor: `diagnose` and the rule table, `parsePublicSuffixList`, `checkFixInputs`, `bindFix` | 1 and 2: `example-invalid` needs `validateValue`, and the `example-missing` fix needs `synthesizeExample` |
+| 4 | `buildRequest`, `renderSample` and the eight emitters | 1 and 2 |
+| 5 | `buildPortalBundle`: page files, twins, `llms.txt`, the doctor report | 1 to 4, and the Markdown functions |
+| Any time | `parseMarkdown`, `sanitizeMarkdown`, `escapeMarkdownText`, `linkDestinationAllowed` | Nothing. The renderer needs `parseMarkdown` from the start of its work. |
+
+- Steps 3 and 4 do not depend on each other.
+- The local mock (ADR 0005) is test code that uses functions of steps 1 and 2 only, so it is
+  written after step 2 and not before the engine exists. The tests that run samples against it
+  (criterion 14) need step 4, and the mock-server builds (criteria 18 and 25) need the CLI.
+- `toJsonSchema` is not built in M1.
+
 Supported input in M1: OpenAPI 3.0.x and 3.1.x. Swagger 2.0 yields a single `unsupported-version`
-error. 3.2 is read as 3.1 with a warning.
+error. 3.2 is read as 3.1 with a warning, `version-read-as-3.1`.
 
 ## Outbound requests
 
@@ -754,9 +949,10 @@ Decided by the user on 2026-11-27, in three decisions. The first put "Try it" in
 preview into example-response mode. The other two, the same day, settle when a preview makes
 live calls and what happens to a host the tenant cannot verify by DNS; they replace this
 section's earlier wording on both points. Requirements on M2's design (the console and the
-proxy) and on M4's (the private preview in M4a, host verification in M4b); the first paragraph
-under `PortalBundle` above is the only part that binds M1. The security reviewer has not seen
-it.
+proxy) and on M4's (the private preview in M4a, host verification in M4b). Two parts bind M1:
+the paragraph "Declared examples stay apart from synthesized values" under "The portal bundle",
+and `selectResponseExample` below, which M1 builds because the local mock answers with it (ADR
+0005). The security reviewer has not seen it.
 
 **When the console is live.** This is the one rule. Every other section and document points
 here and does not restate it. For an operation and the server the reader selected, "Try it"
@@ -830,8 +1026,23 @@ example stands in for it.
   description and schema, as the reference page does. A response with no `content` is shown as
   having no body, which is what the spec declares.
 - **Which example, when there are several.** One rule, deterministic, implemented once in the
-  engine as a pure projection and used by the console, by the reference page and by the guides
-  `<Response>` component (contract 4.2), so all three show the same one:
+  engine as the pure function `selectResponseExample` and used by the console, by the reference
+  page, by the guides `<Response>` component (contract 4.2) and by M1's local mock, so all show
+  the same one:
+
+  ```ts
+  selectResponseExample(model, operationId: string, status?: string): ResponseExample | null
+  interface ResponseExample {
+    status: string;                    // the response chosen by step 1, or the one asked for
+    mediaType?: string;                // absent: the response has no content
+    example?: { name?: string;         // the `examples` key; absent for a schema's example
+                value: Json };         // absent: the spec declares no example for this response
+  }
+  ```
+
+  It returns `null` when the operation is unknown, has no response, or has none with the
+  status asked for. With no `status` it applies step 1. When no media type has an example,
+  `mediaType` is the first in step 2's order.
   1. *Status.* The console opens on the first response, in the model's order (exact codes
      ascending, then ranges, then `default`), whose status is an exact code from `200` to `299`;
      if there is none, `2XX`; then `default`; then the first response. The reader may pick any

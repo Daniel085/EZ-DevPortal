@@ -2,7 +2,9 @@
 
 Status: accepted, 2026-11-27. Proposed 2026-11-26; it passed the security design review and
 re-review of that day unchanged. Milestone: M1. Revised 2026-11-27: rule 5 records the user's
-decision on the Public Suffix List.
+decision on the Public Suffix List. Revised again that day after the second audit: the engine
+gains a Markdown parser (rule 5 line below), and rule 2 names the one process boundary between
+`publisher` and `portal`.
 
 ## Context
 
@@ -18,7 +20,8 @@ Vitest, ESLint. Node 24 or later. Libraries are compiled with `tsc` project refe
 and no task runner (Turborepo, Nx) until `pnpm -r` is measurably too slow.
 
 ```
-packages/engine      @ezdp/engine     pure library                      runtime deps: yaml
+packages/engine      @ezdp/engine     pure library                      runtime deps: yaml, and the
+                                                                        Markdown parser (below)
 packages/theme       @ezdp/theme      token schema, default theme,      runtime deps: none
                                       tokens -> CSS variables
 packages/publisher   @ezdp/publisher  the I/O shell and `ezdp` CLI      deps: engine, Node built-ins
@@ -36,8 +39,12 @@ Dependency rules:
 1. Direction is one way: `engine` and `theme` depend on no workspace package. `publisher` depends on
    `engine`. `portal` depends on `engine` and `theme`. Nothing depends on `portal` or `publisher`
    except, later, the control plane on `publisher`.
-2. `portal` and `publisher` do not depend on each other. They meet only at the portal bundle, a data
-   format defined and versioned by the engine (ADR 0003).
+2. `portal` and `publisher` do not depend on each other: neither imports the other and neither's
+   `package.json` names the other. They meet at the portal bundle, a data format defined and
+   versioned by the engine (ADR 0003), and at one process boundary: `ezdp build` starts the
+   portal's export command as a child process, with a bundle directory and settings in and an
+   export directory out (ADR 0006, "The export command"; ADR 0003, "The M1 command line"). The
+   CLI finds the portal by a directory path, not by a package dependency.
 3. Imports cross a package boundary only through the package's `exports` entry. No deep imports
    (`@ezdp/engine/src/...`). Each package declares a single `exports` map; ESLint
    `no-restricted-imports` backs it up.
@@ -52,6 +59,17 @@ Dependency rules:
    checked-in derived file and not compiled into the source of any package. MPL-2.0 does not
    become a permitted licence for dependencies. The design is in ADR 0004, "The Public Suffix
    List".
+
+Runtime dependency lines under rule 5, added 2026-11-27. Package: `@ezdp/engine`.
+`mdast-util-from-markdown`, with `micromark-extension-gfm-table`, `-gfm-task-list-item`,
+`-gfm-strikethrough`, `-gfm-footnote` and the four matching `mdast-util-gfm-*` packages. All MIT;
+installed together they bring 51 packages, every one MIT (read from each `package.json` on
+2026-11-27, versions 2.x). Why not our own code: the engine must find raw HTML, links and images
+in tenant Markdown exactly as the renderer's parser does (ADR 0003, "Tenant Markdown"); a
+second, smaller parser of ours would disagree with it somewhere, and each disagreement is live
+HTML in a twin. They move here from `apps/portal`, which now gets the parser from the engine
+(ADR 0006). They do no I/O. Not verified: that they type-check under rule 4's `lib` and `types`;
+the scaffold step checks it and comes back to the architect if they do not.
 
 Fixtures: the spec corpus lives in `fixtures/specs/` at the repository root and is read only by
 tests and by the `ezdp` CLI in development. Tests may do I/O; library source may not. Expected

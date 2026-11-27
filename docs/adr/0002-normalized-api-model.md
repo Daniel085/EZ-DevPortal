@@ -9,6 +9,9 @@ several versions of one: "The unit" is added. The shape is unchanged.
 Revised again that day to state the order of `content` and `examples`, which ADR 0003's
 example-selection rule depends on. The shape is unchanged.
 Revised again that day to make the slug rule exact. The shape is unchanged.
+Revised again that day after the second audit. One change of shape: a server variable's
+`default` is optional. `Tag.id` is defined, and "Fields OpenAPI requires and real specs omit"
+says what the model holds for each.
 Milestone: M1. Longer than other ADRs because two developers code against it in parallel.
 
 ## Context
@@ -90,6 +93,19 @@ unit is the whole portal.
   0003). Within a pool, items that share a slug are taken in order of source text by code
   point: the first keeps it and the rest get `-2`, `-3`, the first unused. Each such item is
   reported as `slug-collision`, an info.
+- **Tag id**: `Tag.id` is the tag's `name`, verbatim, compared by code point. Tags are named, so
+  no collision rule is needed.
+  - Declared tags come first, in declared order, with `synthetic: false`. A second declared tag
+    with a name already declared is dropped (`structure-invalid`, ADR 0004).
+  - A name an operation uses that no declared tag has becomes a tag with that `id` and `name`,
+    no description and `synthetic: true`. These follow the declared tags, in order of first
+    use: by `model.operations` order, then by position in the operation's `tags`.
+  - An operation with no `tags`, or an empty list, belongs to the tag whose id is `default`. If
+    no tag of that name exists it is created last, with `name: 'default'` and
+    `synthetic: true`; if one exists the operation joins it and the tag is unchanged.
+  - `Operation.tags` holds those ids, each once, in authored order. `Tag.operationIds` is in
+    `model.operations` order. Webhooks and callback operations get `tags` by the same rule, but
+    they neither create an entry in `model.tags` nor appear in `operationIds`.
 
 ### Shape
 
@@ -117,10 +133,11 @@ interface ApiModel {
 }
 
 interface Server { url: string; description?: Markdown;
-  variables: { name: string; default: string; enum?: string[]; description?: Markdown }[] }
+  variables: { name: string; default?: string;    // absent when the spec gives none (see below)
+               enum?: string[]; description?: Markdown }[] }
 
 interface Tag { id: string; slug: string; name: string; description?: Markdown;
-  operationIds: string[]; synthetic: boolean }   // untagged operations go to synthetic tag 'default'
+  operationIds: string[]; synthetic: boolean }   // id: see "Identifiers", Tag id
 
 interface Operation {
   id: string; idSource: 'declared' | 'derived'; slug: string;
@@ -143,7 +160,7 @@ interface Parameter { name: string; in: 'path'|'query'|'header'|'cookie'; requir
   deprecated: boolean; description?: Markdown;
   style: 'matrix'|'label'|'form'|'simple'|'spaceDelimited'|'pipeDelimited'|'deepObject';
   explode: boolean; allowReserved: boolean;       // defaults already applied
-  schema?: Schema; content?: MediaType;           // exactly one of the two
+  schema?: Schema; content?: MediaType;           // exactly one of the two, always (see below)
   examples: Example[]; ref?: string; loc: Loc }
 
 // `content` arrays and `examples` arrays are in authored order: the order of the keys in the
@@ -169,6 +186,31 @@ type SecurityScheme = { id: string; description?: Markdown; loc: Loc } & (
   | { type: 'openIdConnect'; openIdConnectUrl: string }
   | { type: 'mutualTLS' });
 ```
+
+### Fields OpenAPI requires and real specs omit
+
+The model holds an empty value or drops the item; it never guesses a value. For each field
+OpenAPI requires, this is what the model holds when the spec leaves it out. Each case is a finding; the code is `structure-invalid`
+unless another is named (ADR 0004, "Fatal and degrading faults" and the rule table).
+
+| Required by OpenAPI | In the model when absent or of the wrong type |
+|---|---|
+| `info`, `info.title`, `info.version` | `''` |
+| `responses` on an operation; `content` on a request body | `[]` |
+| A server's `url` | The server is dropped |
+| A server variable's `default` | `default` is absent (`server-variable-no-default`). Nothing else about the variable changes. |
+| A tag's `name` | The tag is dropped |
+| A parameter's `name` or `in` | The parameter is dropped |
+| `required: true` on a path parameter | `required: true` |
+| One of `schema` and `content` on a parameter | Neither: `schema` is an empty schema node of any type. Both: `schema` is kept and `content` dropped. |
+| A response's `description` | Absent; the field is optional in the model |
+| A security scheme's `type`; `name` and `in` for `apiKey`; `scheme` for `http`; `openIdConnectUrl` for `openIdConnect` | The scheme is dropped. A requirement that names it then names an undefined scheme (`security-scheme-missing`). |
+| `flows` on `oauth2`; `scopes` on a flow | `[]` |
+| `url` on `externalDocs` | `externalDocs` is absent |
+| `propertyName` on a discriminator | The discriminator is dropped (`schema-invalid`) |
+
+An `http` scheme's `scheme` is held as written. It is compared with `bearer` and `basic`
+without regard to ASCII case (ADR 0003, "The security statement"; ADR 0005).
 
 ### Source hashes
 
@@ -228,7 +270,7 @@ Normalization, so consumers see one dialect (3.1 semantics):
 | 3.0 boolean `exclusiveMinimum`/`Maximum` | numeric form |
 | `type: 'x'` or `type: ['x','null']` | `types` array |
 | singular `example` | `examples: [value]` |
-| 3.0 siblings of `$ref` | dropped, with a finding. 3.1 `description` sibling kept on the ref. |
+| 3.0 siblings of `$ref` | dropped, with a finding (`ref-siblings-ignored`, an info). 3.1 `description` sibling kept on the ref. |
 | discriminator without `mapping` | mapping filled in from the `oneOf`/`anyOf` member schema names |
 | `allOf` | kept as authored. `resolveSchemaView()` (ADR 0003) returns the merged object for display. |
 

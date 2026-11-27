@@ -19,6 +19,10 @@ the one rule in ADR 0003 for when "Try it" sends. No type or function is changed
 Revised again that day to close gaps a readiness audit found: "What an M1 sample shows" makes
 the base URL agree with criterion 15, `buildRequest` reports where each value came from, and
 "The local mock" says how tests run samples without calling a real API.
+Revised again that day to close gaps a second audit found: `HttpRequest.basicAuth` and "Basic
+authentication" say how a Basic credential is carried and emitted; the local mock has a fixed
+port and names `selectResponseExample`. "Basic authentication" goes to the security reviewer
+with the emitters.
 
 ## Context
 
@@ -80,7 +84,9 @@ interface HttpRequest {
                                                     // absolute URL. See "What an M1 sample shows".
   path: Text;                                       // serialized and percent-encoded
   query: { name: string; value: Text }[];
-  headers: { name: string; value: Text }[];         // includes auth and Content-Type
+  headers: { name: string; value: Text }[];         // includes auth and Content-Type, except
+                                                    // Basic auth, which is in `basicAuth`
+  basicAuth?: { username: Var; password: Var };     // http basic. See "Basic authentication".
   body?: | { kind: 'json'; value: JsonText }
          | { kind: 'form'; fields: { name: string; value: Text }[] }
          | { kind: 'multipart'; parts: { name: string; value: Text; filename?: string; contentType?: string }[] }
@@ -202,6 +208,41 @@ Rules:
   runtime value (M2, M5) needs the engine's encoders in the browser and nothing else from it.
 - Syntax highlighting is not the engine's job. It returns code and a language id (ADR 0006).
 
+### Basic authentication
+
+An `http` scheme whose `scheme` is `basic`, compared without regard to ASCII case. The header
+value is the Base64 of `username:password`, which `Text` cannot express and must not: an
+encoded credential in literal text would be marker text by another name.
+
+- `buildRequest` sets `basicAuth` to the two credential variables, `username` and `password`,
+  both with `scope: 'credential'` and the scheme's id. It adds no `Authorization` header to
+  `headers`. The security statement is unchanged: header `Authorization`, prefix `Basic `
+  (ADR 0003).
+- Each emitter gives the pair to its client, or calls the language's own Base64 at run time.
+  No emitter writes an encoded value, and the engine encodes nothing in M1.
+
+  | Language | How the pair is written |
+  |---|---|
+  | `curl` | `-u 'YOUR_USERNAME:YOUR_PASSWORD'` |
+  | `javascript` | Header `Authorization`: `'Basic ' + btoa('YOUR_USERNAME:YOUR_PASSWORD')` |
+  | `python` | `auth=('YOUR_USERNAME', 'YOUR_PASSWORD')` |
+  | `go` | `req.SetBasicAuth("YOUR_USERNAME", "YOUR_PASSWORD")` |
+  | `java` | Header `Authorization`: `"Basic " + Base64.getEncoder().encodeToString("YOUR_USERNAME:YOUR_PASSWORD".getBytes(StandardCharsets.UTF_8))` |
+  | `csharp` | `new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes("YOUR_USERNAME:YOUR_PASSWORD")))` |
+  | `php` | `CURLOPT_USERPWD => 'YOUR_USERNAME:YOUR_PASSWORD'` |
+  | `ruby` | `request.basic_auth('YOUR_USERNAME', 'YOUR_PASSWORD')` |
+
+  Where the two share one string literal, each is still its own `Var` segment in
+  `Sample.code`, with the `:` between them a literal part.
+- On the wire every sample sends `Authorization: Basic WU9VUl9VU0VSTkFNRTpZT1VSX1BBU1NXT1JE`,
+  the Base64 of `YOUR_USERNAME:YOUR_PASSWORD`. That is the hand-written expected header of the
+  matrix's Basic row (criterion 14), and what the local mock accepts for Museum.
+- In M2 `resolveRequest` builds the header from the two real values with our own Base64 of
+  their UTF-8 bytes, and refuses a username that contains `:`.
+- Where two schemes of one requirement would both set `Authorization`, the first in the
+  requirement's order is placed and the other is reported in `issues` as `request-invalid`
+  (ADR 0004).
+
 ### What an M1 sample shows
 
 A static M1 sample is `renderSample` of `buildRequest(model, id, undefined, { limits })`. No server is
@@ -228,19 +269,28 @@ adds no dependency: Node's `http` module.
 
 - **Samples reach it through the spec, not through an option.** A test build uses an overlay
   with one hand-written patch that replaces the first server's `url` with
-  `http://127.0.0.1:<port>` and the server's base path. The overlay file is its owner's to edit
-  (ADR 0004), so this is the ordinary publish path, and the samples of that build use the first
+  `http://127.0.0.1:14010` and the server's base path. The overlay file is its owner's to edit
+  (ADR 0004, "The overlay file", which shows this overlay), so this is the ordinary publish path, and the samples of that build use the first
   declared server as criterion 15 says. A build without that overlay is what readers see and is
   unchanged. The matrix of criterion 14 is a fixture of QA's whose server is the mock already.
+- **The port is fixed: 14010.** The matrix fixture is a committed spec and the overlays are
+  committed files, so both must know the address before any test runs. If the port is taken
+  the mock fails to start and the test fails; there is no second port, because a sample built
+  for one address must never be run against another. Tests that use the mock run one at a
+  time.
 - **It is built from the same patched spec** and may use these engine functions and no others:
   `parseDocument`, `applyFixes`, `buildModel`, `getOperation`, `validateValue`,
-  `synthesizeExample` and the example-selection rule of ADR 0003. It matches a request to an
+  `synthesizeExample` and `selectResponseExample` (ADR 0003). All are built by step 2 of ADR
+  0003, "Build order in M1", so the mock is written after that step. It matches a request to an
   operation by method and path template and records the method, URL, headers and body bytes it
   received.
 - **It accepts a request** when the operation exists, every required parameter is present, the
   credential's display text is where the security scheme puts it, and a JSON body has no
-  `errors` under `validateValue`. It answers with the first 2xx response and its declared
-  example, else a synthesized one, else no body. Otherwise it answers 400 with the reason.
+  `errors` under `validateValue`. For Basic the credential is the header of "Basic
+  authentication". It answers with what `selectResponseExample(model, id)` returns: that
+  status when it is an exact 2xx code, else 200; the example's value as the body, else a
+  value from `synthesizeExample` for that media type's schema, else no body. Otherwise it
+  answers 400 with the reason.
 - **Expected values are written by hand.** For criterion 14 the expected method, URL, headers
   and body of each matrix row are in the fixture. They are not taken from `buildRequest` or
   `HttpRequest`, or a serialization bug would agree with itself.

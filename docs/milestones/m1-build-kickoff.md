@@ -11,9 +11,10 @@ read and in what order to work.
 4. `docs/adr/0001` to `0006`: the M1 architecture. All are accepted. ADR 0007 (guides generation
    and delivery) is M4 and M5 work and is not needed for M1. ADR 0002 (the API model) and
    ADR 0003 (the engine's interface) are what the engine and renderer developers code against.
-5. `docs/contracts/guides-contract.md`, sections 1.1 and 1.2 only for M1: the operation id
-   algorithm, which is normative and which the guides module also implements, and the published
-   spec, which the guides module generates from.
+5. `docs/contracts/guides-contract.md`, for M1 only these sections: 1.1, the operation id
+   algorithm, which is normative and which the guides module also implements; 1.2, the published
+   spec, which the guides module generates from; and, where the ADRs point to them, 4.3 (the
+   controlled-header list and the sample media type) and 4.5 (the external link rule).
 6. `docs/reviews/`: three security design reviews. Their rulings are already in the ADRs; read them
    to understand why a rule exists before changing it.
 
@@ -30,13 +31,15 @@ read and in what order to work.
 ## Order of work
 
 Each step names the agent that owns it. Give a reviewer the code or the running app, not a summary.
+The engine's own build order is ADR 0003, "Build order in M1"; the steps below follow it.
 
 1. **Scaffold** the monorepo exactly as ADR 0001 lays it out, including the compiler and lint
    settings that keep the engine free of I/O. Confirm that `fetch`, `fs` and `process` fail to
    type-check inside `packages/engine` before going further. `engine-developer`, working outside
    its usual package for this step.
-2. **Write the missing fixtures and the test harness** that runs every fixture through the engine.
-   `qa-engineer`. The corpus in `fixtures/specs/` lacks these, and the criteria need them:
+2. **Write the fixtures that need no engine, and the test harness** that runs every fixture
+   through the engine. `qa-engineer`. The corpus in `fixtures/specs/` lacks these, and the
+   criteria need them:
    - `hard-schemas`: `oneOf`, `anyOf`, `allOf`, discriminators and mutual recursion in one small
      committed spec (criteria 1, 2 and 22).
    - Hostile content: HTML, script, event handlers and `javascript:` URLs in descriptions,
@@ -44,35 +47,48 @@ Each step names the agent that owns it. Give a reviewer the code or the running 
    - A parseable spec with an invalid schema and an example that violates its schema
      (criterion 6).
    - The request-shape matrix: path, query and header parameters; JSON, form-urlencoded and
-     multipart bodies; bearer, basic, and API key in a header and in the query (criterion 14).
+     multipart bodies; bearer, basic, and API key in a header and in the query (criterion 14). It
+     declares the mock as its server, on the fixed port ADR 0005 gives.
    - Servers with host variables, one per row of the worked-examples table in ADR 0004
      (criterion 29).
-   - A local mock built from the same spec, as ADR 0005 defines it, with the one-patch overlays
-     that point the Petstore and Museum builds at it (criteria 18 and 25). The request-shape
-     matrix fixture declares the mock as its server and needs no overlay (criterion 14).
    - A spec with an unsatisfiable schema, and the expected `synthesis-failed` findings
      (criterion 7).
    - A test-generated document over the size limit, for `limit-exceeded` (criterion 5).
-3. **Engine, in this order**, each with tests against the fixtures before the next starts.
+   - Update `fixtures/specs/malformed/expected.json` with the finding codes ADR 0004's rule table
+     gives for each of the 16 malformed fixtures.
+3. **Engine**, each part with tests against the fixtures before the next starts.
    `engine-developer`.
-   1. Parsing, `$ref` resolution and the normalized model (ADR 0002), including the operation id
-      algorithm, tested against the worked examples in contract section 1.1.
-   2. Spec doctor findings and patches (ADR 0004).
-   3. The request representation and the eight sample emitters (ADR 0005).
-   4. Page models, Markdown twins and `llms.txt` (ADR 0003).
-4. **Publisher**: the CLI that reads a local spec file and writes the bundle and the published
-   spec (ADR 0003, criterion 26). M1 reads local files only. `engine-developer`, working outside
+   1. Parsing, `$ref` resolution, the normalized model (ADR 0002), applying fixes and serializing
+      the document. Include the operation id algorithm, tested against the worked examples in
+      contract section 1.1.
+   2. Schema views, `validateValue`, `synthesizeExample` and `selectResponseExample` (ADR 0003).
+   3. Spec doctor findings and patches, from the rule table in ADR 0004. Vendor the Public Suffix
+      List here, as that ADR describes.
+   4. The request representation and the eight sample emitters (ADR 0005).
+   5. Page models, Markdown twins and `llms.txt` (ADR 0003, "The portal bundle"). The Markdown
+      functions (`sanitizeMarkdown`, `parseMarkdown`) can be built at any point before this.
+4. **The local mock**, once step 3.2 is done, with the one-patch overlays that point the Petstore
+   and Museum builds at it (ADR 0005; criteria 18 and 25). `qa-engineer`.
+5. **Publisher and command line**: `ezdp build`, `ezdp doctor` and `ezdp fix`, as ADR 0003, "The
+   M1 command line" defines them. M1 reads local files only. `engine-developer`, working outside
    its usual package for this step.
-5. **Renderer**: `ux` specifies the reference page and `designer` the default theme tokens first;
-   then `renderer-developer` builds the static portal (ADR 0006).
-6. **Close the milestone** as `m1.md` defines: `qa-engineer` runs the suite on all fixtures,
+6. **Renderer**: `ux` specifies the pages and `designer` the default theme tokens first; then
+   `renderer-developer` builds the static portal and its `export` script (ADR 0006).
+7. **Close the milestone** as `m1.md` defines: `qa-engineer` runs the suite on all fixtures,
    `dx-reviewer` uses the built Petstore, Museum and GitHub portals, and `product-manager` marks
    each of the 31 criteria.
 
-The renderer consumes page files, which include samples, so it needs steps 3.3 and 3.4. Once step
-3.1 is done, `ux` and `designer` can specify the page and the tokens, and `renderer-developer` can
-build against the page types in ADR 0003 with hand-written sample data, while the engine work
-continues. Wire the two together when step 3.4 lands.
+The renderer consumes page files, which include samples, so it needs steps 3.4 and 3.5. Once step
+3.1 is done, `ux` and `designer` can specify the pages and the tokens, and `renderer-developer`
+can build against the page types in ADR 0003 with hand-written sample data, while the engine work
+continues. Wire the two together when step 3.5 lands.
+
+## When the documents do not answer a question
+
+Two independent audits of these documents found and closed fourteen gaps. There will be more.
+When something is ambiguous, contradictory or missing, do not guess: ask the `architect` (or the
+`product-manager` for scope), have the answer written into the ADR or `m1.md`, and then build to
+it. A guess that turns out right still leaves the next reader guessing.
 
 ## Security review gates
 
@@ -87,6 +103,11 @@ The security reviewer has a veto. Send it the code, before the work is called do
   ruling (ADR 0003, "Who can read it"). It exposes the whole root document, including comments and
   vendor extensions the reference pages do not show.
 - The schema validator and its handling of `pattern`, under ADR 0003.
+- `sanitizeMarkdown`, its bounds, and the Markdown parser dependency it brings into the engine.
+- The Basic authentication handling in each emitter.
+- The patch operations and the fixes that write into a spec, including the `absent` operation.
+- The command line starting the portal's export as a child process.
+- The doctor report being part of the public static output.
 - The budgets and limits in ADR 0003, with a test using a small spec that expands to an enormous
   example.
 
