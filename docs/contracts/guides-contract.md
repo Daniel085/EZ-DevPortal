@@ -7,7 +7,8 @@ draft also carries the corrections required by the security design review of 202
 re-review the same day, which passed the contract subject to fixes that are applied here. They were
 made before 0.2 was released to the guides module, so the version is unchanged; section 10 lists
 them. Product decisions of 2026-11-27 are recorded the same way: guides are generated from the
-patched spec (1.2), and incomplete content is resolved by editing the bundle in Git (4.7, 6).
+patched spec (1.2), incomplete content is resolved by editing the bundle in Git (4.7, 6), and the
+allowed hosts of a server with an open host variable are listed as its `enum` (4.3).
 Awaiting the guides module's re-sync and confirmation.
 
 This is the interface between two projects:
@@ -100,9 +101,10 @@ tenant's original document.**
   accepts fixes; the portal publishes, which produces the published spec; the guides module
   generates a bundle from it; the portal ingests the bundle.
 - The published spec changes whenever its bytes change: the tenant's document changed upstream, a
-  further fix was accepted, an accepted fix was removed, or an accepted fix stopped applying
-  because the upstream document changed under it. From then on a bundle generated from the earlier
-  bytes is reported with `spec-hash-mismatch` (section 3) until the guides are regenerated.
+  further fix was accepted (including one that lists a server's allowed hosts, 4.3), an accepted
+  fix was removed, or an accepted fix stopped applying because the upstream document changed
+  under it. From then on a bundle generated from the earlier bytes is reported with
+  `spec-hash-mismatch` (section 3) until the guides are regenerated.
 - Only the root document is covered. A spec split over several files keeps its external `$ref`s
   as written, and the hash in section 3 does not cover the files they point to. See the open items
   in section 8.
@@ -474,7 +476,11 @@ a variable in the host is one label, `[A-Za-z0-9_-]{1,63}`; in the port, `[0-9]{
 last label of the host needs an `enum` or a tenant-listed set, or the server is not callable. The
 substituted URL is then parsed and vetted. A variable's position is read from the server URL as
 the spec writes it, before anything is substituted. A variable in any other position (scheme,
-userinfo, query or fragment) makes the server not callable.
+userinfo, query or fragment) makes the server not callable. The tenant-listed set is the
+variable's `enum` in the published spec (1.2). A tenant lists the allowed values by accepting a
+spec-doctor fix that writes them into the spec as that `enum` (ADR 0004), so there is no set
+outside the spec, and in effect such a variable needs an `enum`. A listed value is exempt from
+nothing: the substituted URL is still parsed and vetted on every request.
 
 **When the portal will not send a request.** The portal sends requests to `https` servers only.
 For a server that is `http://`, is localhost, is relative, or is not callable under the paragraph
@@ -989,6 +995,7 @@ Decided on 2026-11-27:
 | Which document guides are generated from, and which hash is compared | The published spec: the root document with the accepted spec-doctor fixes applied, as the portal published it (1.2, 3). |
 | How a `<Todo>` or a page that is not `ready` gets resolved | A person edits the bundle in its Git repository and the portal ingests the new commit. Regenerating must not overwrite those edits (4.7). |
 | Swagger 2.0 | Out of scope. The portal rejects it with a clear message (1.1). |
+| Where the allowed hosts are listed for a server with an open host variable, such as `https://{host}/v1` with no `enum` | In the spec, as the variable's `enum`. The tenant supplies the values through a spec-doctor fix, so they are in the published spec. The rule in 4.3 is unchanged, and a generator is not affected. A verified domain suffix, for hosts that cannot be listed, is planned for a later milestone and is not part of this contract. |
 
 Still open, and not blocking 0.2:
 
@@ -997,12 +1004,7 @@ Still open, and not blocking 0.2:
 2. Capturing a value whose key is not a plain identifier, such as `user-id`. The path grammar in 4.3
    cannot express it.
 3. Linking to a webhook's documentation. There is no link form for it.
-4. Where the tenant-listed set of allowed hosts is managed. It concerns a callable server with an
-   open host variable, such as `https://{host}/v1` with no `enum` (4.3, "Server variables"). This
-   is an open product decision. It does not block M1 or 0.2, and a generator is not affected. The
-   rule in 4.3 stands as written: until the decision is made no tenant-listed set exists, so such
-   a server needs an `enum` or is not callable.
-5. Specs split over several files. The published spec and its hash cover the root document only
+4. Specs split over several files. The published spec and its hash cover the root document only
    (1.2). A fix accepted in a file the root refers to is not in the published spec, and the hash
    does not change with that file. Operation ids are not affected, because a fix never changes an
    id. Whether the portal also publishes the patched referenced files is not decided; it does not
@@ -1234,8 +1236,10 @@ Product decisions of 2026-11-27, also made before 0.2 was released:
   repository. Regenerating must not overwrite a person's edits. The contract's rules apply to the
   bundle as ingested, whoever wrote it (4.7, 6).
 - Swagger 2.0 is stated to be out of scope (1.1).
-- Two items are added to the open list: where the tenant-listed set of allowed hosts is managed,
-  and specs split over several files (8).
+- The allowed hosts of a server with an open host variable are listed as the variable's `enum`,
+  written by a spec-doctor fix and so present in the published spec. The rule in 4.3 is unchanged
+  (1.2, 4.3, 8).
+- One item is added to the open list: specs split over several files (8).
 
 ## 11. Decisions on the v0.1 feedback
 

@@ -138,11 +138,12 @@ All four are answered; see section 8 of the contract. In short: no diagrams, vid
 for a sample.
 
 Decided on 2026-11-27 and listed in the same section: guides are generated from the published
-spec; incomplete content is resolved by a person in Git; Swagger 2.0 is out of scope.
+spec; incomplete content is resolved by a person in Git; Swagger 2.0 is out of scope; a portal
+customer lists the allowed hosts of a server with an open host variable as an `enum` in the
+published spec (this does not affect you).
 
 Still open, and listed in the same section: transport (for milestone M5: how a commit of the
 bundle reaches the portal and where you fetch the published spec from when the portal is hosted),
-capturing values whose keys are not plain identifiers, linking to webhook documentation, where a
-portal customer manages allowed hosts for a server with an open host variable (this does not
-affect you), and specs split over several files (the published spec and its hash cover the root
+capturing values whose keys are not plain identifiers, linking to webhook documentation, and
+specs split over several files (the published spec and its hash cover the root
 document only).

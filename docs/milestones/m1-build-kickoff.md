@@ -81,9 +81,13 @@ The request proxy, "Try it", the MCP, brand extraction, tenancy, guides ingestio
 out-of-scope table in `m1.md` says where each belongs. If one seems necessary, ask the product
 manager before building it.
 
+## Decided on 2026-11-27
+
+- A server whose host is a variable with no listed values becomes callable through a spec-doctor
+  fix that takes the allowed hosts as input (ADR 0004, "The fix for an open host variable"). The
+  finding, the fix and its input validation are M1 work. Enforcement at the proxy is M2.
+
 ## Open product decisions that do not block M1
 
-- Where a tenant lists the allowed hosts for a server whose host is a variable. Affects "Try it"
-  and the MCP in M2.
 - Whether readers, as well as buyers, see that a sample uses synthesized values. M1 default: buyers
   only, in the doctor report.

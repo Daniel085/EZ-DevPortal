@@ -6,6 +6,8 @@ review (`docs/reviews/2026-11-26-security-design-review.md`, H4, M6, M7). The re
 R2, rulings 2, 3, 4 and 7, the `bindFix` cap and the notes. They are applied in this text.
 Revised 2026-11-27 for the product decision that guides are generated from the patched spec: "The
 published spec" is added and `buildModel` takes two hashes. No security ruling is changed.
+Revised again that day for the product decision on allowed hosts (ADR 0004): the tenant-listed
+set is the variable's `enum` after the spec doctor's fix.
 
 ## Context
 
@@ -41,7 +43,8 @@ buildModel(input: { root: ParsedDocument; documents: ParsedDocument[];
 // 4. Spec doctor (ADR 0004).
 diagnose(model: ApiModel, docs: ParsedDocument[]): Finding[]
 bindFix(fix: Fix, inputs: Record<string, string>): SpecPatch | null   // the engine's patch with inputs
-                                       // placed; null if an input is over 2,048 characters (ADR 0004)
+                                       // placed; null if an input is over 2,048 characters or fails
+                                       // its format or list rules (ADR 0004)
 applyFixes(docs: ParsedDocument[], patches: SpecPatch[]): { docs: ParsedDocument[]; conflicts: PatchConflict[] }
 serializeDocument(doc: ParsedDocument): string
 
@@ -216,9 +219,12 @@ These are requirements on M2's design.
   as contract 4.3 says: a value from the `enum`, or, with no `enum`, a value valid for the
   variable's position, and a variable that forms or follows the last label of the host needs an
   `enum` or a tenant-listed set, or the server is not callable. The substituted URL is then parsed
-  and vetted: `https` only, no userinfo, and address vetting as above. Where a tenant-listed set
-  is managed is an open product decision (ADR 0005); until it is made there is no such set, and
-  the rule applies as written.
+  and vetted: `https` only, no userinfo, and address vetting as above. The tenant-listed set is
+  the `enum` the tenant adds by accepting the spec doctor's fix (ADR 0004; decided 2026-11-27).
+  It is in the published spec and so in the model, and the proxy reads it there like any `enum`.
+  There is no other set, so such a variable needs an `enum`. A listed value is tenant input and
+  is exempt from nothing: the substituted URL is parsed and vetted on every request. A verified
+  domain suffix is planned for M6 and needs its own security review first (ADR 0004).
 - `https` only, with no exception for development servers. A server that is `http://`, localhost
   or relative is not callable. Plain `http` would put the user's key on the wire in clear, and the
   hosted proxy cannot reach localhost under address vetting in any case. For such a server the

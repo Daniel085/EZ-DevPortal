@@ -5,6 +5,8 @@ apply the security design review (`docs/reviews/2026-11-26-security-design-revie
 H3, M6). The re-review (`docs/reviews/2026-11-26-security-design-re-review.md`) passed it
 subject to required fixes: R1, R3, R5, the encoder rule and the MCP note. They are applied in this
 text. The M1 language list was also changed from three to the eight in `docs/milestones/m1.md`.
+Revised 2026-11-27 for the product decision on allowed hosts: the tenant-listed set under "Server
+variables" is the variable's `enum` after the spec doctor's fix (ADR 0004).
 
 ## Context
 
@@ -116,11 +118,15 @@ Rules:
   as the spec writes it; a variable in the scheme, userinfo, query or fragment makes the server
   not callable. The engine does the position check and the substitution, and reports
   `server-not-callable` (ADR 0004). Parsing the result and vetting the address are the caller's,
-  under ADR 0003. A tenant-listed set is tenant configuration the caller passes in. Where the
-  tenant manages that set is an **open product decision** and does not block M1: in M1 no caller
-  passes one, so a server with an open host variable, such as `https://{host}/v1` with no `enum`,
-  is reported `server-not-callable`. The rule above is unchanged by the decision, whichever way
-  it goes; how the set is stored follows it, in M4.
+  under ADR 0003. **Decided 2026-11-27:** the tenant-listed set is not separate configuration,
+  and no caller passes one in. The tenant lists the values by accepting the spec doctor's fix on
+  `server-not-callable`, which adds them as the variable's `enum` in the patched spec (ADR 0004).
+  The engine reads that `enum` from the model, so in effect such a variable needs an `enum`. A
+  server with an open host variable, such as `https://{host}/v1` with no `enum`, is reported
+  `server-not-callable` until the fix is accepted or the source spec gains an `enum`. The rule
+  above is unchanged. The finding and the fix are M1; the proxy enforces the rule in M2. A
+  verified domain suffix, for hosts that cannot be listed, is planned for M6 and not designed
+  here; it would be a second way to meet this rule and needs its own security review (ADR 0004).
 - Variables being first-class lets each language decide how to show one (an environment variable
   in curl, a named constant in Python) and lets "Try it" substitute real values.
 - One emitter per language: a function `(request: HttpRequest) => (string | Var)[]` written by

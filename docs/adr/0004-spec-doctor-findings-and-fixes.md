@@ -6,6 +6,9 @@ review (`docs/reviews/2026-11-26-security-design-review.md`, M7). The re-review
 rulings 3, 6 and 7 and the `bindFix` cap. They are applied in this text. Revised 2026-11-27 for
 the product decision that guides are generated from the patched spec: the hashes, the published
 spec and the rule that a fix never changes an operation id. No security ruling is changed.
+Revised again that day for the product decision on allowed hosts: "The fix for an open host
+variable" is added, `Fix.inputs` gains `format` and `list`, and `bindFix` checks them. This
+extends what the re-review confirmed for `bindFix` and goes to the security reviewer.
 
 ## Context
 
@@ -37,8 +40,17 @@ interface Fix {
   id: string;                   // fingerprint + index
   title: string;                // 'Add bearer authentication to 14 operations'
   confidence: 'safe' | 'review';   // safe: mechanical. review: inferred, a person must confirm.
-  inputs: { name: string; label: string; pointer: string }[];  // values the person must supply
+  inputs: FixInput[];           // values the person must supply
   patch: SpecPatch;
+}
+
+interface FixInput {
+  name: string; label: string;
+  pointer: string;              // where in the patch the value is placed
+  format?: 'host-name' | 'host-suffix';   // closed list. Every value must match. Absent: any string.
+  list?: { maxItems: number;    // the input holds several values, one per line (LF). They are
+           firstPointer: string };  // placed at `pointer` as an array of strings, and the first
+                                    // one at `firstPointer` as a string.
 }
 
 interface SpecPatch {
@@ -67,9 +79,15 @@ by fix id; clients send a fix id and `inputs` only, never ops.
   path through `constructor` or `prototype` is applied like any other, as an own property.
 - `bindFix(fix, inputs)` returns the fix's patch with each supplied input placed, as a JSON string,
   at the position its `inputs[].pointer` names. An input cannot add an op, change a path or supply
-  a value that is not a string.
+  a value that is not a string. The one exception is an input the fix declares with `list`: the
+  engine splits it and places an array of strings. The fix decides that, not the input.
 - Each input is at most 2,048 characters. `bindFix` returns `null` when an input is longer, and
-  the caller stores nothing and tells the person which input was too long.
+  the caller stores nothing and tells the person which input was too long. For a `list` input the
+  cap is on the whole input, all lines together.
+- `bindFix` also returns `null` when a value does not match the input's `format`, or a `list`
+  input breaks the list rules below. `format` and `list` come from the fix the engine produced,
+  never from the client. The engine exports the format checks as pure functions, so a caller can
+  say which value failed.
 - The caller looks a fix up by id in the findings the engine produced on the server for the
   current spec. It never accepts a `SpecPatch` from a browser or an API client.
 
@@ -119,7 +137,8 @@ Both are warnings: the portal still builds and every code sample still renders.
 - `server-not-callable`: a server the proxy will not send to under ADR 0003's proxy destination
   policy. That is a server URL that is `http://`, localhost or relative, and a server whose
   variables cannot be limited as contract 4.3 requires, such as one with no `enum` that forms or
-  follows the last label of the host. "Try it" and MCP are withheld for that server. Samples are
+  follows the last label of the host. "Try it" and MCP are withheld for that server. For an open
+  host variable the finding can carry a fix; see the next section. Samples are
   not affected: they are code for the reader to run, and a sample against `http://localhost`
   renders like any other.
 - `controlled-header-required`: an operation that declares a required header parameter whose name
@@ -129,6 +148,89 @@ Both are warnings: the portal still builds and every code sample still renders.
   header parameter named `Accept`, `Content-Type` or `Authorization` is ignored, and the model
   drops those three, so declaring `Authorization` as a parameter does not raise this finding; the
   doctor's auth rules cover that case.
+
+### The fix for an open host variable
+
+Decided 2026-11-27. The "tenant-listed set" of contract 4.3 is not a setting. The tenant lists the
+allowed values by accepting a fix on `server-not-callable`, and the fix writes them into the spec
+as the variable's `enum`. It is stored in the overlay like any other accepted fix. From then on
+the variable has an `enum`, and the rule in 4.3 is met in its ordinary way.
+
+**When the fix is offered.** The finding carries exactly one fix when all of these hold. In every
+other case it carries none, and its message says to add an `enum` in the source spec.
+
+- The server URL is absolute and `https`, and its host is not localhost.
+- Every variable in the URL is in the host, port or path, and is declared under `variables`.
+- The only reason the server is not callable is one variable with no `enum` that takes up whole
+  labels at the end of the host: it begins the host or comes straight after a `.`, and the host
+  ends where the variable ends. `https://{host}/v1`, `https://api.{domain}` and
+  `https://{region}.example.{tld}:8443` qualify. A variable that is part of a label or is glued to
+  one, as in `https://example.co{m}` or `https://example.com{suffix}`, does not.
+
+The position is read from the server URL as the spec writes it, as contract 4.3 says. At most one
+variable in a URL can qualify.
+
+**Input.** One input, `values`, declared with `list: { maxItems: 32, ... }`.
+
+- The input is the values separated by LF, one per line. There are 1 to 32 values. No line is
+  empty and no value appears twice, compared exactly. The whole input is at most 2,048 characters.
+- When the variable is the whole host (`https://{host}/v1`), `format` is `host-name`: each value
+  is a full host name of two or more labels, at most 253 characters, matching
+  `^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$`.
+- When other text or variables come before it in the host (`https://api.{domain}`), `format` is
+  `host-suffix`: each value is one or more labels, at most 253 characters, matching
+  `^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z][a-z0-9-]{0,61}[a-z0-9]$`.
+- In both, a label is 1 to 63 of lowercase letters, digits and `-`, with no `-` first or last, and
+  the final label is at least two characters and begins with a letter. Every label is therefore
+  inside the `[A-Za-z0-9_-]{1,63}` of contract 4.3. The syntax leaves out a port, userinfo, a
+  path, a trailing `.`, `*`, `%`, whitespace, upper case, `_`, non-ASCII (an internationalized
+  name is written in its `xn--` form), an IPv6 literal, and every form of IPv4 address, since
+  the WHATWG parser reads a host as IPv4 only when its final label is a number. `host-name` also
+  leaves out a single-label name such as `localhost`.
+- Anything else makes `bindFix` return `null`, and nothing is stored. Values are not trimmed,
+  lowercased or otherwise changed: what was typed is what is checked and written.
+
+**Patch.** `S` is the pointer of the server object and `V` of the variable under it, with the
+variable's name escaped as RFC 6901 requires.
+
+1. `test` `S/url` against the URL the rule saw.
+2. `test` `V` against the whole variable object the rule saw, which has no `enum`.
+3. `add` `V/enum`: the values, as an array of strings in the order given.
+4. `add` `V/default`: the first value. An `add` to a member that exists replaces it. OpenAPI 3.1
+   requires `default` to be one of the `enum` values, so the first value listed is the default,
+   whatever `default` was before.
+
+The fix writes nothing else. It changes no operation id and no schema key, and servers are
+referred to by index (ADR 0005), so "A fix never changes an identifier" holds. To change the
+list, the accepted fix is removed and accepted again with the new values.
+
+**What the values are, for security.** They are tenant input, trusted no more than an `enum` the
+tenant wrote in its own spec, and this fix accepts less than such an `enum` may hold. Listing a
+host exempts it from nothing. On every request the proxy still takes the value from the `enum`,
+parses the substituted URL and applies `https` only, no userinfo and address vetting (ADR 0003,
+"Proxy destination policy"). Listing an internal host therefore gains nothing: the request is
+refused when its address is vetted. The proxy takes the `enum` from the published model and does
+not know or care whether the tenant or the fix wrote it.
+
+**The values are published.** The `enum` is in the published spec, so the guides module sees it,
+the reference shows it and anyone who can download the spec can read it. The fix's title says so.
+Accepting, removing or changing the fix changes the published spec's bytes like any other fix,
+and existing guides get `spec-hash-mismatch` until they are regenerated.
+
+**Milestones.**
+
+| Part | Milestone |
+|---|---|
+| The finding, the fix, `format` and `list` in `bindFix`, and the CLI's overlay file holding the values | M1 |
+| The proxy and MCP refusing a server variable value that is not in the `enum` | M2 |
+| The dashboard form that collects the values and posts a fix id and `inputs` | M4 |
+| A verified domain suffix; see below | M6, planned |
+
+**Planned, not designed: a verified domain suffix (M6).** Some tenants give each customer its own
+subdomain and cannot list them. For them the tenant would prove control of a domain once, by a
+DNS record, and any host under it would be allowed. It depends on the domain verification that
+M6 builds for custom domains, and it needs its own security review before it is designed in
+detail. Until then an `enum` is the only way to make such a server callable.
 
 ## Consequences
 
@@ -145,6 +247,10 @@ Both are warnings: the portal still builds and every code sample still renders.
   published spec, which is the root document only. This is an open item in contract section 8.
 
 ## Alternative rejected
+
+For allowed hosts: a list in the project's settings that the caller passes to the engine. It
+needs new storage and a new settings concept, and the published spec would not show which hosts
+the portal calls, so the guides module and readers would see a server the spec does not describe.
 
 Text edits (line and column ranges with replacement text). They preserve formatting exactly, but
 they are tied to one fetch of one file in one format and silently corrupt the spec when it changes
