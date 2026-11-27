@@ -26,8 +26,11 @@ other parts need.
   was wrong as a structured finding with a location in the source document.
 - Handle the hard schema cases properly: `oneOf`, `anyOf`, `allOf`, discriminators, recursive
   references, nullable, and 3.0 versus 3.1 differences.
-- Where an `operationId` is missing, derive it as `{method}_{path}` with non-alphanumeric
-  characters replaced by `_`. The guides contract depends on this exact rule.
+- Operation ids follow section 1.1 of `docs/contracts/guides-contract.md` exactly, including its
+  collision rule; the guides module implements the same algorithm. A missing `operationId` is
+  derived as the lowercase method immediately followed by the path with each non-alphanumeric
+  character replaced by `_`, with no separator added: `get` and `/payments/{id}` give
+  `get_payments__id_`.
 - Generated samples must be correct for the operation's auth scheme, content type and required
   parameters. A sample that would not run is a bug.
 - Do not invent values the spec does not give. Use spec examples first, then schema-derived

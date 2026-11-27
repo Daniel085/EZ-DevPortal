@@ -8,12 +8,13 @@ read and in what order to work.
 1. `CLAUDE.md`: the feature team, who decides what, and the four standing constraints.
 2. `docs/product-brief.md`: the product and the decisions made.
 3. `docs/milestones/m1.md`: scope and the 31 acceptance criteria. This defines "done".
-4. `docs/adr/0001` to `0006`: the architecture. All six are accepted. ADR 0002 (the API model) and
+4. `docs/adr/0001` to `0006`: the M1 architecture. All are accepted. ADR 0007 (guides generation
+   and delivery) is M4 and M5 work and is not needed for M1. ADR 0002 (the API model) and
    ADR 0003 (the engine's interface) are what the engine and renderer developers code against.
 5. `docs/contracts/guides-contract.md`, sections 1.1 and 1.2 only for M1: the operation id
    algorithm, which is normative and which the guides module also implements, and the published
    spec, which the guides module generates from.
-6. `docs/reviews/`: two security design reviews. Their rulings are already in the ADRs; read them
+6. `docs/reviews/`: three security design reviews. Their rulings are already in the ADRs; read them
    to understand why a rule exists before changing it.
 
 ## Before writing code
@@ -32,9 +33,21 @@ Each step names the agent that owns it. Give a reviewer the code or the running 
 
 1. **Scaffold** the monorepo exactly as ADR 0001 lays it out, including the compiler and lint
    settings that keep the engine free of I/O. Confirm that `fetch`, `fs` and `process` fail to
-   type-check inside `packages/engine` before going further. `engine-developer`.
-2. **Write the `hard-schemas` fixture** that `m1.md` asks for, and the test harness that runs every
-   fixture through the engine. `qa-engineer`.
+   type-check inside `packages/engine` before going further. `engine-developer`, working outside
+   its usual package for this step.
+2. **Write the missing fixtures and the test harness** that runs every fixture through the engine.
+   `qa-engineer`. The corpus in `fixtures/specs/` lacks these, and the criteria need them:
+   - `hard-schemas`: `oneOf`, `anyOf`, `allOf`, discriminators and mutual recursion in one small
+     committed spec (criteria 1 and 2).
+   - Hostile content: HTML, script, event handlers and `javascript:` URLs in descriptions,
+     summaries, examples, enum values and names (criterion 19).
+   - A parseable spec with an invalid schema and an example that violates its schema
+     (criterion 6).
+   - The request-shape matrix: path, query and header parameters; JSON, form-urlencoded and
+     multipart bodies; bearer, basic, and API key in a header and in the query (criterion 14).
+   - Servers with host variables, one per row of the worked-examples table in ADR 0004
+     (criterion 29).
+   - A local mock built from the same spec, as ADR 0005 defines it (criteria 14, 18 and 25).
 3. **Engine, in this order**, each with tests against the fixtures before the next starts.
    `engine-developer`.
    1. Parsing, `$ref` resolution and the normalized model (ADR 0002), including the operation id
@@ -43,14 +56,18 @@ Each step names the agent that owns it. Give a reviewer the code or the running 
    3. The request representation and the eight sample emitters (ADR 0005).
    4. Page models, Markdown twins and `llms.txt` (ADR 0003).
 4. **Publisher**: the CLI that reads a local spec file and writes the bundle and the published
-   spec (ADR 0003, criterion 26). M1 reads local files only. `engine-developer`.
+   spec (ADR 0003, criterion 26). M1 reads local files only. `engine-developer`, working outside
+   its usual package for this step.
 5. **Renderer**: `ux` specifies the reference page and `designer` the default theme tokens first;
    then `renderer-developer` builds the static portal (ADR 0006).
 6. **Close the milestone** as `m1.md` defines: `qa-engineer` runs the suite on all fixtures,
    `dx-reviewer` uses the built Petstore, Museum and GitHub portals, and `product-manager` marks
    each of the 31 criteria.
 
-Steps 3.3 and 5 can run in parallel once step 3.1 is done, because both depend only on the model.
+The renderer consumes page files, which include samples, so it needs steps 3.3 and 3.4. Once step
+3.1 is done, `ux` and `designer` can specify the page and the tokens, and `renderer-developer` can
+build against the page types in ADR 0003 with hand-written sample data, while the engine work
+continues. Wire the two together when step 3.4 lands.
 
 ## Security review gates
 
@@ -61,9 +78,10 @@ The security reviewer has a veto. Send it the code, before the work is called do
   ADRs 0003 and 0004. The required test resolves and patches through `__proto__`, `constructor` and
   `prototype` and asserts `Object.prototype` is unchanged.
 - The renderer's handling of spec text: criteria 15 and 19.
-- The published spec file: ADRs 0003 and 0004 gained this output after the design review, so it
-  has not been reviewed. It exposes the whole root document, including comments and vendor
-  extensions the reference pages do not show.
+- The published spec file. The third design review ruled on it; check the code against that
+  ruling (ADR 0003, "Who can read it"). It exposes the whole root document, including comments and
+  vendor extensions the reference pages do not show.
+- The schema validator and its handling of `pattern`, under ADR 0003.
 - The budgets and limits in ADR 0003, with a test using a small spec that expands to an enormous
   example.
 
@@ -72,7 +90,9 @@ The security reviewer has a veto. Send it the code, before the work is called do
 - The engine never throws on a bad spec. It degrades and returns findings.
 - Output is deterministic: no timestamps, no random ids, no dependence on key order in the input.
 - Never make a test pass by skipping it or regenerating snapshots without reading the difference.
-- A new dependency needs a line in an ADR with its license.
+- A new runtime dependency needs a line in an ADR with its license (ADR 0001 rule 5).
+- The agent briefs in `.claude/agents/` describe the whole product. For M1, `m1.md` decides scope:
+  one light theme, no dark mode, and no search of any kind.
 - Do not change `docs/contracts/` or a package's public interface without the architect.
 
 ## Not in M1
