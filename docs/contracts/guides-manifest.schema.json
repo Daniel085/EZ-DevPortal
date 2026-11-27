@@ -1,12 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ez-devportal.dev/schemas/guides-manifest-0.1.json",
+  "$id": "https://ez-devportal.dev/schemas/guides-manifest-0.2.json",
   "title": "Guides bundle manifest",
+  "description": "guides.json at the bundle root, contract version 0.2. See section 3 of guides-contract.md. Rules this schema does not express: the accepted contractVersion (unsupported-contract-version), the 1 MB limit on the file (size-limit), group nesting depth (nav-depth), which is checked while parsing, and each page appearing exactly once (missing-page, unlisted-page, duplicate-page).",
   "type": "object",
   "additionalProperties": false,
   "required": ["contractVersion", "generator", "spec", "nav"],
   "properties": {
     "contractVersion": {
+      "description": "major.minor. A portal implementing contract 0.2 accepts exactly \"0.2\".",
       "type": "string",
       "pattern": "^[0-9]+\\.[0-9]+$"
     },
@@ -24,12 +26,20 @@
       "additionalProperties": false,
       "required": ["sha256"],
       "properties": {
-        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "sha256": {
+          "description": "SHA-256, lowercase hex, of the bytes of the published spec the guides were generated from: the root OpenAPI document with the accepted spec-doctor fixes applied, exactly as the portal published it, with no normalization. When no fix was applied these are the bytes of the original document. See sections 1.2 and 3 of guides-contract.md.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
         "title": { "type": "string" },
         "version": { "type": "string" }
       }
     },
-    "generatedAt": { "type": "string", "format": "date-time" },
+    "generatedAt": {
+      "description": "Optional. May be left out for byte-identical output.",
+      "type": "string",
+      "format": "date-time"
+    },
     "nav": {
       "type": "array",
       "minItems": 1,
@@ -38,8 +48,10 @@
   },
   "$defs": {
     "slug": {
+      "description": "The page's file path under pages/ without the .md extension.",
       "type": "string",
-      "pattern": "^[a-z0-9-]+(/[a-z0-9-]+)*$"
+      "pattern": "^[a-z0-9-]+(/[a-z0-9-]+)*$",
+      "maxLength": 197
     },
     "navItem": {
       "oneOf": [
@@ -53,8 +65,17 @@
       "required": ["page"],
       "properties": {
         "page": { "$ref": "#/$defs/slug" },
-        "label": { "type": "string", "maxLength": 80 },
-        "hidden": { "type": "boolean", "default": false }
+        "label": {
+          "description": "Plain text shown in the sidebar instead of the page title.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "hidden": {
+          "description": "Keeps the page out of the sidebar. It is still published and linkable.",
+          "type": "boolean",
+          "default": false
+        }
       }
     },
     "groupItem": {

@@ -1,0 +1,10 @@
+openapi: 3.0.3
+info:
+  title: info.version is a number, not a string
+  version: 1.0
+paths:
+  /ping:
+    get:
+      responses:
+        "200":
+          description: ok

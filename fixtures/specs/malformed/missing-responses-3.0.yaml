@@ -1,0 +1,8 @@
+openapi: 3.0.3
+info:
+  title: Operation without responses (required in 3.0)
+  version: "1.0.0"
+paths:
+  /ping:
+    get:
+      summary: Ping
