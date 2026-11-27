@@ -169,13 +169,13 @@ has to win on safety and reliability.
 - **An operation that reads but is not `GET`**, such as a `POST` search. Default: it is a write,
   so the tenant must enable it and the agent's client may ask for approval. Decide before M2.
 
-To confirm with the user. Both follow from the two decisions of 2026-11-27 on unverifiable hosts
-and live calls in a preview; each has a default that stands meanwhile.
+Decided by the user on 2026-11-27: **the MCP is off in every private preview**, including one
+whose server host is verified. An MCP endpoint an agent can reach is "public" by our definition,
+and public needs a plan and a verified domain.
 
-- **The MCP in a private preview whose server host is verified.** The user's decision allows
-  live "Try it" calls there and does not mention the MCP. Default, as the product manager's
-  reading: the MCP stays off in every private preview, because an MCP endpoint an agent can
-  reach is "public" by our definition, and public needs a plan. Confirm before M4b scope is set.
+To confirm with the user. It follows from the decisions of 2026-11-27 on unverifiable hosts and
+live calls in a preview, and has a default that stands meanwhile.
+
 - **A server on an unverifiable host, on a public portal.** The decision says "Try it" and the
   MCP are withheld and that "Try it" stays in example-response mode. Default reading: withheld
   with a reason on a public portal, example-response mode in a private preview. The other

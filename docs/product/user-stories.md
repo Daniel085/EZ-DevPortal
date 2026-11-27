@@ -452,12 +452,13 @@ Raised by the fourth two decisions of 2026-11-27.
     calls need a verified host, and the prompt and the live calls are EV-10 in M4b. Checked:
     none of the eleven M4a stories now needs anything from M4b. Any ADR or contract that
     assumes every preview is example mode holds for M4a only; that wording is the architect's.
-22. **The MCP in a private preview against live calls there. To confirm with the user.** The
+22. **The MCP in a private preview against live calls there. Decided by the user on 2026-11-27:
+    the MCP is off in every private preview.** The
     earlier decision says the MCP is off in a private preview, and an MCP endpoint an agent can
     reach is "public" by the brief's definition, which needs a plan. The new decision allows
     live "Try it" calls and does not mention the MCP. Kept: the MCP is off in every private
     preview. The cost is that an evaluator cannot try the headline feature against their own
-    API before paying. Not decided by the product manager.
+    API before paying. The user accepted that cost.
 23. **"Withheld" against "stays in example-response mode" for an unverifiable host.** The
     decision uses both for the same server. Read here as: example-response mode in a private
     preview, withheld with a reason on a public portal (RD-8), which keeps the default that the
@@ -593,8 +594,8 @@ Raised by the third three decisions of 2026-11-27; each has a default in the bri
 Raised by the fourth two decisions of 2026-11-27. Both are to confirm with the user; each has a
 default in the brief:
 
-19. **To confirm.** Does the MCP stay off in a private preview whose server host is verified?
-    Default: yes, off in every private preview. (EV-10, SC-13, conflict 22)
+19. **Decided 2026-11-27.** The MCP stays off in a private preview whose server host is
+    verified: off in every private preview. (EV-10, SC-13, conflict 22)
 20. **To confirm.** On a public portal, is "Try it" for a server on an unverifiable host
     withheld with a reason, or shown in example-response mode? Default: withheld; the mode is
     for previews. This is question 18 for one case. (RD-8, SU-24, conflict 23)

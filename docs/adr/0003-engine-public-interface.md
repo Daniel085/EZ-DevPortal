@@ -467,8 +467,7 @@ example stands in for it.
   sent depends on the answer: it changes only whether a public console that is not live shows
   an example or is not shown, and M2 builds the mode either way.
 - **The MCP.** In a private preview the MCP endpoint is off for everyone, members included,
-  whatever is verified. The decision on live calls in a preview speaks of "Try it" only, so
-  this stays as first written; it is to be confirmed with the user. In a public portal the
+  whatever is verified. The user confirmed this on 2026-11-27. In a public portal the
   MCP's two call tools are withheld for a server that fails condition 1 or 2.
 - **A plan.** A plan is needed to make a portal public. It is not needed for live calls in a
   private preview.
