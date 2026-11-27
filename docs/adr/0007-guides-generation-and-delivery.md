@@ -3,6 +3,8 @@
 Status: accepted, 2026-11-27. Decided by the user that day. Milestones: M4 builds the GitHub
 App, M5 everything specific to guides (product brief). Nothing here is built in M1. The GitHub App and ingestion are **not designed**; this ADR fixes the boundaries they
 must keep. Security review: required before either is designed, and not yet held.
+Revised 2026-11-27 for the user's decision that a blocker withholds its own page and not the
+bundle (decision 3 and the consequences).
 
 ## Context
 
@@ -28,9 +30,10 @@ lose those edits (contract 4.7).
    tenant's repository. The tenant reviews, edits and merges. The portal ingests the bundle from
    that repository. A regeneration is another pull request.
 3. **Before a repository is connected**, the control plane holds the bundle, read-only. A page
-   with a blocker is never published. The contract as written blocks the whole bundle; the
-   product default for a held bundle is to withhold only those pages, which is not designed
-   (contract 4.7, and section 8, open item 6).
+   with a blocker is withheld and the other pages are published. This is no longer special to a
+   held bundle: decided by the user on 2026-11-27, a blocker withholds its own page in every
+   case, and only an error blocks a whole bundle (contract 4.7 and 5). The one difference for a
+   held bundle is that nobody can finish a withheld page until a repository is connected.
 4. **Where the bundle root sits in the repository is a setting** of the API version, not a
    contract rule. A bundle belongs to one unit (ADR 0002, "The unit").
 5. **Two rules replace "the portal never writes to a bundle's repository":** the portal never
@@ -60,9 +63,14 @@ lose those edits (contract 4.7).
 - No path exists for fetching the published spec, so the authenticated path that ADR 0003 and
   the contract planned is not built. That removes a surface.
 - The guides module needs no knowledge of Git, tenants or transport.
-- Publishing a held bundle page by page needs a rule for links and navigation that point at a
-  withheld page. Until it is designed, the validator's `publishable` stays one value for the
-  bundle.
+- Bundles publish page by page, held or not. The rule for what points at a withheld page is in
+  contract 4.7: its navigation entry is absent, a link or card to it is published without the
+  link and reported as the warning `link-to-withheld-page`, and its twin, `llms.txt` entry,
+  search record and back-links are absent. The validator's `publishable` stays one value for
+  the bundle and is false only for an error; `withheld` lists the pages (contract 5).
+- The set of withheld pages is computed once, by bundle validation, which is a pure function
+  (contract 9). The publish step and the renderer take it from the report and do not derive it
+  again, so the page list, navigation, search and `llms.txt` cannot disagree about it.
 - GitHub is the only host decided. Others are not ruled out and not designed.
 
 ## Alternative rejected

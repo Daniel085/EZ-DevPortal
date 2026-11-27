@@ -16,6 +16,9 @@ Four further decisions by the user on 2026-11-27 are recorded the same way: the 
 guides module and delivers its output as a pull request on the tenant's repository (4.7, 6); the
 portal provides the "get a key" link (9); a portal that is a private preview serves nothing
 without sign-in (9); and one bundle belongs to one version of one API (3).
+Two more decisions by the user that day are recorded the same way: a `<Todo>`, or a page that is
+not `ready`, withholds its own page and not the bundle (4.7, 5); and "Try it" in a private
+preview shows the spec's example response and sends nothing (9).
 Awaiting the guides module's re-sync and confirmation.
 
 This is the interface between two projects:
@@ -236,7 +239,8 @@ The JSON Schema is in [`guides-manifest.schema.json`](./guides-manifest.schema.j
 - Every page file must appear in `nav` exactly once. A nav entry with no file is `missing-page`. A
   file under `pages/` with no nav entry is `unlisted-page`. A slug that appears twice is
   `duplicate-page`.
-- `hidden: true` keeps a page out of the sidebar. The page is still published and linkable.
+- `hidden: true` keeps a page out of the sidebar. The page is still published and linkable. It is
+  not the same as a withheld page (4.7), which is not published at all.
 - `label` is optional plain text shown in the sidebar instead of the page's `title`. It changes
   nothing else.
 
@@ -606,6 +610,13 @@ Every other destination is `link-not-allowed`. That includes relative and absolu
 to a heading on the same page, write `guide:` with the page's own slug. The portal owns URL
 structure and may change it.
 
+**A `guide:` target that is withheld.** A slug that is in the bundle always resolves for
+validation, whether or not its page is withheld (4.7): `unknown-guide` and `unknown-anchor` are
+checked against the bundle as written. In the published portal a `guide:` link to a withheld
+page, with or without an anchor, is rendered as its link text with no link, and a `<Card>` whose
+`href` is such a target is rendered as a card with no link. Each is reported as
+`link-to-withheld-page`, a warning (4.7).
+
 **External links.** The destination matches
 `^https://[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?(:[0-9]{1,5})?([/?#][\x21-\x7E]*)?$` and has no `\`.
 The portal also parses it with the WHATWG parser and rejects it if the parsed host differs. A
@@ -808,40 +819,79 @@ them here.
 </Todo>
 ```
 
-Both are **visible in preview and block publishing**:
+Both are **visible in preview and withhold their own page from publishing**:
 
 - A page whose `status` is `draft` or `review` is reported as `page-not-ready`.
 - Each `<Todo>` is reported as `todo-present`.
 
-These two codes have the severity `blocker` (section 5). A bundle whose only findings are blockers
-and warnings is valid: the portal stages it and shows it in preview, with each `<Todo>` rendered as
-a clearly marked placeholder. It cannot be published until a bundle arrives without them: a new
-commit in the tenant's repository, or a regenerated bundle. A `<Todo>` therefore never appears in a published page, a Markdown twin, `llms.txt`,
-the search index or the docs MCP.
+These two codes have the severity `blocker` (section 5). **A blocker is about one page, not the
+bundle** (decided by the user on 2026-11-27). A bundle whose only findings are blockers and
+warnings is valid and can be published. A page that carries at least one blocker finding is a
+**withheld page**, and the published portal leaves it out. Every other page is published. An
+`error` is different: one error anywhere keeps the whole bundle from being staged or published
+(section 5).
 
-`draft` and `review` block publishing equally. The difference is information for people.
+`draft` and `review` withhold a page equally. The difference is information for people.
+
+**What withheld means.** In the published portal, for a withheld page:
+
+- It is not rendered and has no URL. A URL it had under an earlier bundle stops resolving. It
+  has no Markdown twin and no entry in `llms.txt`, and it is absent from the search index and
+  the docs MCP.
+- Its entry is absent from navigation. The other entries keep their order. A group left with no
+  entry is absent too, and so is a group above it that is left empty in turn. A withheld page
+  with `hidden: true` is withheld.
+- A `guide:` link to it from a published page is rendered as the link's text, with no link
+  element, no link title and nothing that marks it. A `<Card>` whose `href` targets it is
+  rendered as a card with no link. This holds for inline links, reference-style links and
+  `href`, with or without an anchor. The page that links is published as usual.
+- An anchor into it does not resolve, because the page it belongs to has no URL.
+- A reference page's links back to guides, built from `operations` in frontmatter, omit it.
+- An asset that only withheld pages refer to is not published. An asset that a published page
+  refers to, or that no page refers to, is published as before.
+- A `<Todo>` therefore never appears in a published page, a Markdown twin, `llms.txt`, the
+  search index or the docs MCP. The same holds for any other text of a withheld page.
+
+Withholding changes what is published and nothing about validation. A withheld page is validated
+in full: an `error` in it blocks the bundle like any other, its slug and its anchors count as
+present for `unknown-guide` and `unknown-anchor`, and its `operations` count for
+`page-unreferenced`.
+
+**A link to a withheld page is a warning.** Each `guide:` link or `<Card>` `href` on a page
+that is not withheld, whose target is a withheld page, is reported as `link-to-withheld-page`
+on the linking page, one finding per link, with the withheld page's path in `target`
+(section 5). It blocks nothing. It tells the author that a published page points at a page
+readers cannot see. A link from one withheld page to another, or from a withheld page to
+itself, is not reported.
+
+**The guides entry point.** The portal must not depend on any one page being published, the
+quickstart included. Where the portal links to the guides as a whole, the target is the first
+page in `nav` order that is published and not `hidden`, or the first published page if all of
+them are `hidden`. A withheld quickstart is skipped like any other page, and anything the
+portal attaches to a `quickstart` page (9) is absent with it. If every page is withheld the
+portal shows no guides section and no link to one; the bundle is still published, and its
+predecessor's pages are gone.
+
+**In preview nothing is withheld.** The preview of a staged bundle shows every page, including
+the withheld ones. A withheld page is marked as withheld on the page and in navigation, with
+its findings, and each `<Todo>` is rendered as a clearly marked placeholder. Links to a
+withheld page work there. The preview of a staged bundle is not the private preview of
+section 9: a bundle published into a portal that is a private preview has its withheld pages
+left out, exactly as in a public portal.
 
 **Incomplete content is resolved in Git.** Once the tenant has connected a repository, the bundle
 lives there (section 6). A person resolves a `<Todo>`, or finishes a `draft` or `review` page, by
 editing the page file in that repository: replacing the `<Todo>` with the missing content, or
-setting `status: ready`. The portal ingests the new commit and validates it like any other bundle.
-The portal offers no editor for a bundle and never changes what a page says. What it sends to the
-repository is the guides module's output, as a pull request that a person merges (section 6).
+setting `status: ready`. The portal ingests the new commit and validates it like any other bundle,
+and the page is published with the next publish. The portal offers no editor for a bundle and
+never changes what a page says. What it sends to the repository is the guides module's output, as
+a pull request that a person merges (section 6).
 
 **Before a repository is connected** the portal holds the generated bundle, and it is read-only:
-there is nowhere to edit it. The two codes and their severity are the same, and one thing holds
-in every case: a page that carries a `todo-present` or `page-not-ready` finding is never
-published. What happens to the other pages is not the same in the two cases.
-
-- *As this contract is written*, the unit is the bundle: `publishable` is one value for the whole
-  bundle (section 5) and publishing replaces a bundle as a whole (section 6). One such page keeps
-  every page of the bundle unpublished. This is the rule once a repository is connected, where a
-  person can resolve the page.
-- *While the portal holds the bundle*, the product default is to withhold only the pages that
-  carry a blocker and publish the others, because nobody can resolve them (product brief, open
-  decisions, 2026-11-27). The rules above do not do this by themselves, and how it works is not
-  designed: what a `guide:` link to a withheld page becomes, and what happens to its `nav` entry,
-  are open (section 8, open item 6). It is the portal's behaviour and binds no generator.
+there is nowhere to edit it. The rule is the same in both cases: the pages that carry a blocker
+are withheld and the others are published. A withheld page of a held bundle stays withheld until
+the tenant connects a repository and a person finishes it there, or a regenerated bundle arrives
+without the blocker.
 
 Two things follow.
 
@@ -895,14 +945,23 @@ The portal validates every bundle before staging it and returns a machine-readab
 {
   "contractVersion": "0.2",
   "ok": true,
-  "publishable": false,
+  "publishable": true,
+  "withheld": ["quickstart"],
   "findings": [
     {
       "code": "todo-present",
       "severity": "blocker",
       "file": "pages/quickstart.md",
       "line": 18,
-      "message": "This page has a <Todo> that must be resolved before publishing."
+      "message": "This page is withheld from publishing until its <Todo> is resolved."
+    },
+    {
+      "code": "link-to-withheld-page",
+      "severity": "warning",
+      "file": "pages/payments/accept-a-payment.md",
+      "line": 9,
+      "target": "pages/quickstart.md",
+      "message": "This link points at a page that is withheld. It will be shown as plain text."
     }
   ]
 }
@@ -910,12 +969,25 @@ The portal validates every bundle before staging it and returns a machine-readab
 
 | Severity | Meaning |
 |---|---|
-| `error` | The bundle is invalid. It is not staged and cannot be previewed. |
-| `blocker` | The bundle is valid and is staged for preview. It cannot be published. |
-| `warning` | Nothing is blocked. |
+| `error` | **The whole bundle** is invalid. It is not staged, cannot be previewed, and no page of it is published. |
+| `blocker` | **One page** is withheld from publishing: the page named in `file`. The bundle is valid, is staged for preview and can be published; its other pages are published (4.7). |
+| `warning` | Nothing is blocked and nothing is withheld. |
+
+The two blocking severities differ in reach. An error stops every page, wherever it is. A blocker
+stops only the page that carries it. A blocker never becomes an error, and no number of blockers
+makes a bundle unpublishable.
 
 - `ok` is true when there is no finding of severity `error`.
-- `publishable` is true when there is no finding of severity `error` or `blocker`.
+- `publishable` is one value for the bundle. It is true when there is no finding of severity
+  `error`: the bundle can be published. Blockers do not make it false. In 0.2 it therefore has
+  the same value as `ok`; it stays in the report so that "can be staged" and "can be published"
+  remain separate questions with separate answers.
+- `withheld` is the per-page answer: the slugs of the withheld pages, each once, sorted by Unicode
+  code point. It is always present and is empty when no page is withheld. A page is in it exactly
+  when a finding of severity `blocker` names its file. When `ok` is false nothing is published
+  and the list is only information.
+- A blocker's `file` is always a page file.
+- `target` is present on `link-to-withheld-page` only and is the path of the withheld page.
 - `file` is relative to the bundle root. `line` is 1-based and is omitted when a finding is about a
   whole file or the whole bundle. `message` is for people and is not part of the contract.
 - The portal reports every finding it can, not only the first.
@@ -964,7 +1036,7 @@ names for the same conditions.
 | `invalid-capture` | See 4.3. |
 | `invalid-code-info` | A code block info string that breaks 4.4. |
 
-**Blockers**
+**Blockers.** Each withholds the page it is reported on, and only that page (4.7).
 
 | Code | Condition |
 |---|---|
@@ -982,6 +1054,7 @@ names for the same conditions.
 | `api-request-code` | An ordinary code block contains `{{base_url}}`. See 4.4. |
 | `undeclared-parameter` | A sample sends a header or query parameter the operation does not declare. |
 | `invalid-report` | `report.json` is present but is not JSON, is nested deeper than 64, or fails its schema. The report is ignored. |
+| `link-to-withheld-page` | A `guide:` link or a `<Card>` `href` on a page that is not withheld targets a withheld page. One finding per link, on the linking page, with the withheld page in `target`. The link is published as plain text, or the card without a link (4.5, 4.7). |
 
 **Generator-side only**
 
@@ -1044,8 +1117,8 @@ candidates. This replaces that.
   a pull request against the bundle that is there. The portal never commits to the branch it
   ingests from and never merges a pull request.
 - **Before a repository is connected**, the portal holds the generated bundle. It is read-only:
-  there is no editor and no upload. It is validated and staged like any other bundle, and a page
-  that carries a blocker is not published (4.7).
+  there is no editor and no upload. It is validated, staged and published like any other bundle:
+  a page that carries a blocker is withheld and the others are published (4.7).
 - **Where the bundle root lives in the tenant's repository is a setting**, not part of this
   contract: a directory in the repository, set per API version (section 3), that holds the bundle
   and nothing else. Section 2 applies from that directory down. Its name and its place in the
@@ -1069,7 +1142,8 @@ What is fixed besides:
   "publishing" for making a portal public, which is a different step: a bundle published into a
   private preview is still seen only by signed-in members of the tenant's account (section 9).
 - Publishing is atomic. A bundle replaces the previous one as a whole, and a failed bundle leaves
-  the live portal unchanged.
+  the live portal unchanged. What is published is the bundle without its withheld pages (4.7);
+  a page of the previous bundle that is withheld in the new one is removed with the rest.
 - Whatever the transport, the step that extracts or reads the bundle enforces the section 2 limits
   on actual bytes, as it reads them and not from sizes an archive declares, and rejects links,
   absolute paths and `..`. Bytes are counted after content decoding: a limit applies to a file as
@@ -1106,6 +1180,7 @@ Decided on 2026-11-27:
 |---|---|
 | Which document guides are generated from, and which hash is compared | The published spec: the root document with the accepted spec-doctor fixes applied, as the portal published it (1.2, 3). |
 | How a `<Todo>` or a page that is not `ready` gets resolved | A person edits the bundle in its Git repository and the portal ingests the new commit. Regenerating must not overwrite those edits (4.7). |
+| What a `<Todo>` or a page that is not `ready` holds back | Its own page, not the bundle, whether the portal holds the bundle or a repository is connected. The other pages are published. A `guide:` link or `<Card>` `href` to a withheld page is published as plain text or an unlinked card and reported as the warning `link-to-withheld-page`; the page's `nav` entry is absent; the validation report lists withheld pages in `withheld`. An error still blocks the whole bundle (4.7, 5). This was open item 6. |
 | Transport: how a bundle reaches the portal | The portal runs the guides module. With a repository connected, the portal's GitHub App proposes the bundle as a pull request on the tenant's repository, the tenant merges it, and the portal ingests from that repository. A regeneration is another pull request. Before a repository is connected the portal holds the bundle, read-only (6). The App is built in M4, the rest in M5. |
 | How the guides module gets the published spec | The portal passes the bytes to the step that runs the module. Nothing is fetched (1.2, 6). |
 | Who keeps a regeneration from overwriting edits | Both sides. The portal delivers a regeneration only as a pull request. The guides module's output is deterministic and stable, and it does not revert an edited page when given the existing bundle (4.7). |
@@ -1129,9 +1204,6 @@ Still open, and not blocking 0.2:
 5. Whether a guide can ask for the "get a key" link at a particular place. In 0.2 it cannot: the
    portal places the link and nothing in a bundle refers to it (9). A way to place it would be an
    addition to the contract and needs a security review first.
-6. Publishing a held bundle page by page (4.7): what a `guide:` link to a withheld page becomes,
-   what happens to its `nav` entry, and how the validation report says which pages are withheld.
-   For M5. A generator is not affected.
 
 ## 9. What the portal must handle
 
@@ -1186,6 +1258,14 @@ engine and renderer. They are here so they are written down on the portal side.
 - Substitute reader-specific variables in the browser, into placeholders only. Published pages are
   static and carry no `{{` marker text for client code to find (4.6, item 6).
 - Render `<Todo>` in preview only.
+- Leave a withheld page out of everything published, as 4.7 lists: no page and no URL, no twin,
+  no `llms.txt` entry, no search record, no docs MCP entry, no `nav` entry and no group left
+  empty by it, no back-link from a reference page, and no asset that only withheld pages refer
+  to. Render a `guide:` link or `<Card>` `href` to it as text or an unlinked card. The set of
+  withheld pages comes from the validation report's `withheld`; the renderer does not work it
+  out again. In the preview of a staged bundle, show withheld pages and mark them. M5.
+- Take the guides entry point from `nav` and the withheld set, never from a fixed slug or from a
+  page's `type` (4.7).
 - Render the "get a key" link (decided 2026-11-27, for M2). The tenant supplies the URL as a
   setting. The portal renders the link itself, as its own element: where it shows the control a
   reader pastes a key into, which every sample that needs a credential has; in the reference's
@@ -1298,13 +1378,20 @@ engine and renderer. They are here so they are written down on the portal side.
   reach it by itself, and the headers in section 2 authorize nobody. How a request to the asset
   origin is authorized for a private preview is designed in M4 with the security reviewer. The
   headers in section 2 are unchanged in either state.
+- *"Try it" in a private preview.* Decided 2026-11-27: the console runs in example-response
+  mode. It sends no request, to the proxy or to the API. It shows an example the spec declares
+  for the response, labelled as an example, and says so where the spec declares none; it never
+  shows a value made from a schema as a response. Nothing is captured from an example, so a
+  `capture` name stays unfilled as if the sample had not been run (4.3). The MCP is off. The
+  rules are in ADR 0003, "Example-response mode in a private preview". A generator is not
+  affected.
 - The naming and isolation of the asset origin are designed with custom domains (M5 and M6) and
   go to the security reviewer.
 
 **Not exercised by the guides module today**, so the portal needs its own fixtures for them:
 `<Tabs>`, assets and images, `label` and `hidden` in nav, pages of type `reference`, multiple
 `capture` pairs, percent-encoded link targets, `guide:` links with anchors, form 4 of `<Sample>`,
-`status` and `<Todo>`.
+`status` and `<Todo>`, and with them every rule for a withheld page in 4.7.
 
 No bundle has yet been through a portal validator. The first real ingestion is a test of both
 validators.
@@ -1323,11 +1410,13 @@ Added:
 - Percent-encoding in link targets, so any operation id can be linked (4.5).
 - The order of operations for variables (4.6).
 - New codes: `unlisted-page`, `invalid-tag-placement`, `unknown-anchor`, `nesting-limit`,
-  `todo-present`, `page-not-ready`, `undeclared-parameter`, `invalid-report`.
+  `todo-present`, `page-not-ready`, `undeclared-parameter`, `invalid-report`,
+  `link-to-withheld-page`.
 
 Changed:
 
-- The validation report: `errors` is renamed `findings`; `publishable` and `contractVersion` are added.
+- The validation report: `errors` is renamed `findings`; `publishable`, `withheld` and
+  `contractVersion` are added, and a finding may carry `target`.
 - `<Sample operation="x" />` with no inputs renders the operation's default sample.
 - `example` is defined in OpenAPI terms and may select parameter examples as well as a body example.
 - A header or query parameter that the operation does not declare is a warning, not an error.
@@ -1447,8 +1536,8 @@ private preview, several APIs per portal), also made before 0.2 was released:
   an edited page when the existing bundle is given. A module run by the portal leaves
   `generatedAt` out (4.7). **This binds a generator.**
 - In a bundle held by the portal before a repository is connected, a page with a blocker is
-  never published, as before. The rules as written block the whole bundle; the product default
-  for a held bundle is to withhold only those pages, and that is not designed yet (4.7, 8).
+  never published. An earlier draft of 0.2 said the rules as written blocked the whole bundle
+  and left page-by-page publishing undesigned; the decision below replaces that (4.7, 8).
 - The portal renders the "get a key" link from a URL the tenant supplies. No variable or
   component is added for it, and a guide need not explain how credentials are issued. The
   example `<Todo>` in 4.7 was about that and is replaced (4.7, 8, 9).
@@ -1456,6 +1545,26 @@ private preview, several APIs per portal), also made before 0.2 was released:
   published spec included (9). No rule for a generator changed.
 - One bundle belongs to one version of one API, and the portal keys bundles by project, API and
   version. Nothing in the bundle format changed (3, 8, 9).
+
+Required by two more decisions of the user on 2026-11-27 (withholding by page; "Try it" in a
+private preview), also made before 0.2 was released. Neither changes what a generator writes;
+the first changes what a generator's own validator reports:
+
+- **A blocker withholds its own page, not the bundle.** Earlier drafts of 0.2 said a bundle with
+  a `todo-present` or `page-not-ready` finding could not be published. It can: the pages that
+  carry a blocker are withheld and the others are published, whether the portal holds the bundle
+  or a repository is connected. 4.7 states what withheld means for the page, its URL, navigation
+  and empty groups, links and cards that point at it, its twin, `llms.txt`, search, the docs
+  MCP, back-links from reference pages, its assets and the guides entry point. Preview still
+  shows every page. An `error` still blocks the whole bundle (4.7, 5, 6).
+- The validation report: `publishable` stays one value for the bundle and no longer turns false
+  for a blocker; `withheld` is added and lists the withheld pages; a finding may carry `target`
+  (5).
+- New code: `link-to-withheld-page`, a warning, for a `guide:` link or `<Card>` `href` from a
+  page that is not withheld to one that is (4.5, 4.7, 5.1).
+- Open item 6 of section 8 is decided and removed from the open list (8).
+- In a private preview "Try it" shows the spec's declared example response and sends nothing,
+  nothing is captured from it, and the MCP is off (9; ADR 0003).
 
 ## 11. Decisions on the v0.1 feedback
 
@@ -1468,11 +1577,11 @@ means it says something different, and a generator built on the assumption needs
 
 | # | Proposal | Decision | The contract now says |
 |---|---|---|---|
-| 1 | Marker for incomplete content | Confirmed | Frontmatter `status: draft\|review\|ready`, default `ready`, and `<Todo title="…">`. Both show in preview and block publishing, as `page-not-ready` and `todo-present`, severity `blocker`. (4.7) |
+| 1 | Marker for incomplete content | Confirmed | Frontmatter `status: draft\|review\|ready`, default `ready`, and `<Todo title="…">`. Both show in preview and withhold their own page from publishing, as `page-not-ready` and `todo-present`, severity `blocker`. The rest of the bundle is published. (4.7, 5) |
 | 2 | `tryIt` on `<Sample>` | Confirmed | `tryIt="true"\|"false"`, default `true`. `false` is binding on the portal. `true` is a request; the portal may still withhold "Try it". (4.3) |
 | 3 | Named example with inline values | Confirmed, with a rule for `body` | `example` and an inline block may be combined. Inline `path`, `query` and `headers` are merged per parameter and win over the example. A `body` from both is `invalid-sample`. (4.3) |
 | 4 | Exempt `concept` pages from `page-unreferenced` | Confirmed, and extended | The warning applies only to `quickstart`, `how-to` and `tutorial` pages with no `operations`. `concept` and `reference` are exempt. (5.1) |
-| 5 | Publish the full list of codes | Confirmed | The list in 5.1. All of the module's names are kept. `api-request-code` becomes a warning, `unsupported-syntax` is generator-side only, and eight codes are added. |
+| 5 | Publish the full list of codes | Confirmed | The list in 5.1. All of the module's names are kept. `api-request-code` becomes a warning, `unsupported-syntax` is generator-side only, and nine codes are added. |
 | 6 | A place for the run report | Confirmed | Optional `report.json` at the bundle root, with a minimum shape and a schema; extra members are allowed and ignored. An invalid report is the warning `invalid-report`. (5.2) |
 
 ### Assumptions

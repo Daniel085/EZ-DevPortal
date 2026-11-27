@@ -52,10 +52,11 @@ portal side's answer to the guides module's feedback on v0.1: section 11 of the 
 every proposal and assumption by number, and section 10 lists what changed, including the
 corrections the portal's security review and re-review required before 0.2 was released, the
 product decisions of 2026-11-27 (which spec you generate from, how incomplete pages get
-finished, and that the portal runs you and delivers your output as a pull request) and the
-security review of that day. A module built against v0.1 must re-sync its copy of all three
+finished, that the portal runs you and delivers your output as a pull request, and that an
+unfinished page holds back only itself) and the security review of that day. A module built against v0.1 must re-sync its copy of all three
 files and set `contractVersion` to `"0.2"`; a portal on 0.2 rejects `"0.1"`. A module that
-synced 0.2 before section 6 read "Decided by the user on 2026-11-27" must sync again. If
+synced 0.2 before section 6 read "Decided by the user on 2026-11-27", or before section 5
+listed `withheld` in the validation report, must sync again. If
 the contract cannot express something the guides need, say so and propose a change. Do not work
 around it.
 
@@ -148,10 +149,19 @@ around it.
   idempotency, rate limits, webhooks.
 - Honest gaps. Specs are often thin. Where the spec does not say something, do not invent it.
   Leave it out, or mark it with `<Todo>` and a page `status` so a human can complete it. Marked
-  content shows in the portal's preview and blocks publishing until a person resolves it by
-  editing the page in the bundle's Git repository (constraint 8). Before the customer
-  connects a repository nobody can edit it, and the page is withheld. So mark what a person
-  must supply, and leave out what is merely absent.
+  content shows in the portal's preview and **withholds its own page** from the published
+  portal until a person resolves it by editing the page in the bundle's Git repository
+  (constraint 8). It does not hold back the rest of the bundle: the other pages are published
+  (decided 2026-11-27; contract 4.7). Before the customer connects a repository nobody can edit
+  the page, and it stays withheld. So mark what a person must supply, and leave out what is
+  merely absent.
+- Pages that stand without each other. A withheld page has no URL and no place in navigation,
+  and a `guide:` link or `<Card>` `href` that points at it is published as plain text or an
+  unlinked card. The portal reports each such link as the warning `link-to-withheld-page`, and
+  your validator should too. So a page that readers need, the quickstart above all, should not
+  carry a `<Todo>` for something it could leave out, and a published page should still read
+  correctly when a page it links to is missing. A problem of severity `error` is different: it
+  stops the whole bundle.
 
 ## Specs you should expect
 
@@ -199,7 +209,8 @@ All four are answered; see section 8 of the contract. In short: no diagrams, vid
 for a sample.
 
 Decided on 2026-11-27 and listed in the same section: guides are generated from the published
-spec; incomplete content is resolved by a person in Git; Swagger 2.0 is out of scope; a portal
+spec; incomplete content is resolved by a person in Git, and until then it withholds its own
+page and not the bundle; Swagger 2.0 is out of scope; a portal
 customer lists the allowed hosts of a server with an open host variable as an `enum` in the
 published spec (this does not affect you); the portal runs you and delivers your bundle as a
 pull request; the portal passes you the published spec; the portal shows the "get a key" link;

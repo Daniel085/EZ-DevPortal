@@ -198,6 +198,11 @@ Rules:
   `issues` then.
 - "Try it" and MCP send exactly the request the sample shows, because both come from one
   `HttpRequest`. A serialization bug is fixed once.
+- In a private preview "Try it" builds the same `HttpRequest` and shows it, and sends nothing
+  (ADR 0003, "Example-response mode in a private preview"). The example shown as the result is
+  chosen from the operation and a status alone. It does not depend on the request or on any
+  value the reader entered, so nothing in `RequestValues` selects or alters it. The `example`
+  key of `RequestValues` names a request example and has no part in it.
 - The proxy and MCP do not trust that request. They enforce the rules of contract 4.3 on every
   request, server-side, from the published model: destination only from the model's servers, with
   server variables limited as "Server variables" above says, subject to the proxy destination

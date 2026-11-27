@@ -6,6 +6,8 @@ generated from the patched spec: `source` carries two hashes, and ids are comput
 document. The dropped header parameters, already stated in ADR 0004, are written down here.
 Revised again that day for the user's decision that a portal may hold several APIs, and later
 several versions of one: "The unit" is added. The shape is unchanged.
+Revised again that day to state the order of `content` and `examples`, which ADR 0003's
+example-selection rule depends on. The shape is unchanged.
 Milestone: M1. Longer than other ADRs because two developers code against it in parallel.
 
 ## Context
@@ -137,6 +139,9 @@ interface Parameter { name: string; in: 'path'|'query'|'header'|'cookie'; requir
   schema?: Schema; content?: MediaType;           // exactly one of the two
   examples: Example[]; ref?: string; loc: Loc }
 
+// `content` arrays and `examples` arrays are in authored order: the order of the keys in the
+// source. A singular `example` is the only entry. Declared examples only: the engine never
+// puts a synthesized value into `examples`, here or on a Schema.
 interface MediaType { mediaType: string; schema?: Schema; examples: Example[];
   encoding: { property: string; contentType?: string; style?: string; explode?: boolean }[] }
 

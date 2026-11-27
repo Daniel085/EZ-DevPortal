@@ -21,6 +21,10 @@ passes it the published spec, so no fetch path is built (ADR 0007); a private pr
 nothing without sign-in ("Who can read it"); and "Reader keys". No security ruling is changed.
 The private-preview wording, the reader-key requirements and ADR 0007 have not been to the
 security reviewer.
+Revised again that day for the user's decision that "Try it" in a private preview shows the
+spec's example response and sends nothing, and that the MCP is off there ("Example-response mode
+in a private preview"). It adds one rule for M1's page files. Not yet seen by the security
+reviewer.
 
 ## Context
 
@@ -107,6 +111,14 @@ in a process shared between tenants, so a write to `Object.prototype` would cros
 | `manifest.json` | versions, navigation tree, page index (slug, title, kind, path) |
 | `model.json` | the full `ApiModel`, for the proxy and MCP |
 | `pages/<path>.json` | one self-contained page: the operation or schema, the named schemas it reaches, samples per language, examples |
+
+**Declared examples stay apart from synthesized values. This binds M1.** An operation's page
+file carries each response as the model has it: by status, then by media type, each with its
+declared `examples` (name, value) in authored order, and the examples of the media type's
+schema. A value the engine synthesized is never written among them. If a page shows a
+synthesized value anywhere, it is in a field of its own that says so. M2's example-response
+mode ("Example-response mode in a private preview") reads declared examples from the page file
+in the browser and must be able to tell the two apart without the network.
 | `search.json` | flat search records (id, kind, title, path, text). Not a library-specific index. |
 | `static/<path>.md`, `static/llms.txt` | Markdown twins and `llms.txt` |
 
@@ -203,9 +215,10 @@ hashes.
   publisher's run and its output, not public availability: a private preview has a published
   spec, because its pages and its guides are built from one. While a portal is a private preview
   nothing of it is served to anyone who is not signed in as a member of the tenant's account:
-  pages, twins, `llms.txt`, `search.json`, `model.json`, the published spec, files on the asset
-  origin and the MCP endpoint. Public download of the published spec cannot be switched on in
-  that state. The asset origin is not the dashboard's origin, so a member's session does not
+  pages, twins, `llms.txt`, `search.json`, `model.json`, the published spec and files on the
+  asset origin. The MCP endpoint is off for everyone, members included, and "Try it" sends
+  nothing ("Example-response mode in a private preview"). Public download of the published spec
+  cannot be switched on in that state. The asset origin is not the dashboard's origin, so a member's session does not
   reach it by itself; how a request to it is authorized in a private preview is designed in M4
   and goes to the security reviewer first. The M1 CLI is unaffected: a static build has no
   private state, which is why it prints its warning.
@@ -402,6 +415,83 @@ the security reviewer has not seen it.
   readable by that site's scripts.
 - Later, a sign-in handoff may pass the reader's key from the tenant's site. It is not designed,
   it must keep "never stored or logged by us", and it needs its own security review.
+
+### Example-response mode in a private preview
+
+Decided by the user on 2026-11-27. Requirements on M2's design (the console) and M4's (the
+private preview, and the server-side refusal); the first paragraph under `PortalBundle` above
+is the only part that binds M1. The security reviewer has not seen it.
+
+While a portal is a private preview, "Try it" runs in example-response mode: the console works,
+and in place of a live response it shows an example the spec declares, with a prompt to verify
+the domain for live calls. The MCP is off.
+
+- **No request.** Running the console in this mode makes no network request: none to the proxy,
+  none to the API, none to fetch an example. Everything it shows is already in the page file.
+  The request the reader built is shown as it would be sent, from the same `HttpRequest` as the
+  sample (ADR 0005), and is not sent.
+- **Enforced on the server, not by the page.** The mode is not what keeps a private preview
+  from making calls. The proxy refuses every request for a portal that is a private preview,
+  and the MCP endpoint does not answer for one, decided server-side from the tenant's state and
+  not from anything the caller sends. A page altered to leave the mode reaches a refusal.
+- **Only declared examples.** The response shown comes from the published model's declared
+  examples and from nowhere else: `Response.content[].examples`, and the `examples` of that
+  media type's schema (ADR 0002). An example that an accepted spec-doctor fix wrote is in the
+  published spec and counts as declared.
+- **Nothing synthesized is shown as a response.** `synthesizeExample` output, a value assembled
+  from the examples, defaults or enums of a schema's properties, and an `externalValue` are
+  never shown in the response's place, under any label. Where the spec declares no example for
+  the response, the console says that the spec gives none and shows the response's status,
+  description and schema, as the reference page does. A response with no `content` is shown as
+  having no body, which is what the spec declares.
+- **Which example, when there are several.** One rule, deterministic, implemented once in the
+  engine as a pure projection and used by the console, by the reference page and by the guides
+  `<Response>` component (contract 4.2), so all three show the same one:
+  1. *Status.* The console opens on the first response, in the model's order (exact codes
+     ascending, then ranges, then `default`), whose status is an exact code from `200` to `299`;
+     if there is none, `2XX`; then `default`; then the first response. The reader may pick any
+     other declared response. An example is never borrowed from another status.
+  2. *Media type.* Take the response's media types in this order: `application/json`; then
+     those whose subtype ends in `+json`, in authored order; then the rest, in authored order
+     (the sample media type rule of contract 4.3, applied to the response). Use the first that
+     has an example under step 3.
+  3. *Example.* The first entry of the media type's `examples`, in authored order, that has a
+     `value`. If there is none, the first entry of the `examples` of the media type's schema,
+     following a reference to the named schema it points at. Nothing else.
+  The reader may switch to another declared example of the same response by name. The default
+  is always the one this rule gives.
+- **The label is part of the result.** The result states, in the portal's own fixed text, that
+  it is an example from the spec and not a response from the API, and that it does not reflect
+  the values entered. The label is rendered inside the result, in the same element as the body,
+  and is carried into anything copied or exported from it. No theme token can hide, reorder or
+  reword it: tokens are data (ADR 0006), none addresses the label, and it takes the same text
+  and surface colours as the body it labels, so a theme cannot make it less legible than the
+  example itself. No tenant text replaces it: an example's `summary` is shown beside it as text. The status is
+  shown as the status the example is for. No timing, size or received headers are shown,
+  because nothing was received.
+- **Credentials go nowhere.** A credential typed in this mode is used only to show the request
+  that would be sent. It is not sent to the proxy, the API or us, and is not logged. Where it
+  is held in the browser is the same M2 question as under "Reader keys", with the same answer.
+- **Nothing is captured.** A guides `capture` (contract 4.3) reads a real response. An example
+  is not one, so the name stays unfilled as if the sample had not been run.
+- **Where the console is absent.** The mode replaces only the sending. `tryIt="false"`, an
+  operation the tenant has not enabled, and a server that is not callable for a reason
+  verification does not cure (`server-not-callable`, a required controlled header; ADR 0004)
+  withhold the console here as they do in a public portal, so the prompt to verify never
+  promises a live call that verification cannot give.
+- **Static export is unaffected.** The pages are the same files in both modes. Which mode the
+  console runs in is a value the renderer is given when it serves a private preview (M4), not a
+  different page. The M1 CLI has no private state and no console.
+
+Assumed, not decided: the mode applies to every operation of a private preview, including one
+whose server is under a domain the tenant has already verified, because the decision speaks of
+the preview and not of the server. For a public portal, a server whose domain is not verified
+keeps the brief's rule: "Try it" and the MCP are withheld for it.
+
+Alternative rejected: show a value generated from the schema under a distinct label such as
+"generated from the schema". The user's decision is that the console does not invent a
+response, and a generated body beside a real status reads as the API's behaviour whatever the
+label says.
 
 ## Consequences
 
