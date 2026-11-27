@@ -110,6 +110,13 @@ What this means for the portal:
 
 ### Other changes (2026-11-27)
 
+- **Idempotency key in the body.** Where an API takes its key as a field of the request body, not a
+  header, samples now send `"idempotency_key": "{{idempotency_key}}"` in `body`, and the
+  `idempotency` page is produced for such an API. Before, `{{idempotency_key}}` appeared only in
+  `headers`. **A page can now hold several samples that each use `{{idempotency_key}}`** (17 of
+  Retavon's 89 pages do). The module assumes the portal generates a fresh value for each sample;
+  one value shared across a page would send the same key with different requests, which an API
+  may refuse. The contract says only "a generated UUID".
 - **Longer step text.** A flow step carries up to 1,200 characters of an operation's description
   (was 320). A description cut short ends with a sentence that links the operation with `op:`.
   Elsewhere a shortened text ends with `…`.
@@ -137,7 +144,7 @@ GitHub's spec uses ids such as `gists/create`. The module writes these into `op:
 | Clubhouse, APIs.guru (3.0, no `operationId`s) | 41 | 3 | passed |
 | Stripe (3.0) | 612 | 120 | passed |
 | GitHub Enterprise Server 3.9 (3.0) | 908 | 25 | passed |
-| Retavon 0.1.0 (3.1, assembled from its per-operation reads) | 560 | 88 | passed |
+| Retavon 0.1.0 (3.1, assembled from its per-operation reads) | 560 | 89 | passed |
 
 "Passed" means the module's validator found no errors. **No bundle has been through a portal
 validator, because none exists yet.** The two will disagree somewhere; the first real ingestion
