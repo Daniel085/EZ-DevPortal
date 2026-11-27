@@ -23,7 +23,7 @@ that lets AI agents call their API.
 | Guide content is data | Restricted Markdown with a closed component set. No MDX, raw HTML or scripts. Tenant content is never executed. |
 | Guides never contain API request code | They name an operation and values; the portal renders the sample in every language. |
 | API MCP is a headline feature | Not an add-on. Built on the same request proxy as "Try it". |
-| MCP tool design | Start with three meta-tools: find operations, describe an operation, call an operation. Not one tool per endpoint. |
+| MCP tool design | Four meta-tools: find operations, describe an operation, call a read operation, call a write operation. Not one tool per endpoint. Decided 2026-11-27: the call tool is split so that an MCP client can require its user's approval for writes only. The server refuses a write operation sent to the read tool. Default until the architect defines it: a read is `GET` or `HEAD`, everything else is a write. |
 | MCP and proxy credentials | The end user's own credentials, passed through per request, never stored by us. |
 | MCP writes | Read-only by default. Write operations are enabled by the tenant per operation, enforced server-side. |
 | Spec repair is core | A "spec doctor" lints the spec and proposes fixes for auth schemes, servers and examples before anything is published. |
@@ -32,7 +32,9 @@ that lets AI agents call their API.
 | Operation ids | Declared ids are used verbatim. Missing ones are derived by the rule in section 1.1 of the guides contract, which is normative for both projects. |
 | Credentials are placed only by the portal | Guides and specs cannot name the reader's credential. Only the sample generator places it. |
 | Proxy and MCP are `https` only | For a server on `http://` or localhost, samples still render but "Try it" and MCP are withheld, with a spec-doctor finding. |
-| Open host variables | Decided 2026-11-27: "B now, C later". A server such as `https://{host}/v1` with no listed values is not callable, so "Try it" and MCP are withheld for it. **B:** the spec doctor's finding for an uncallable server carries a fix that takes the allowed host values as input and stores them in the spec patch like any other fix. Once it is accepted the server is callable for those hosts. **C, planned for M6:** a verified domain suffix. The tenant proves control of a domain once and any host under it is allowed. Built alongside custom-domain verification. |
+| Open host variables | Decided 2026-11-27: "B now, C later". A server such as `https://{host}/v1` with no listed values is not callable, so "Try it" and MCP are withheld for it. **B:** the spec doctor's finding for an uncallable server carries a fix that takes the allowed host values as input and stores them in the spec patch like any other fix. Once it is accepted the server is callable for those hosts. **C, planned for M4** (moved from M6 on 2026-11-27): a verified domain suffix. The tenant proves control of a domain once and any host under it is allowed. It uses the domain verification M4 now builds, comes after it, and needs its own security review first. |
+| Proof of domain control before a portal is public | Decided 2026-11-27, built in M4. **Public** means reachable by anyone who is not signed in to our dashboard as a member of that tenant's account: a portal on our host, under the customer's subpath or on a custom domain, its Markdown twins and `llms.txt`, and its MCP endpoint. **Before verifying**, a tenant gets a private preview: the whole portal, branded from any site URL, visible only to signed-in members and not indexable. **Which domain for what:** (1) to make a portal public, the tenant has verified the domain of the website it is branded from; (2) "Try it" and the MCP send only to server hosts under a domain the tenant has verified, and a server on another domain needs its own verification; until then they are withheld for that server and samples still render, the same treatment as a server that is not callable. Hosts listed by the allowed-hosts fix (B) are bound by rule 2 like any other. Nothing from M2 or M3 is offered as a public hosted service before this exists. Basis: product manager's judgment about abuse (a look-alike portal; the proxy as a relay), not research. The verification methods, what counts as "under" a domain, shared-hosting hosts, re-checking and where the check is enforced are for the architect and the security reviewer. |
+| Public Suffix List licence exception | Decided 2026-11-27. One file, `public_suffix_list.dat` from publicsuffix.org, is vendored and shipped under MPL 2.0 as data, unmodified, with its licence text beside it. MPL 2.0 does not become a permitted licence for code dependencies; the policy in ADR 0001 is otherwise unchanged. |
 | Risky assets use a separate origin | SVG, PDF, JSON and ZIP are served from a per-tenant asset origin. Raster images may be served on the page origin after the portal re-encodes them. |
 | Guides use the patched spec | The portal publishes the spec with accepted spec-doctor fixes applied, and guides are generated from that file. The bundle's hash is of its bytes. |
 | Guides are edited in Git | A person resolves a `<Todo>` or a draft page by editing the bundle in Git. The portal never edits bundles. Regenerating guides must not overwrite those edits. |
@@ -56,9 +58,14 @@ One TypeScript monorepo with four parts:
 1. **M1**: engine, spec doctor, reference, samples, Markdown twins and `llms.txt`
 2. **M2**: request proxy, "Try it", and the API MCP on top of it
 3. **M3**: brand extraction
-4. **M4**: multi-tenancy and onboarding
+4. **M4**: multi-tenancy, onboarding, private preview, proof of domain control before a portal is
+   public, then verified domain suffixes for server hosts
 5. **M5**: guides ingestion, search, docs MCP
-6. **M6**: custom domains, verified domain suffixes for server hosts, billing, analytics
+6. **M6**: custom domains, billing, analytics. Custom domains reuse M4's domain verification and
+   add routing and TLS.
+
+M4 is larger than one milestone. A proposal to split it into three is in
+`docs/product/user-stories.md`, "Proposal: splitting M4". It is not decided.
 
 User stories for all six milestones, with what is covered and what no milestone owns yet, are in
 `docs/product/user-stories.md`.
@@ -97,3 +104,11 @@ has to win on safety and reliability.
 - **Whether readers see that a sample uses synthesized values.** M1 default: buyers only.
 - **Multi-file specs:** a fix accepted in a `$ref`'d file reaches the portal but not the guides
   module, because the published spec covers the root document only. Does not block M1.
+- **"Try it" in a private preview.** Default: withheld for a server whose domain is not verified,
+  even for a signed-in member, so an unverified trial shows the reference and samples but no live
+  call. Loosening it needs the security reviewer. Decide before M4 scope is set.
+- **API servers on a domain the tenant cannot verify**, such as a cloud provider's host name.
+  Default: not callable through "Try it" or the MCP. Decide before M4 scope is set.
+- **An operation that reads but is not `GET`**, such as a `POST` search. Default: it is a write,
+  so the tenant must enable it and the agent's client may ask for approval. Decide before M2.
+- **Whether to split M4**, and how.

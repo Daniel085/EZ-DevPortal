@@ -1,6 +1,9 @@
 # User Stories: M1 to M6
 
-Status: first full pass, 2026-11-27. Owner: product manager. No code exists yet.
+Status: first full pass, 2026-11-27. Owner: product manager. No code exists yet. Updated the same
+day for four decisions by the user: eleven M1 criteria adopted (31 in all), the Public Suffix List
+licence exception, the MCP call tool split into read and write, and proof of domain control before
+a portal is public, built in M4. Statuses, counts, conflicts and questions below reflect them.
 
 Sources read: `docs/product-brief.md`, `CLAUDE.md`, `docs/milestones/m1.md`,
 `docs/milestones/m1-build-kickoff.md`, `docs/contracts/guides-contract.md` (sections 1.2, 4.7, 5,
@@ -10,13 +13,17 @@ Sources read: `docs/product-brief.md`, `CLAUDE.md`, `docs/milestones/m1.md`,
 ## Do we have all the user stories?
 
 **No.** Before this file there were none written as stories, and the plan covered two kinds of
-user. This pass finds 13 actors and 129 stories:
+user. This pass finds 13 actors and 130 stories:
 
 | Status | Count | Meaning |
 |---|---|---|
-| **C** covered | 18 | An M1 acceptance criterion already checks it. |
-| **P** planned | 55 | Named in a decision, ADR, contract section or milestone title, but with no acceptance criteria yet. It would probably get built; what "done" means is not written. |
-| **N** new | 56 | Nothing in the current plan would have caused it to be built. |
+| **C** covered | 22 | An M1 acceptance criterion already checks it. |
+| **P** planned | 57 | Named in a decision, ADR, contract section or milestone title, but with no acceptance criteria yet. It would probably get built; what "done" means is not written. |
+| **N** new | 51 | Nothing in the current plan would have caused it to be built. |
+
+Before the decisions of 2026-11-27 the counts were 129 stories: 18, 55 and 56. What moved: SM-3,
+SM-5, SM-8 and SM-9 from planned to covered (M1 criteria 8, 10, 28, 29, 31); AH-4, OP-3, OP-4, EV-1
+and SU-8 from new to planned; SU-19 added as planned.
 
 What the existing documents cover well: the reader's first call from the reference (M1), the spec
 doctor's findings, agents reading Markdown, the guides contract, and the security rules for the
@@ -26,16 +33,16 @@ What they do not cover, by the kinds of gap that were asked about:
 
 | Kind of gap | Found? | Where |
 |---|---|---|
-| Lifecycle | **Yes, large.** Trial, preview before publish, rollback, versioned APIs, deleting a project, cancelling and export are all absent. First publish and spec update are planned by name only. | EV-1, EV-6, SU-8, SU-10, SU-15, SU-16, AD-3 |
-| Failure and unhappy paths | **Yes.** A spec source that goes down, a spec publish that fails halfway, and new findings after an upstream change have no owner. Undoing a fix, a stale fix and a rejected bundle are designed in ADR 0004 and contract 6 but have no criteria, including in M1. | SU-9, SU-12, SM-4, SM-5, SM-11, DW-8 |
-| Trust and safety | **Yes, the most serious.** The agent's human has no control or visibility of their own; nothing stops a tenant aiming the proxy at a server they do not control or branding a portal as someone else's site; there is no suspend, no abuse intake and no audit log. | AH-2 to AH-4, OP-1 to OP-4, SC-3 to SC-5 |
-| The buyer's reasons to pay and stay | **Yes.** Analytics is a word in M6 with no content. Preview, team members and roles, and SSO are absent. | EV-4, SU-8, AD-1, SC-10 |
+| Lifecycle | **Yes, large.** Rollback, versioned APIs, deleting a project, cancelling and export are all absent. A private preview is now decided (2026-11-27); whether it is free before payment is not. First publish and spec update are planned by name only. | EV-1, EV-6, SU-8, SU-10, SU-15, SU-16, AD-3 |
+| Failure and unhappy paths | **Yes.** A spec source that goes down, a spec publish that fails halfway, and new findings after an upstream change have no owner. A stale fix now has an M1 criterion (c28). Undoing a fix and a rejected bundle are designed in ADR 0004 and contract 6 but have no criteria. | SU-9, SU-12, SM-4, SM-11, DW-8 |
+| Trust and safety | **Yes, the most serious, and partly closed on 2026-11-27.** Decided: proof of domain control before a portal is public and before the proxy calls a server (OP-3, OP-4), and a separate MCP tool for writes (AH-4). Still open: the agent's human cannot see beforehand what the agent may call or keep it read-only on the server side; there is no suspend, no abuse intake, no call limit and no audit log. | AH-2, AH-3, OP-1, OP-2, SC-3 to SC-5 |
+| The buyer's reasons to pay and stay | **Yes.** Analytics is a word in M6 with no content. Team members and roles, and SSO are absent. | EV-4, AD-1, SC-10 |
 | End developer account features | **Yes, and unowned.** Sign-in, API keys and sandbox credentials from the original capability list are in no milestone and no decision. The guides module reports that the spec never says how a key is issued, so every quickstart has this hole. | RD-6, RD-26 |
 | Accessibility and non-English readers | **Partly.** M1 criterion 22 sets WCAG 2.2 AA for four M1 pages. Nothing carries that bar to "Try it", search, guides or the dashboard. Non-English spec text is untested; translation is out of scope by contract. | RD-12, RD-13, RD-24, RD-25, SU-17 |
-| Our own operation of the service | **Yes, almost entirely.** One of twelve operator stories is planned (no credentials in logs). | OP-1 to OP-12 |
+| Our own operation of the service | **Yes, mostly.** Three of twelve operator stories are planned (no credentials in logs, and the two that domain verification answers). | OP-1 to OP-12 |
 
 **How to read "new".** A story marked new is not automatically something to build. Nearly all of the
-56 new stories rest on the product manager's judgment, not on research in the brief; only RD-6 has
+51 new stories rest on the product manager's judgment, not on research in the brief; only RD-6 has
 direct evidence, and SC-3, SC-4 and AH-2 are prompted by one survey figure. The basis column says
 which. The brief's research is about readers and specs; it has no evidence about what buyers
 need to adopt, pay or stay, and none about operating the service.
@@ -80,7 +87,7 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 
 | Id | Story | M | Pri | St | Basis and pointer |
 |---|---|---|---|---|---|
-| EV-1 | As an evaluator, I want to give my spec URL and site URL and see a private preview portal for my own API before paying, so that I can judge the product on my real spec. | M4 | must | N | J. The brief describes the inputs; no document mentions a trial. |
+| EV-1 | As an evaluator, I want to give my spec URL and site URL and see a private preview portal for my own API before paying, so that I can judge the product on my real spec. | M4 | must | P | D: "Proof of domain control", 2026-11-27: a private preview is what a tenant has before verifying. "Before paying" is still undecided (question 2). By default the preview has no "Try it" for an unverified server (question 10). |
 | EV-2 | As an evaluator, I want to see what each plan costs and includes, so that I can get the purchase approved. | M6 | should | N | J. M6 "billing" covers charging, not plans or a public price. |
 | EV-3 | As a buyer, I want the portal to carry none of your branding, so that it reads as part of my site. | M3 | should | N | Brief, "Open differentiators" (white-label at lower tiers). No decision, no milestone. |
 | EV-4 | As a buyer, I want to see how the portal is used (page views, searches with no result, "Try it" and MCP calls and their error rate), so that I can justify renewing. | M6 | must | P | Brief, M6 "analytics". The contents are J; nothing defines them. |
@@ -99,7 +106,7 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 | SU-5 | As a portal owner, I want a spec with local defects to still build, with each defect reported, so that one bad schema does not block the portal. | M1 | must | C | c6. |
 | SU-6 | As a portal owner, I want colours, fonts and logo taken from my website URL, so that the portal looks native without design work. | M3 | must | P | D: "Themes are data". |
 | SU-7 | As a portal owner, I want to correct any extracted token by hand, so that a wrong extraction is not final. | M3 | must | P | D: manual override editor. |
-| SU-8 | As a portal owner, I want to preview the whole portal (spec changes, theme, guides) at a private URL before it goes live, so that readers never see a mistake first. | M4 | must | N | J. Contract 4.7 gives preview for guides bundles only. |
+| SU-8 | As a portal owner, I want to preview the whole portal (spec changes, theme, guides) at a private URL before it goes live, so that readers never see a mistake first. | M4 | must | P | D: "Proof of domain control", 2026-11-27, makes the private preview part of M4. That it also previews later changes to a live portal, and includes guides, is J. Contract 4.7 gives preview for guides bundles only. |
 | SU-9 | As a portal owner, I want a publish to either complete or leave the live portal exactly as it was, and to be told what failed, so that a failure is never visible to readers. | M4 | must | P | Contract 6 says this for bundles; ADR 0003 gives the killable worker. Not stated for spec or theme publishes. |
 | SU-10 | As a portal owner, I want to return the live portal to an earlier published version in one action, so that a bad publish is undone in minutes. | M4 | should | N | J. |
 | SU-11 | As a portal owner, I want to see what a publish will change (operations added, removed, changed), so that I know what I am approving. | M4 | could | N | J. |
@@ -110,13 +117,14 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 | SU-16 | As a portal owner, I want to delete a project and have its portal, spec, fixes, theme and assets stop being served and be removed, so that nothing stale stays online. | M4 | must | N | J. |
 | SU-17 | As a portal owner using a keyboard or screen reader, I want the dashboard to meet the same accessibility bar as the portal, so that I can do my job. | M4 | should | N | J. c22 covers portal pages only. |
 | SU-18 | As a portal owner, I want to trigger a publish from my CI with a token, so that docs ship with the API. | M4 | could | N | J. |
+| SU-19 | As a portal owner, I want to prove control of my website's domain and of each domain my API is served from, and to see what each proof unlocks (going public, "Try it" and MCP for a server), so that I know exactly what stands between my preview and a live portal. | M4 | must | P | D: "Proof of domain control", 2026-11-27. Methods and the meaning of "under a domain" are undesigned: architect and security reviewer. |
 
 ### IN: Web or infrastructure engineer
 
 | Id | Story | M | Pri | St | Basis and pointer |
 |---|---|---|---|---|---|
 | IN-1 | As the provider's infrastructure engineer, I want exact reverse-proxy instructions for serving the portal under `host.com/docs` and a check that reports what is misrouted, so that subpath hosting works first time. | M4 | must | P | D: "Subpath hosting" is the headline mode. c21 proves the static case. No milestone names the hosted case. |
-| IN-2 | As the provider's infrastructure engineer, I want to point a custom domain at the portal and have ownership verified and TLS issued automatically, so that I add one DNS record and am done. | M6 | must | P | TS. Brief, M6. |
+| IN-2 | As the provider's infrastructure engineer, I want to point a custom domain at the portal and have ownership verified and TLS issued automatically, so that I add one DNS record and am done. | M6 | must | P | TS. Brief, M6. The ownership check reuses M4's domain verification (SU-19); routing and TLS are M6. |
 | IN-3 | As the provider's infrastructure engineer, I want to be told during setup which origin to allow in my site's `Content-Security-Policy`, so that guide images do not silently fail. | M5 | must | P | Contract 9, "onboarding has to say so". |
 
 ### SM: Spec maintainer
@@ -125,14 +133,14 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 |---|---|---|---|---|---|
 | SM-1 | As a spec maintainer, I want every defect that makes calls fail reported with severity, location, consequence and a fix, so that I know what to change. | M1 | must | C | c8, c9, c10. E: arXiv 2507.16044. |
 | SM-2 | As a spec maintainer, I want to accept or dismiss each fix on its own and have that remembered across spec updates, so that I decide once. | M4 | must | P | `m1.md` out-of-scope table; ADR 0004 (overlay, fingerprint). |
-| SM-3 | As a spec maintainer, I want to supply the one fact a fix needs (a token URL, a host), so that a fix that cannot be inferred can still be applied. | M1 | must | P | ADR 0004 (`inputs`, `bindFix`). c10 names the fact but does not check supplying it. |
+| SM-3 | As a spec maintainer, I want to supply the one fact a fix needs (a token URL, a host), so that a fix that cannot be inferred can still be applied. | M1 | must | C | c10 as amended 2026-11-27 (with the input the finding goes, without it the finding stays and names the input); c31 for refused values. ADR 0004 (`inputs`, `bindFix`). |
 | SM-4 | As a spec maintainer, I want to undo an accepted fix, so that a wrong fix from the doctor is not permanent. | M1 | must | P | Contract 1.2 and ADR 0004 anticipate removal. In M1 this is editing the overlay file. No criterion. |
-| SM-5 | As a spec maintainer, I want to be told when an accepted fix no longer applies because my spec changed, with every other fix still applied, so that a stale fix is neither misapplied nor silent. | M1 | must | P | ADR 0004, step 3. No M1 criterion. |
+| SM-5 | As a spec maintainer, I want to be told when an accepted fix no longer applies because my spec changed, with every other fix still applied, so that a stale fix is neither misapplied nor silent. | M1 | must | C | c28, added 2026-11-27. ADR 0004, step 3. |
 | SM-6 | As a spec maintainer, I want the patched spec as a file or a pull request, so that I can fix the source and stop depending on the overlay. | M1 | should | P | c26 writes the file. ADR 0004, step 4 mentions the pull request (M4). |
 | SM-7 | As a spec maintainer, I want to see which operations use synthesized sample values, so that I know where to add real examples. | M1 | must | C | c7. E: 87% of specs lack examples. |
-| SM-8 | As a spec maintainer, I want to see which servers and operations have "Try it" and MCP withheld and why, so that I can make them callable. | M1 | must | P | ADR 0004 (`server-not-callable`, `controlled-header-required`). c8 reports some causes but not these findings by name. Effect is visible in M2. |
-| SM-9 | As a spec maintainer, I want to list the allowed hosts for a server with an open host variable by accepting a fix, so that "Try it" and MCP work for it. | M2 | must | P | D: brief, "Open host variables", option B, 2026-11-27. |
-| SM-10 | As a spec maintainer, I want to prove control of a domain once and have every host under it allowed, so that I do not list each host. | M6 | should | P | D: same decision, option C. |
+| SM-8 | As a spec maintainer, I want to see which servers and operations have "Try it" and MCP withheld and why, so that I can make them callable. | M1 | must | C | c8 as amended 2026-11-27 names both findings; c29 checks the host rule row by row. Effect is visible in M2. From M4 a server can also be withheld because its domain is not verified; how that is shown is undesigned (SU-19). |
+| SM-9 | As a spec maintainer, I want to list the allowed hosts for a server with an open host variable by accepting a fix, so that "Try it" and MCP work for it. | M1 | must | C | c10, c29, c31. D: brief, "Open host variables", option B. The fix and the CLI are M1; the proxy honouring the list is M2 (AC-3), and from M4 each listed host must also be under a verified domain. |
+| SM-10 | As a spec maintainer, I want to prove control of a domain once and have every host under it allowed, so that I do not list each host. | M4 | should | P | D: option C, moved from M6 to M4 on 2026-11-27 because the verification it depends on is now M4. Comes after verification and needs its own security review. Demand is J. |
 | SM-11 | As a spec maintainer, I want to be notified when a spec update brings new findings, so that a regression is caught without my checking. | M4 | should | N | J. |
 | SM-12 | As a spec maintainer, I want samples run against my real API and the results shown to me, so that I know the samples work, not only that they parse. | M2 | should | P | Brief, "Open differentiators"; `m1.md` out-of-scope table. See conflict 3. |
 | SM-13 | As a maintainer of a multi-file spec, I want a fix accepted in a referenced file to reach the guides too, so that the reference and guides agree. | none | could | P | Brief, open decision "Multi-file specs". |
@@ -165,7 +173,7 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 | SC-5 | As a security reviewer, I want a record of who accepted a fix, published, or enabled a write operation, so that changes are attributable. | M4 | should | N | J. |
 | SC-6 | As a security reviewer, I want hostile text in a spec to be shown as inert text, so that our docs cannot attack our developers. | M1 | must | C | c19. Standing constraint. |
 | SC-7 | As a security reviewer, I want files from guides that can carry script to be unable to run in my site's origin, so that a docs author cannot take over site sessions. | M5 | must | P | D: "Risky assets use a separate origin". Review finding M5. |
-| SC-8 | As a security reviewer, I want to know that the published spec file includes comments and vendor extensions, and to control who can fetch it, so that nothing internal leaks. | M4 | must | P | ADR 0003: "who may fetch it" is M4 and M5 design. Kickoff, security gate on the published spec. |
+| SC-8 | As a security reviewer, I want to know that the published spec file includes comments and vendor extensions, and to control who can fetch it, so that nothing internal leaks. | M4 | must | P | ADR 0003: "who may fetch it" is M4 and M5 design. Kickoff, security gate on the published spec. The M1 part (the CLI's notice and `--no-published-spec`) is checked by c27. |
 | SC-9 | As a security reviewer, I want portal pages served under my origin to set no cookies and load no third-party scripts, so that subpath hosting adds no risk to my site. | M4 | should | N | J. Follows from the subpath decision; nowhere stated. |
 | SC-10 | As a security reviewer, I want the dashboard to accept single sign-on from our identity provider, so that access follows our joiner and leaver process. | none | could | N | J. No evidence of demand. |
 | SC-11 | As a compliance reviewer, I want to know where data is stored, who the subprocessors are, and that data is deleted on termination, so that I can sign the contract. | none | should | N | J. Mostly documents, not software. |
@@ -239,8 +247,8 @@ Debugging.
 |---|---|---|---|---|---|
 | AC-1 | As an AI agent, I want to find operations by what I am trying to do, so that I pick the right one among hundreds. | M2 | must | P | D: "MCP tool design". |
 | AC-2 | As an AI agent, I want an operation's input described in a shape my client accepts, so that the tool loads and I can fill it. | M2 | must | P | Brief, "Known MCP client limits". ADR 0005 (`CallValues`). |
-| AC-3 | As an AI agent, I want to call an operation with my user's credential and have an undeclared parameter rejected by name, so that mistakes are caught before the API. | M2 | must | P | ADR 0003, "Proxy destination policy". |
-| AC-4 | As an AI agent, I want each refusal to say which kind it is (write not enabled, server not callable, credential missing, the API's own error) and what to do, so that I recover or stop. | M2 | must | N | J. |
+| AC-3 | As an AI agent, I want to call a read operation through one tool and a write operation through another, with my user's credential, and have an undeclared parameter rejected by name, so that mistakes are caught before the API and my user can be asked about writes only. | M2 | must | P | D: "MCP tool design", four meta-tools, 2026-11-27. ADR 0003, "Proxy destination policy". |
+| AC-4 | As an AI agent, I want each refusal to say which kind it is (write not enabled, a write sent to the read tool, server not callable, credential missing, the API's own error) and what to do, so that I recover or stop. | M2 | must | N | J. |
 | AC-5 | As an AI agent, I want large responses bounded and told when one was cut, so that I do not act on half an answer. | M2 | should | P | ADR 0003: "M2 sets its own limits". |
 
 ### AH: The human who connects the agent
@@ -249,8 +257,8 @@ Debugging.
 |---|---|---|---|---|---|
 | AH-1 | As a developer connecting an agent, I want setup steps for my client and to supply my credential per request without it being stored, so that connecting is quick and safe. | M2 | must | P | D: "MCP and proxy credentials". |
 | AH-2 | As a developer connecting an agent, I want to see beforehand which operations it can call and which of them write, so that I know what I am authorizing. | M2 | must | N | J, prompted by E: Postman 51%. |
-| AH-3 | As a developer connecting an agent, I want to keep my agent read-only even where the provider enabled writes, so that the limit is mine and not only theirs. | M2 | should | N | J. The decision gives control to the tenant only. |
-| AH-4 | As a developer connecting an agent, I want my client able to ask me before a write or destructive call, so that I approve it. | M2 | must | N | J. See conflict 1. |
+| AH-3 | As a developer connecting an agent, I want to keep my agent read-only even where the provider enabled writes, so that the limit is mine and not only theirs. | M2 | should | N | J. The "MCP writes" decision gives control to the tenant only. The tool split helps where a client can switch off one tool; a read-only setting on our server is still new. |
+| AH-4 | As a developer connecting an agent, I want my client able to ask me before a write or destructive call, so that I approve it. | M2 | must | P | D: "MCP tool design", 2026-11-27: writes go through their own tool. No acceptance criteria yet. See conflict 1, resolved. |
 | AH-5 | As a developer connecting an agent, I want my credential sent only to the provider's declared servers and never along a redirect, so that a tricked agent cannot leak it. | M2 | must | P | ADR 0003; re-review R1 and ruling 2. |
 | AH-6 | As a developer connecting an agent, I want text written by the provider marked as data in tool results, so that a spec description cannot instruct my agent. | M2 | should | N | J. c19 covers script, not instructions. |
 
@@ -271,8 +279,8 @@ Debugging.
 |---|---|---|---|---|---|
 | OP-1 | As our operator, I want to suspend a tenant's portal, proxy and MCP at once, so that abuse stops while we investigate. | M4 | must | N | J. |
 | OP-2 | As our operator, I want a way for anyone to report a portal and a process to act on it, so that hostile content on our hosting is taken down. | M4 | must | N | J. |
-| OP-3 | As our operator, I want a tenant to prove control of the website whose brand is extracted before the portal is public, so that we do not host a look-alike of someone else's site. | M4 | must | N | J. The brand extractor accepts any URL. |
-| OP-4 | As our operator, I want the proxy limited per tenant and per caller, and usable only against servers the tenant controls, so that it is not a relay for attacks on third parties. | M4 | must | N | J. ADR 0003 blocks internal addresses, not other people's public servers. Option C is the mechanism and is in M6. |
+| OP-3 | As our operator, I want a tenant to prove control of the website whose brand is extracted before the portal is public, so that we do not host a look-alike of someone else's site. | M4 | must | P | D: "Proof of domain control", 2026-11-27, rule 1. The extractor may still read any URL for a private preview. The reason for the rule is J. |
+| OP-4 | As our operator, I want the proxy limited per tenant and per caller, and usable only against servers the tenant controls, so that it is not a relay for attacks on third parties. | M4 | must | P | D: "Proof of domain control", 2026-11-27, rule 2, for the "servers the tenant controls" half. The limit per tenant and per caller is not decided and stays J (see SC-4). ADR 0003 blocks internal addresses, not other people's public servers. |
 | OP-5 | As our support person, I want to see a tenant's publish failures, killed workers and exceeded budgets, so that I can answer "why did my publish fail". | M4 | should | N | J. ADR 0003 produces the signals. |
 | OP-6 | As our operator, I want to delete all of a tenant's data, including caches and the asset origin, within a stated time, so that offboarding is complete. | M4 | must | N | J. |
 | OP-7 | As our operator, I want proof that logs and error reports hold no end-user credential, so that an incident cannot expose one. | M2 | must | P | Standing constraint. Needs a test, not only a rule. |
@@ -284,10 +292,11 @@ Debugging.
 
 ## Conflicts with recorded decisions
 
-1. **AH-4 against "MCP tool design".** With three meta-tools, one `call` tool makes reads and
-   writes. A client that asks its user to approve a tool, or reads a tool's read-only or
-   destructive annotation, sees one tool for both. A separate tool for writes would fix it and
-   keeps the tool count small. Needs a decision before M2. Judgment, not evidence.
+1. **AH-4 against "MCP tool design". Resolved 2026-11-27.** The call tool is split: four
+   meta-tools, with reads and writes separate, so a client can ask its user to approve writes
+   only. Left for the architect before M2: what makes an operation a read (default `GET` and
+   `HEAD`), and the read-only and destructive annotations on the two tools. ADR 0004 still says
+   "MCP `call`" in `controlled-header-required`; that wording is the architect's.
 2. **SU-10 (rollback) and SU-8 (preview) against "Guides use the patched spec".** A guides bundle is
    pinned to one published spec by hash, and guides can be generated only after a publish. So a
    spec change goes live before its guides can exist, readers see guides marked out of date in
@@ -309,8 +318,17 @@ Debugging.
 7. **Decision B and the published spec.** The allowed hosts are stored in the spec patch, so
    accepting that fix changes the published spec's bytes and marks existing guides out of date,
    like any other fix. Expected, and worth saying in the dashboard. Separately, ADR 0004 says a fix
-   input is one string placed at one pointer; a list of hosts needs more than that. This is the
-   architect's to settle.
+   input is one string placed at one pointer; a list of hosts needs more than that. Settled by the
+   architect: `FixInput.list` in ADR 0004, checked by c31.
+8. **Domain verification against the trial (EV-1) and against milestone order.** Rule 2 withholds
+   "Try it" and the MCP for a server whose domain is not verified, so by default an evaluator's
+   private preview has no live call. And M2 builds the proxy two milestones before M4 builds
+   verification, so the M2 proxy is not offered as a public hosted service until M4 (recorded in
+   the brief).
+9. **Domain verification against servers the tenant cannot verify.** An API served from a cloud
+   provider's host name, or a host on a public suffix, has no domain the tenant can put a DNS
+   record on. Whether another proof is accepted for one exact host is a security design question;
+   whether we accept losing "Try it" and MCP for those tenants is the user's.
 
 ## Stories no milestone owns
 
@@ -320,8 +338,9 @@ Debugging.
   operations (SM-14), changelog (RD-18), translation (RD-25), reader sign-in and keys (RD-26), SSO
   (SC-10), compliance documents (SC-11), multi-file fixes for guides (SM-13).
 - **Assigned here to M4 by judgment, and M4 is now very large:** trial, preview, rollback, delete,
-  team roles, audit, and nine operator stories. M4 as titled ("multi-tenancy and onboarding") did
-  not include them. It will need splitting or the operator stories need their own milestone.
+  team roles, audit, nine operator stories, and since 2026-11-27 domain verification and the
+  verified domain suffix. M4 as titled ("multi-tenancy and onboarding") did not include them. See
+  "Proposal: splitting M4" below.
 - **Table stakes in the brief with no explicit owner:** "AI search" is listed as table stakes; M5
   says "search", and `m1.md` lists AI chat as not planned. Whether M5 search is AI search is not
   decided.
