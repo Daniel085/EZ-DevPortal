@@ -1,11 +1,12 @@
 # Guides Module: Status and Context for the Portal Side
 
-As of 2026-11-26. Written by the guides module session for whoever picks up the contract or guides
+As of 2026-11-27. Written by the guides module session for whoever picks up the contract or guides
 ingestion (M5) here.
 
 ## Where it is
 
 - Repository: `daniel085/ez-devdocs`, branch `main`.
+- The changes dated 2026-11-27 below were merged to `main` in its pull request 1.
 - It targets contract **v0.1** as written in this directory. It holds a copy of the contract and the
   manifest schema under `contract/`; that copy must be re-synced when the contract changes.
 - Its feedback on the contract is in [`guides-contract-feedback.md`](./guides-contract-feedback.md), kept only in this repository:
@@ -66,6 +67,62 @@ assumption in the feedback document.
 - One `capture` pair per sample, with paths made of `$`, `.name` and `[n]` only.
 - Component tags are on their own lines with blank lines around Markdown content; the fenced block inside `<Sample>` has none.
 
+### Prerequisite steps (2026-11-27)
+
+A request body often refers to another record by identifier, such as `customer_id` on a site. When
+that field has the name of the path parameter of a resource the spec can create, the guide now
+creates that record first and sends the captured identifier in place of the spec's example value:
+
+````markdown
+<Sample operation="createCustomer" capture="customer_id=$.id">
+```json
+{ "body": { "name": "Pat Lee" } }
+```
+</Sample>
+
+<Sample operation="createSite" capture="site_id=$.id">
+```json
+{
+  "body": {
+    "customer_id": "{{customer_id}}",
+    "street": "12 Lakeview Rd"
+  }
+}
+```
+</Sample>
+````
+
+What this means for the portal:
+
+- **Captured names now appear inside `body` values**, at any depth, including inside arrays. Before,
+  they appeared only in `path` and `query`. A body value that is a variable is still written as a
+  quoted string whatever the field's type (assumption 3).
+- **A page can capture several names**, one per sample, and a later sample can use more than one.
+  Up to five prerequisite steps are added to a page, in the order the calls must be made.
+- **A page's `operations` now includes operations of other resources.** `sites/manage` lists
+  `createCustomer`. Anything that maps a page to "its" resource from that list should not assume one.
+- A prerequisite step links the other resource's guide with `guide:<resource>/manage` when that
+  page is in the bundle.
+- An identifier field that matches nothing the spec can create keeps its example value, and the
+  run report lists it as a gap.
+- Slugs, navigation, page types and components are unchanged.
+
+### Other changes (2026-11-27)
+
+- **Idempotency key in the body.** Where an API takes its key as a field of the request body, not a
+  header, samples now send `"idempotency_key": "{{idempotency_key}}"` in `body`, and the
+  `idempotency` page is produced for such an API. Before, `{{idempotency_key}}` appeared only in
+  `headers`. **A page can now hold several samples that each use `{{idempotency_key}}`** (17 of
+  Retavon's 89 pages do). The module assumes the portal generates a fresh value for each sample;
+  one value shared across a page would send the same key with different requests, which an API
+  may refuse. The contract says only "a generated UUID".
+- **Longer step text.** A flow step carries up to 1,200 characters of an operation's description
+  (was 320). A description cut short ends with a sentence that links the operation with `op:`.
+  Elsewhere a shortened text ends with `…`.
+- **Quickstart.** When the spec has security schemes, the first call is one that needs credentials.
+- **Run report.** `no-request-example` no longer counts a request whose schema carries `example`
+  or `examples`.
+
 ### Derived operation ids
 
 Method, then the path with every non-alphanumeric character replaced by `_`: `get` and
@@ -86,6 +143,7 @@ GitHub's spec uses ids such as `gists/create`. The module writes these into `op:
 | Clubhouse, APIs.guru (3.0, no `operationId`s) | 41 | 3 | passed |
 | Stripe (3.0) | 612 | 120 | passed |
 | GitHub Enterprise Server 3.9 (3.0) | 908 | 25 | passed |
+| Retavon 0.1.0 (3.1, assembled from its per-operation reads) | 560 | 89 | passed |
 
 "Passed" means the module's validator found no errors. **No bundle has been through a portal
 validator, because none exists yet.** The two will disagree somewhere; the first real ingestion
@@ -108,7 +166,8 @@ should be treated as a test of both.
   implementation for the portal's validator. Its error codes are provisional (proposal 5).
 - **Warnings to expect on every bundle:** `page-unreferenced` for concept pages with no operations (proposal 4).
 - **No LLM step.** Output is built from templates and the spec's own words, so it is deterministic
-  and plain. Guides cover resource lifecycles and parent/child flows only.
+  and plain. Guides cover resource lifecycles, parent/child flows and the records a request
+  body refers to by identifier.
 
 ## Decisions waiting on the portal side
 
