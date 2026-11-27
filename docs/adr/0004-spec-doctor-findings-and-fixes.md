@@ -13,6 +13,9 @@ That review (`docs/reviews/2026-11-27-security-review-allowed-hosts-and-publishe
 passed it subject to required fixes: rulings 1 to 5 and F1. They are applied in this text, and
 "The Public Suffix List" is added. Its licence exception was granted by the user on 2026-11-27
 and is recorded in ADR 0001 rule 5.
+Revised again that day for the user's decisions on live calls and host verification: "withheld"
+for a server points to the one rule in ADR 0003, and the verified domain suffix is placed in M4b
+beside a pointer to where host verification is to be designed. No finding or fix is changed.
 
 ## Context
 
@@ -151,7 +154,8 @@ Both are warnings: the portal still builds and every code sample still renders.
     `https://{x}.co.uk`, `https://{x}.github.io`), and one followed by another variable.
 
   A host variable with an `enum`, and a variable in the port or path, never cause the finding by
-  their position. "Try it" and MCP are withheld for that server. For a variable that ends the
+  their position. Live calls are withheld for that server (ADR 0003, "Live calls and
+  example-response mode"). For a variable that ends the
   host the finding can carry a fix; see the next section. In every other case it carries none.
   Samples are not affected: they are code for the reader to run, and a sample against
   `http://localhost` renders like any other.
@@ -316,14 +320,22 @@ and existing guides get `spec-hash-mismatch` until they are regenerated.
 | The finding, the host clause and the Public Suffix List snapshot, the fix, `format` and `list` in `bindFix`, the CLI's check of each value with the URL parser, and the CLI's overlay file holding the values | M1 |
 | The proxy and MCP refusing a server variable value that is not in the `enum`, and a request whose parsed host is not the host built by position | M2 |
 | The dashboard form that collects the values and posts a fix id and `inputs` | M4 |
-| A verified domain suffix; see below | M4, planned |
+| A verified domain suffix; see below | M4b, planned |
 
-**Planned, not designed: a verified domain suffix (M4).** Some tenants give each customer its own
+**Planned, not designed: a verified domain suffix (M4b).** Some tenants give each customer its own
 subdomain and cannot list them. For them the tenant would prove control of a domain once, by a
 DNS record, and any host under it would be allowed. It depends on domain verification, which
-the user moved from M6 to M4 on 2026-11-27 so that proof of domain control is required before a
-portal is public. The suffix follows it in M4 and needs its own security review before it is
+the user moved from M6 to M4b on 2026-11-27 so that proof of domain control is required before a
+portal is public. The suffix comes last in M4b and needs its own security review before it is
 designed in detail. Until then an `enum` is the only way to make such a server callable.
+
+**Callable is not verified.** This ADR decides whether a server is callable, from the spec
+alone. Whether its host is verified for the tenant is the tenant's state, which `diagnose` does
+not see, and no ADR defines it yet: ADR 0003, "Host verification: to be designed in M4b", holds
+the open points and the user's decision of 2026-11-27 on a host that cannot be verified by DNS.
+A host listed by the fix above must be verified like any other. A suffix is verified by DNS
+only: the exact-host HTTP challenge deferred there never verifies a suffix. When "Try it" makes
+a live call is one rule, in ADR 0003, "Live calls and example-response mode".
 
 ### The Public Suffix List
 
@@ -403,7 +415,7 @@ host is not callable. Every host variable needs an `enum`." This is stricter tha
 requires and needs no list. Its cost is that `https://{tenant}.example.com` loses "Try it" and
 MCP until the tenant adds an `enum` in its source spec, since the fix is offered only for a
 variable that ends the host, and a tenant with unbounded subdomains has no route until the
-verified domain suffix of M4. The publisher and the proxy of one deployment use the same mode.
+verified domain suffix of M4b. The publisher and the proxy of one deployment use the same mode.
 Both modes meet the review's rule, so a mismatch is not unsafe, but the spec doctor's findings
 would then disagree with what the proxy sends.
 

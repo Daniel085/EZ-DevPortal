@@ -18,7 +18,10 @@ portal provides the "get a key" link (9); a portal that is a private preview ser
 without sign-in (9); and one bundle belongs to one version of one API (3).
 Two more decisions by the user that day are recorded the same way: a `<Todo>`, or a page that is
 not `ready`, withholds its own page and not the bundle (4.7, 5); and "Try it" in a private
-preview shows the spec's example response and sends nothing (9).
+preview shows the spec's example response and sends nothing (9). Two later decisions that day
+replace part of the second: "Try it" makes live calls in a private preview where the server's
+host is verified, and example-response mode is the mode for any server that gets no live calls
+(9).
 Awaiting the guides module's re-sync and confirmation.
 
 This is the interface between two projects:
@@ -1304,8 +1307,8 @@ engine and renderer. They are here so they are written down on the portal side.
   server-side, from the published model. The bundle validator is not in the path of a direct call.
 - The proxy sends requests to `https` servers only, follows no redirects, and strips `X-Ezdp-`
   headers from inbound requests (4.3; ADR 0003, "Proxy destination policy"). For an `http://` or
-  localhost server the samples still render and "Try it" and MCP are withheld with a spec-doctor
-  finding.
+  localhost server the samples still render and live calls are withheld with a spec-doctor
+  finding (ADR 0003, "Live calls and example-response mode").
 - The proxy does not send a request whose parsed host differs from the host built by position
   (4.3). This is an M2 requirement.
 - The hosted portal does not serve the published spec for public download unless the tenant
@@ -1378,13 +1381,19 @@ engine and renderer. They are here so they are written down on the portal side.
   reach it by itself, and the headers in section 2 authorize nobody. How a request to the asset
   origin is authorized for a private preview is designed in M4 with the security reviewer. The
   headers in section 2 are unchanged in either state.
-- *"Try it" in a private preview.* Decided 2026-11-27: the console runs in example-response
-  mode. It sends no request, to the proxy or to the API. It shows an example the spec declares
-  for the response, labelled as an example, and says so where the spec declares none; it never
-  shows a value made from a schema as a response. Nothing is captured from an example, so a
-  `capture` name stays unfilled as if the sample had not been run (4.3). The MCP is off. The
-  rules are in ADR 0003, "Example-response mode in a private preview". A generator is not
-  affected.
+- *When "Try it" is live, and example-response mode.* Decided 2026-11-27. One rule says when
+  the console sends a request, and it is in ADR 0003, "Live calls and example-response mode";
+  it is not restated here. In short: a callable server whose host the tenant has verified, and,
+  in a private preview, a caller signed in as a member of the tenant's account. Otherwise the
+  console is in example-response mode; whether a public portal shows the mode or no console
+  for such a server is to be confirmed with the user (ADR 0003). In
+  that mode it sends no request, to the proxy or to the API. It shows an example the spec
+  declares for the response, labelled as an example, and says so where the spec declares none;
+  it never shows a value made from a schema as a response. Nothing is captured from an example,
+  so a `capture` name stays unfilled as if the sample had not been run (4.3). Where 4.3 says
+  "Try it" is withheld for a server, this is what it means. Host verification arrives in M4b,
+  so until then every private preview is in the mode. The MCP is off in a private preview. A
+  generator is not affected.
 - The naming and isolation of the asset origin are designed with custom domains (M5 and M6) and
   go to the security reviewer.
 
@@ -1563,8 +1572,11 @@ the first changes what a generator's own validator reports:
 - New code: `link-to-withheld-page`, a warning, for a `guide:` link or `<Card>` `href` from a
   page that is not withheld to one that is (4.5, 4.7, 5.1).
 - Open item 6 of section 8 is decided and removed from the open list (8).
-- In a private preview "Try it" shows the spec's declared example response and sends nothing,
-  nothing is captured from it, and the MCP is off (9; ADR 0003).
+- Where "Try it" makes no live call it shows the spec's declared example response and sends
+  nothing, and nothing is captured from it. That is the case for a server that is not callable
+  or whose host is not verified; a private preview
+  makes live calls to a verified host for a signed-in member. The MCP is off in a private
+  preview (9; ADR 0003, "Live calls and example-response mode").
 
 ## 11. Decisions on the v0.1 feedback
 

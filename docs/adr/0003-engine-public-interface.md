@@ -22,9 +22,14 @@ nothing without sign-in ("Who can read it"); and "Reader keys". No security ruli
 The private-preview wording, the reader-key requirements and ADR 0007 have not been to the
 security reviewer.
 Revised again that day for the user's decision that "Try it" in a private preview shows the
-spec's example response and sends nothing, and that the MCP is off there ("Example-response mode
-in a private preview"). It adds one rule for M1's page files. Not yet seen by the security
+spec's example response and sends nothing, and that the MCP is off there (now "Live calls and
+example-response mode"). It adds one rule for M1's page files. Not yet seen by the security
 reviewer.
+Revised again that day for two further decisions by the user, which replace part of the last
+one: a private preview makes live "Try it" calls where the server's host is verified, and a host
+the tenant cannot verify by DNS gets no live calls at launch. "Live calls and example-response
+mode" now holds the one rule for when the console is live, and "Host verification: to be
+designed in M4b" lists what M4b must design. Not yet seen by the security reviewer.
 
 ## Context
 
@@ -117,7 +122,7 @@ file carries each response as the model has it: by status, then by media type, e
 declared `examples` (name, value) in authored order, and the examples of the media type's
 schema. A value the engine synthesized is never written among them. If a page shows a
 synthesized value anywhere, it is in a field of its own that says so. M2's example-response
-mode ("Example-response mode in a private preview") reads declared examples from the page file
+mode ("Live calls and example-response mode") reads declared examples from the page file
 in the browser and must be able to tell the two apart without the network.
 | `search.json` | flat search records (id, kind, title, path, text). Not a library-specific index. |
 | `static/<path>.md`, `static/llms.txt` | Markdown twins and `llms.txt` |
@@ -216,8 +221,9 @@ hashes.
   spec, because its pages and its guides are built from one. While a portal is a private preview
   nothing of it is served to anyone who is not signed in as a member of the tenant's account:
   pages, twins, `llms.txt`, `search.json`, `model.json`, the published spec and files on the
-  asset origin. The MCP endpoint is off for everyone, members included, and "Try it" sends
-  nothing ("Example-response mode in a private preview"). Public download of the published spec
+  asset origin. The MCP endpoint is off for everyone, members included. Whether "Try it" makes
+  a live call there or runs in example-response mode is decided by one rule ("Live calls and
+  example-response mode"). Public download of the published spec
   cannot be switched on in that state. The asset origin is not the dashboard's origin, so a member's session does not
   reach it by itself; how a request to it is authorized in a private preview is designed in M4
   and goes to the security reviewer first. The M1 CLI is unaffected: a static build has no
@@ -338,12 +344,15 @@ These are requirements on M2's design.
   spec. It is in the published spec and so in the model, and the proxy reads it there like any
   `enum`. There is no other set. A listed value is tenant input and is exempt from nothing: the
   substituted URL is parsed and vetted on every request. A verified domain suffix is planned for
-  M4 and needs its own security review first (ADR 0004).
+  M4b and needs its own security review first (ADR 0004).
+- From M4b the destination host must also be verified for the tenant ("Host verification: to
+  be designed in M4b"). Meeting this policy is necessary for a request to be sent and is not
+  the whole test: "Live calls and example-response mode" states when the proxy accepts one.
 - `https` only, with no exception for development servers. A server that is `http://`, localhost
   or relative is not callable. Plain `http` would put the user's key on the wire in clear, and the
   hosted proxy cannot reach localhost under address vetting in any case. For such a server the
-  code samples still render; "Try it" and MCP are withheld and the spec doctor reports
-  `server-not-callable` (ADR 0004). A mode in which the reader's browser calls localhost directly
+  code samples still render; live calls are withheld ("Live calls and example-response mode")
+  and the spec doctor reports `server-not-callable` (ADR 0004). A mode in which the reader's browser calls localhost directly
   is a separate design and needs its own security review.
 - The final method and path must match an operation the tenant enabled. The controlled-header
   list of contract 4.3 applies, and the proxy strips every `X-Ezdp-` header from inbound requests.
@@ -416,24 +425,78 @@ the security reviewer has not seen it.
 - Later, a sign-in handoff may pass the reader's key from the tenant's site. It is not designed,
   it must keep "never stored or logged by us", and it needs its own security review.
 
-### Example-response mode in a private preview
+### Live calls and example-response mode
 
-Decided by the user on 2026-11-27. Requirements on M2's design (the console) and M4's (the
-private preview, and the server-side refusal); the first paragraph under `PortalBundle` above
-is the only part that binds M1. The security reviewer has not seen it.
+Decided by the user on 2026-11-27, in three decisions. The first put "Try it" in a private
+preview into example-response mode. The other two, the same day, settle when a preview makes
+live calls and what happens to a host the tenant cannot verify by DNS; they replace this
+section's earlier wording on both points. Requirements on M2's design (the console and the
+proxy) and on M4's (the private preview in M4a, host verification in M4b); the first paragraph
+under `PortalBundle` above is the only part that binds M1. The security reviewer has not seen
+it.
 
-While a portal is a private preview, "Try it" runs in example-response mode: the console works,
-and in place of a live response it shows an example the spec declares, with a prompt to verify
-the domain for live calls. The MCP is off.
+**When the console is live.** This is the one rule. Every other section and document points
+here and does not restate it. For an operation and the server the reader selected, "Try it"
+sends a request, and the proxy accepts it, only when all of these hold:
+
+1. *The server is callable.* It is `https` and has no `server-not-callable` finding ("Proxy
+   destination policy"; ADR 0004).
+2. *The host is verified.* The destination host is verified for that tenant ("Host
+   verification" below).
+3. *The caller may call.* The portal is public; or it is a private preview and the caller is
+   signed in as a member of that tenant's account.
+4. *The request passes every other rule of the proxy.* The destination is built from the
+   model's servers, the address is vetted, the controlled-header list applies, the operation is
+   enabled and a write is enabled per operation, and the request is within the rate limits.
+
+Otherwise the console is in example-response mode and makes no request: in place of a live
+response it shows an example the spec declares. That is the same in a private preview and in a
+public portal, and the same whatever fails under 1 to 3: a host that is not verified, a host
+the tenant cannot verify, `http`, localhost, or any other `server-not-callable`. Conditions 1 to
+3 are known before the reader runs anything and set the console's mode. Condition 4 is checked
+by the proxy on each request; a request that fails it is refused and shown as refused, and no
+example stands in for it.
+
+- **One meaning of "withheld".** Where this or another document says "Try it" is withheld for
+  a server, it means live calls are withheld and the console is in this mode.
+- **To be confirmed with the user: the mode in a public portal.** In a private preview the
+  mode is decided. For a public portal this ADR follows the decision as it was relayed on
+  2026-11-27, that the console stays in the mode. The product brief records the other reading
+  as its default, that on a public portal the console is absent with a reason, and lists the
+  point for the user. Scope is the product manager's. Nothing above about when a request is
+  sent depends on the answer: it changes only whether a public console that is not live shows
+  an example or is not shown, and M2 builds the mode either way.
+- **The MCP.** In a private preview the MCP endpoint is off for everyone, members included,
+  whatever is verified. The decision on live calls in a preview speaks of "Try it" only, so
+  this stays as first written; it is to be confirmed with the user. In a public portal the
+  MCP's two call tools are withheld for a server that fails condition 1 or 2.
+- **A plan.** A plan is needed to make a portal public. It is not needed for live calls in a
+  private preview.
+- **Rate limits.** Live calls from a private preview are rate-limited. That is a requirement;
+  the values, and what they are counted by, are an M4 design question.
+- **Sequence.** The private preview is built in M4a and host verification in M4b. In M4a no
+  host can be verified, so condition 2 fails for every server: every preview console is in
+  example-response mode and the proxy accepts no request for a preview. Live calls in a preview
+  begin with M4b, and so does the proxy's authentication of a member.
+- **The proxy authenticates a member, for a preview only. New, and for the security
+  reviewer.** Condition 3 means the proxy must know that the caller of a preview request is a
+  member of that tenant, which nothing before this required. It implies that the proxy can
+  check either the tenant's dashboard session or a short-lived token bound to the tenant and
+  the member; that this credential is ours, so it is never forwarded to the API (the first
+  rule of the destination policy); and that it is asked for only where the portal is a private
+  preview. A public portal's readers remain anonymous to the proxy. Which of the two it is, how
+  it reaches the proxy's origin and how long it lives are not designed here. M4b designs them
+  with the security reviewer.
 
 - **No request.** Running the console in this mode makes no network request: none to the proxy,
   none to the API, none to fetch an example. Everything it shows is already in the page file.
   The request the reader built is shown as it would be sent, from the same `HttpRequest` as the
   sample (ADR 0005), and is not sent.
-- **Enforced on the server, not by the page.** The mode is not what keeps a private preview
-  from making calls. The proxy refuses every request for a portal that is a private preview,
-  and the MCP endpoint does not answer for one, decided server-side from the tenant's state and
-  not from anything the caller sends. A page altered to leave the mode reaches a refusal.
+- **Enforced on the server, not by the page.** The mode is not what keeps a call from being
+  made. The proxy decides conditions 1 to 4 on every request, server-side, from the published
+  model, the tenant's state and its own authentication of the caller, and from nothing the
+  page says about its mode. A page altered to leave the mode reaches a refusal. The MCP
+  endpoint does not answer for a private preview.
 - **Only declared examples.** The response shown comes from the published model's declared
   examples and from nowhere else: `Response.content[].examples`, and the `examples` of that
   media type's schema (ADR 0002). An example that an accepted spec-doctor fix wrote is in the
@@ -474,19 +537,59 @@ the domain for live calls. The MCP is off.
   is held in the browser is the same M2 question as under "Reader keys", with the same answer.
 - **Nothing is captured.** A guides `capture` (contract 4.3) reads a real response. An example
   is not one, so the name stays unfilled as if the sample had not been run.
-- **Where the console is absent.** The mode replaces only the sending. `tryIt="false"`, an
-  operation the tenant has not enabled, and a server that is not callable for a reason
-  verification does not cure (`server-not-callable`, a required controlled header; ADR 0004)
-  withhold the console here as they do in a public portal, so the prompt to verify never
-  promises a live call that verification cannot give.
+- **Where the console is absent.** The mode replaces only the sending, and only for reasons
+  that belong to the server or the caller. `tryIt="false"`, an operation the tenant has not
+  enabled, and an operation that requires a controlled header (ADR 0004) belong to the sample
+  or the operation: there is no console for them, in either mode, in a preview or a public
+  portal.
+- **The prompt.** In the mode the console says, in the portal's own fixed text, why it is not
+  live. A prompt to verify the domain is shown only to a signed-in member and only for a
+  callable server whose host is not verified, so it never promises a live call that
+  verification cannot give.
 - **Static export is unaffected.** The pages are the same files in both modes. Which mode the
-  console runs in is a value the renderer is given when it serves a private preview (M4), not a
-  different page. The M1 CLI has no private state and no console.
+  console runs in for a server is a value the console is given, not a different page, and it is
+  not in the model or the page files: verification and preview state are the tenant's state,
+  which the engine never sees. How the console of a public portal is given it is an M4b design
+  point ("Host verification"). Whatever the console is told, the proxy decides. The M1 CLI has
+  no private state and no console.
 
-Assumed, not decided: the mode applies to every operation of a private preview, including one
-whose server is under a domain the tenant has already verified, because the decision speaks of
-the preview and not of the server. For a public portal, a server whose domain is not verified
-keeps the brief's rule: "Try it" and the MCP are withheld for it.
+### Host verification: to be designed in M4b
+
+No ADR yet defines "a verified host" or "under a verified domain". The product brief states
+the rule: proof of domain control before a portal is public, live calls only to server hosts
+under a domain the tenant has verified, and hosts listed by the allowed-hosts fix bound like
+any other. It leaves the design to the architect and the security reviewer. Nothing is designed
+here. The M4b design starts from this list and goes to the security reviewer before anything is
+built:
+
+- *Verification methods.* A DNS record is the one method at launch. Open: the record, the name
+  it sits at, the token, and what binds it to one tenant.
+- *What "under a domain" means, given the Public Suffix List.* Which names a tenant may verify
+  (never a public suffix, ICANN or private section); whether verifying a name covers every host
+  under it or that host alone; how this meets the host clause of the destination policy and the
+  verified domain suffix planned in ADR 0004.
+- *Re-checking.* How often, what a failed check does, when verification lapses, and what a
+  lapse does to a public portal and to live calls.
+- *Shared-hosting hosts.* Domains where strangers are given hosts and which are not on the
+  Public Suffix List (the residual risk ADR 0004 records), and a cloud provider's host names.
+- *Where enforcement sits.* The proxy, on every request, from the tenant's state. Open: how an
+  unverified server is reported to the tenant, since `diagnose` is pure and does not know the
+  tenant's state; how the console is given its mode; two tenants that verify the same name.
+- *Authenticating a member at the proxy* for a private preview (the section above).
+
+**Decided 2026-11-27: a host the tenant cannot verify by DNS**, such as a cloud provider's host
+name. At launch the tenant is advised to put the API on a domain it controls. Otherwise there
+are no live calls for that server: the console stays in example-response mode and the MCP's
+call tools are withheld for it. Samples render as for any server.
+
+**Deferred, not designed: an exact-host HTTP challenge** as a second verification method. It
+waits until customers ask for it and needs its own security review before it is designed. The
+constraints already known: it verifies one exact host and never a suffix; the token is served
+at a fixed path at the root of that host; redirects are not followed; the check repeats, and
+verification lapses when it fails; a host where strangers can publish at arbitrary paths is
+refused.
+
+**Rejected by the user: manual approval by us** of a host the tenant cannot verify.
 
 Alternative rejected: show a value generated from the schema under a distinct label such as
 "generated from the schema". The user's decision is that the console does not invent a

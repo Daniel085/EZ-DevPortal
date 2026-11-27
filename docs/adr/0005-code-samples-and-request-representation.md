@@ -14,6 +14,8 @@ must equal the host built by position.
 Revised again that day for the user's decision to split the MCP's `call` tool into a read tool
 and a write tool (ADR 0003, "MCP tools: reads and writes"). `CallValues` is unchanged and is the
 input shape of both.
+Revised again that day for the user's decisions on live calls: the consequences below point to
+the one rule in ADR 0003 for when "Try it" sends. No type or function is changed.
 
 ## Context
 
@@ -143,7 +145,7 @@ Rules:
   The engine reads that `enum` from the model. A server with an open host variable, such as
   `https://{host}/v1` with no `enum`, is reported `server-not-callable` until the fix is accepted
   or the source spec gains an `enum`. The finding and the fix are M1; the proxy enforces the
-  rule in M2. A verified domain suffix, for hosts that cannot be listed, is planned for M4 and
+  rule in M2. A verified domain suffix, for hosts that cannot be listed, is planned for M4b and
   not designed here; it would be a second way to meet this rule and needs its own security
   review (ADR 0004).
 - Variables being first-class lets each language decide how to show one (an environment variable
@@ -198,8 +200,9 @@ Rules:
   `issues` then.
 - "Try it" and MCP send exactly the request the sample shows, because both come from one
   `HttpRequest`. A serialization bug is fixed once.
-- In a private preview "Try it" builds the same `HttpRequest` and shows it, and sends nothing
-  (ADR 0003, "Example-response mode in a private preview"). The example shown as the result is
+- In example-response mode "Try it" builds the same `HttpRequest` and shows it, and sends
+  nothing. When the console is live and when it is in that mode is one rule, in ADR 0003,
+  "Live calls and example-response mode"; it is not restated here. The example shown as the result is
   chosen from the operation and a status alone. It does not depend on the request or on any
   value the reader entered, so nothing in `RequestValues` selects or alters it. The `example`
   key of `RequestValues` names a request example and has no part in it.
@@ -209,8 +212,8 @@ Rules:
   policy in ADR 0003; final method and path must match an operation the tenant enabled; the
   controlled-header list applies. The client-side checks are for the reader's benefit only.
 - The proxy sends to `https` servers only. A sample is still rendered for an `http://` or
-  localhost server, because a sample is text; "Try it" and MCP are withheld for it with the
-  `server-not-callable` finding (ADR 0004).
+  localhost server, because a sample is text; live calls are withheld for it (ADR 0003, "Live
+  calls and example-response mode") with the `server-not-callable` finding (ADR 0004).
 - Both MCP call tools, the read tool and the write tool, reject a parameter the operation does
   not declare. This is an M2 requirement. The `undeclared-parameter` warning of contract 4.3
   applies to guide samples and does not loosen it.
