@@ -829,14 +829,19 @@ The portal offers no editor for a bundle and never changes what a page says. Wha
 repository is the guides module's output, as a pull request that a person merges (section 6).
 
 **Before a repository is connected** the portal holds the generated bundle, and it is read-only:
-there is nowhere to edit it. The rules above already cover this case and nothing is added for it.
-A held bundle with a `todo-present` or `page-not-ready` finding is staged and shown in preview,
-and is not publishable, so no such page is published. The unit is the bundle, not the page:
-`publishable` is one value for the whole bundle (section 5) and publishing replaces a bundle as a
-whole (section 6), so one such page keeps every page of that bundle unpublished until the tenant
-connects a repository and resolves it, or a regeneration no longer produces it. Publishing the
-ready pages of a bundle while withholding the others would be a change to this contract. It is
-not made in 0.2.
+there is nowhere to edit it. The two codes and their severity are the same, and one thing holds
+in every case: a page that carries a `todo-present` or `page-not-ready` finding is never
+published. What happens to the other pages is not the same in the two cases.
+
+- *As this contract is written*, the unit is the bundle: `publishable` is one value for the whole
+  bundle (section 5) and publishing replaces a bundle as a whole (section 6). One such page keeps
+  every page of the bundle unpublished. This is the rule once a repository is connected, where a
+  person can resolve the page.
+- *While the portal holds the bundle*, the product default is to withhold only the pages that
+  carry a blocker and publish the others, because nobody can resolve them (product brief, open
+  decisions, 2026-11-27). The rules above do not do this by themselves, and how it works is not
+  designed: what a `guide:` link to a withheld page becomes, and what happens to its `nav` entry,
+  are open (section 8, open item 6). It is the portal's behaviour and binds no generator.
 
 Two things follow.
 
@@ -1024,8 +1029,9 @@ The JSON Schema is in [`guides-report.schema.json`](./guides-report.schema.json)
 **The directory layout in section 2 is the contract.** A generator's obligation ends when it has
 written a conforming bundle directory. It does not upload, archive, commit or push anything.
 
-Decided by the user on 2026-11-27, and built in M5. Earlier drafts of 0.2 said that transport would
-be settled in M5 and named two candidates. This replaces that.
+Decided by the user on 2026-11-27. The GitHub App is built in M4 and everything specific to
+guides in M5. Earlier drafts of 0.2 said that transport would be settled in M5 and named two
+candidates. This replaces that.
 
 - **The portal runs the guides module**, for a tenant, as a step of the portal's own pipeline. The
   tenant does not run it. The step's inputs are the bytes of the published spec (1.2) and,
@@ -1038,17 +1044,18 @@ be settled in M5 and named two candidates. This replaces that.
   a pull request against the bundle that is there. The portal never commits to the branch it
   ingests from and never merges a pull request.
 - **Before a repository is connected**, the portal holds the generated bundle. It is read-only:
-  there is no editor and no upload. It is validated and staged like any other bundle, and the
-  blocker rules decide whether it can be published (4.7).
+  there is no editor and no upload. It is validated and staged like any other bundle, and a page
+  that carries a blocker is not published (4.7).
 - **Where the bundle root lives in the tenant's repository is a setting**, not part of this
   contract: a directory in the repository, set per API version (section 3), that holds the bundle
   and nothing else. Section 2 applies from that directory down. Its name and its place in the
   repository are not significant.
 
-Not designed yet, and for M5: the GitHub App's permissions and how its tokens are held; branch
-and pull request naming; what happens to an open pull request when a newer regeneration is ready;
-how the portal learns of a merge; hosts other than GitHub. The App holds write access to tenants'
-repositories, so its design goes to the security reviewer before it starts (ADR 0007).
+Not designed yet: the GitHub App's permissions and how its tokens are held (M4); branch and
+pull request naming, what happens to an open pull request when a newer regeneration is ready,
+and how the portal learns of a merge (M5); hosts other than GitHub. The App holds write access
+to tenants' repositories, so its design goes to the security reviewer before it starts (ADR
+0007).
 
 What is fixed besides:
 
@@ -1057,10 +1064,10 @@ What is fixed besides:
   the branch it ingests from, and never changes one it holds.
 - The guides module is handed the published spec by the portal (1.2) and fetches nothing. A
   hosted portal's published spec is not a public download unless the tenant chooses that.
-- A valid bundle is staged, not published. Publishing is a separate step. Publishing a bundle
-  makes it part of the portal's content. Whether the portal itself is public or a private preview
-  is a separate state: a bundle published into a private preview is still seen only by signed-in
-  members of the tenant's account (section 9).
+- A valid bundle is staged, not published. Publishing is a separate step. In this contract,
+  publishing a bundle means making it part of the portal's content. The product brief also uses
+  "publishing" for making a portal public, which is a different step: a bundle published into a
+  private preview is still seen only by signed-in members of the tenant's account (section 9).
 - Publishing is atomic. A bundle replaces the previous one as a whole, and a failed bundle leaves
   the live portal unchanged.
 - Whatever the transport, the step that extracts or reads the bundle enforces the section 2 limits
@@ -1099,7 +1106,7 @@ Decided on 2026-11-27:
 |---|---|
 | Which document guides are generated from, and which hash is compared | The published spec: the root document with the accepted spec-doctor fixes applied, as the portal published it (1.2, 3). |
 | How a `<Todo>` or a page that is not `ready` gets resolved | A person edits the bundle in its Git repository and the portal ingests the new commit. Regenerating must not overwrite those edits (4.7). |
-| Transport: how a bundle reaches the portal | The portal runs the guides module. With a repository connected, the portal's GitHub App proposes the bundle as a pull request on the tenant's repository, the tenant merges it, and the portal ingests from that repository. A regeneration is another pull request. Before a repository is connected the portal holds the bundle, read-only (6). Built in M5. |
+| Transport: how a bundle reaches the portal | The portal runs the guides module. With a repository connected, the portal's GitHub App proposes the bundle as a pull request on the tenant's repository, the tenant merges it, and the portal ingests from that repository. A regeneration is another pull request. Before a repository is connected the portal holds the bundle, read-only (6). The App is built in M4, the rest in M5. |
 | How the guides module gets the published spec | The portal passes the bytes to the step that runs the module. Nothing is fetched (1.2, 6). |
 | Who keeps a regeneration from overwriting edits | Both sides. The portal delivers a regeneration only as a pull request. The guides module's output is deterministic and stable, and it does not revert an edited page when given the existing bundle (4.7). |
 | How a reader learns where to get a key | The portal renders a "get a key" link from a URL the tenant supplies. A guide does not need to say how credentials are issued (9). The portal never issues keys. |
@@ -1109,8 +1116,8 @@ Decided on 2026-11-27:
 
 Still open, and not blocking 0.2:
 
-1. The design of the GitHub App and of ingestion from the tenant's repository (section 6), for
-   M5, after a security review. Transport itself is decided.
+1. The design of the GitHub App (M4) and of ingestion from the tenant's repository (M5), after
+   a security review (section 6). Transport itself is decided.
 2. Capturing a value whose key is not a plain identifier, such as `user-id`. The path grammar in 4.3
    cannot express it.
 3. Linking to a webhook's documentation. There is no link form for it.
@@ -1122,6 +1129,9 @@ Still open, and not blocking 0.2:
 5. Whether a guide can ask for the "get a key" link at a particular place. In 0.2 it cannot: the
    portal places the link and nothing in a bundle refers to it (9). A way to place it would be an
    addition to the contract and needs a security review first.
+6. Publishing a held bundle page by page (4.7): what a `guide:` link to a withheld page becomes,
+   what happens to its `nav` entry, and how the validation report says which pages are withheld.
+   For M5. A generator is not affected.
 
 ## 9. What the portal must handle
 
@@ -1280,8 +1290,9 @@ engine and renderer. They are here so they are written down on the portal side.
   files, and whoever hosts the export either keeps using the asset origin we host or runs a second
   origin that sends the same headers. Copying svg, pdf, json or zip files into the export beside
   the pages does not conform, and neither does copying any image as it came in the bundle.
-- *Private preview.* Decided 2026-11-27: a portal is a free private preview until the tenant pays
-  to make it public. Until then nothing of it is served to anyone who is not signed in as a
+- *Private preview.* Decided 2026-11-27: a portal is a free private preview until the tenant
+  makes it public, which needs a plan and proof of domain control. Until then nothing of it is
+  served to anyone who is not signed in as a
   member of the tenant's account, and that includes files on the asset origin and the published
   spec. The asset origin is a different origin from the dashboard, so a member's session does not
   reach it by itself, and the headers in section 2 authorize nobody. How a request to the asset
@@ -1435,8 +1446,9 @@ private preview, several APIs per portal), also made before 0.2 was released:
   part is stated as three requirements: deterministic output, stable output, and no reverting of
   an edited page when the existing bundle is given. A module run by the portal leaves
   `generatedAt` out (4.7). **This binds a generator.**
-- A bundle held by the portal before a repository is connected follows the existing blocker
-  rules, which act on the whole bundle (4.7). No rule changed.
+- In a bundle held by the portal before a repository is connected, a page with a blocker is
+  never published, as before. The rules as written block the whole bundle; the product default
+  for a held bundle is to withhold only those pages, and that is not designed yet (4.7, 8).
 - The portal renders the "get a key" link from a URL the tenant supplies. No variable or
   component is added for it, and a guide need not explain how credentials are issued. The
   example `<Todo>` in 4.7 was about that and is replaced (4.7, 8, 9).

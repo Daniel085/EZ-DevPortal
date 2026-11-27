@@ -155,8 +155,8 @@ interface, and a test that builds the same fixture twice and compares bytes.
 ### The published spec
 
 Guides are generated from the patched spec, not the tenant's original (guides contract 1.2). The
-patched spec is therefore an output of publishing, with bytes the guides module can fetch and
-hash.
+patched spec is therefore an output of publishing, with bytes the guides module is given and
+hashes.
 
 - The publisher writes it on every publish, beside the portal bundle: `spec/openapi.json` when the
   first non-whitespace character of the text is `{`, otherwise `spec/openapi.yaml`. It is not one
@@ -198,8 +198,9 @@ hash.
   runs the module and passes it the bytes (decided 2026-11-27; ADR 0007; guides contract 6). The
   authenticated path this ADR planned is therefore not built.
 - *Private preview.* Decided 2026-11-27: a portal is a free private preview until the tenant
-  pays to make it public. "Publish" and "published spec" in this ADR and in the contract name
-  the publisher's run and its output, not public availability: a private preview has a published
+  makes it public, which needs a plan and proof of domain control. The product brief calls that
+  step "publishing". In this ADR and in the contract, "publish" and "published spec" name the
+  publisher's run and its output, not public availability: a private preview has a published
   spec, because its pages and its guides are built from one. While a portal is a private preview
   nothing of it is served to anyone who is not signed in as a member of the tenant's account:
   pages, twins, `llms.txt`, `search.json`, `model.json`, the published spec, files on the asset

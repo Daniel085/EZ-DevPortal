@@ -107,6 +107,20 @@ reviewer has not confirmed them, so include them when the doctor's server checks
 The acceptance criteria for all of this are in `m1.md`: criteria 8 and 10 as amended, and 27 to 31.
 Security sign-off is required on 29 and 31.
 
+## One spec is one unit (decided 2026-11-27)
+
+A portal will hold several APIs, and later several versions of each. The engine is unaffected: one
+spec in, one model and one bundle out. That output is a **unit**, and the portal composes units
+keyed by project, API and version. What M1 must respect so nothing is redone:
+
+- URLs in a bundle are relative to the unit's base, never the portal root. The renderer builds
+  every URL through one function that takes the base path and the unit prefix (ADR 0006, "Units").
+- Operation and schema ids are unique within one unit only.
+- `llms.txt`, the Markdown twins and the published spec are per unit, and their links are relative
+  to the file they are in.
+
+Criteria 17 and 21 in `m1.md` were amended to test this.
+
 ## Open product decisions that do not block M1
 
 - Whether readers, as well as buyers, see that a sample uses synthesized values. M1 default: buyers
