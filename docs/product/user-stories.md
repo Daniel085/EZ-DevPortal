@@ -3,7 +3,10 @@
 Status: first full pass, 2026-11-27. Owner: product manager. No code exists yet. Updated the same
 day for four decisions by the user: eleven M1 criteria adopted (31 in all), the Public Suffix List
 licence exception, the MCP call tool split into read and write, and proof of domain control before
-a portal is public, built in M4. Statuses, counts, conflicts and questions below reflect them.
+a portal is public, built in M4. Updated again that day for four more: we run the guides module
+and deliver bundles by pull request; reader keys (a link in M2, a handoff later, accounts cut); a
+free private preview and pay to publish; multiple APIs in M4 and versions later. Statuses, counts,
+conflicts and questions below reflect all eight.
 
 Sources read: `docs/product-brief.md`, `CLAUDE.md`, `docs/milestones/m1.md`,
 `docs/milestones/m1-build-kickoff.md`, `docs/contracts/guides-contract.md` (sections 1.2, 4.7, 5,
@@ -13,17 +16,24 @@ Sources read: `docs/product-brief.md`, `CLAUDE.md`, `docs/milestones/m1.md`,
 ## Do we have all the user stories?
 
 **No.** Before this file there were none written as stories, and the plan covered two kinds of
-user. This pass finds 13 actors and 130 stories:
+user. This pass finds 13 actors and 142 stories:
 
 | Status | Count | Meaning |
 |---|---|---|
 | **C** covered | 22 | An M1 acceptance criterion already checks it. |
-| **P** planned | 57 | Named in a decision, ADR, contract section or milestone title, but with no acceptance criteria yet. It would probably get built; what "done" means is not written. |
-| **N** new | 51 | Nothing in the current plan would have caused it to be built. |
+| **P** planned | 74 | Named in a decision, ADR, contract section or milestone title, but with no acceptance criteria yet. It would probably get built; what "done" means is not written. |
+| **N** new | 45 | Nothing in the current plan would have caused it to be built. |
+| **X** cut | 1 | Decided not to be built. The row says why. |
 
-Before the decisions of 2026-11-27 the counts were 129 stories: 18, 55 and 56. What moved: SM-3,
-SM-5, SM-8 and SM-9 from planned to covered (M1 criteria 8, 10, 28, 29, 31); AH-4, OP-3, OP-4, EV-1
-and SU-8 from new to planned; SU-19 added as planned.
+Before the decisions of 2026-11-27 the counts were 129 stories: 18, 55 and 56. What moved with the
+first four decisions: SM-3, SM-5, SM-8 and SM-9 from planned to covered (M1 criteria 8, 10, 28, 29,
+31); AH-4, OP-3, OP-4, EV-1 and SU-8 from new to planned; SU-19 added as planned. That gave 130:
+22, 57 and 51.
+
+What moved with the second four: EV-2, SU-15, DW-10, GM-5, RD-6, RD-15 and RD-26 from new to
+planned; RD-6 from M4 to M2; SU-15 from no milestone to M4. Twelve stories added: ten planned
+(EV-8, SU-20, SU-21, SU-22, SC-12, DW-11, DW-12, DW-13, RD-27, RD-28), one new (OP-13) and one cut
+(RD-29).
 
 What the existing documents cover well: the reader's first call from the reference (M1), the spec
 doctor's findings, agents reading Markdown, the guides contract, and the security rules for the
@@ -33,25 +43,25 @@ What they do not cover, by the kinds of gap that were asked about:
 
 | Kind of gap | Found? | Where |
 |---|---|---|
-| Lifecycle | **Yes, large.** Rollback, versioned APIs, deleting a project, cancelling and export are all absent. A private preview is now decided (2026-11-27); whether it is free before payment is not. First publish and spec update are planned by name only. | EV-1, EV-6, SU-8, SU-10, SU-15, SU-16, AD-3 |
+| Lifecycle | **Yes, large.** Rollback, deleting a project, cancelling and export are all absent. Decided 2026-11-27: the private preview is free and publishing needs a plan; multiple APIs are M4 and versions of one API come later. First publish and spec update are planned by name only. | EV-1, EV-6, EV-8, SU-8, SU-10, SU-15, SU-16, SU-21, AD-3 |
 | Failure and unhappy paths | **Yes.** A spec source that goes down, a spec publish that fails halfway, and new findings after an upstream change have no owner. A stale fix now has an M1 criterion (c28). Undoing a fix and a rejected bundle are designed in ADR 0004 and contract 6 but have no criteria. | SU-9, SU-12, SM-4, SM-11, DW-8 |
 | Trust and safety | **Yes, the most serious, and partly closed on 2026-11-27.** Decided: proof of domain control before a portal is public and before the proxy calls a server (OP-3, OP-4), and a separate MCP tool for writes (AH-4). Still open: the agent's human cannot see beforehand what the agent may call or keep it read-only on the server side; there is no suspend, no abuse intake, no call limit and no audit log. | AH-2, AH-3, OP-1, OP-2, SC-3 to SC-5 |
 | The buyer's reasons to pay and stay | **Yes.** Analytics is a word in M6 with no content. Team members and roles, and SSO are absent. | EV-4, AD-1, SC-10 |
-| End developer account features | **Yes, and unowned.** Sign-in, API keys and sandbox credentials from the original capability list are in no milestone and no decision. The guides module reports that the spec never says how a key is issued, so every quickstart has this hole. | RD-6, RD-26 |
+| End developer account features | **Decided 2026-11-27.** A "get a key" link supplied by the customer, in M2 (RD-6, SU-22). A sign-in handoff later, on a paid tier, in no milestone (RD-26). Us issuing or managing developer accounts and keys is cut (RD-29). | RD-6, RD-26, RD-29, SU-22 |
 | Accessibility and non-English readers | **Partly.** M1 criterion 22 sets WCAG 2.2 AA for four M1 pages. Nothing carries that bar to "Try it", search, guides or the dashboard. Non-English spec text is untested; translation is out of scope by contract. | RD-12, RD-13, RD-24, RD-25, SU-17 |
-| Our own operation of the service | **Yes, mostly.** Three of twelve operator stories are planned (no credentials in logs, and the two that domain verification answers). | OP-1 to OP-12 |
+| Our own operation of the service | **Yes, mostly.** Three of thirteen operator stories are planned (no credentials in logs, and the two that domain verification answers). | OP-1 to OP-13 |
 
 **How to read "new".** A story marked new is not automatically something to build. Nearly all of the
-51 new stories rest on the product manager's judgment, not on research in the brief; only RD-6 has
-direct evidence, and SC-3, SC-4 and AH-2 are prompted by one survey figure. The basis column says
-which. The brief's research is about readers and specs; it has no evidence about what buyers
+45 new stories rest on the product manager's judgment, not on research in the brief; SC-3, SC-4 and
+AH-2 are prompted by one survey figure. The basis column says which. The brief's research is about readers and specs; it has no evidence about what buyers
 need to adopt, pay or stay, and none about operating the service.
 
 ### Legend
 
-- **M**: the milestone the story belongs to. "none" means no milestone owns it today.
+- **M**: the milestone the story belongs to. "none" means no milestone owns it today. "later"
+  means a decision says it will be built after the work it depends on, and names no milestone.
 - **Pri**: must, should, could.
-- **St**: C, P or N as above.
+- **St**: C, P, N or X as above.
 - **Basis**: **E** evidence in the brief's research table or in the guides module's status report;
   **D** a recorded decision; **TS** listed as table stakes in the brief; **J** product manager's
   judgment, no source.
@@ -87,20 +97,21 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 
 | Id | Story | M | Pri | St | Basis and pointer |
 |---|---|---|---|---|---|
-| EV-1 | As an evaluator, I want to give my spec URL and site URL and see a private preview portal for my own API before paying, so that I can judge the product on my real spec. | M4 | must | P | D: "Proof of domain control", 2026-11-27: a private preview is what a tenant has before verifying. "Before paying" is still undecided (question 2). By default the preview has no "Try it" for an unverified server (question 10). |
-| EV-2 | As an evaluator, I want to see what each plan costs and includes, so that I can get the purchase approved. | M6 | should | N | J. M6 "billing" covers charging, not plans or a public price. |
+| EV-1 | As an evaluator, I want to give my spec URL and site URL and see a private preview portal for my own API before paying, so that I can judge the product on my real spec. | M4 | must | P | D: "Free private preview, pay to publish", 2026-11-27. By default the preview has no "Try it" for an unverified server (question 10, open). |
+| EV-2 | As an evaluator, I want to see what each plan costs and includes, so that I can get the purchase approved. | M6 | should | P | D: publishing needs a plan, 2026-11-27, so plans must exist. What they cost and include is undecided. See conflict 10: the gate is M4, billing is M6. |
 | EV-3 | As a buyer, I want the portal to carry none of your branding, so that it reads as part of my site. | M3 | should | N | Brief, "Open differentiators" (white-label at lower tiers). No decision, no milestone. |
 | EV-4 | As a buyer, I want to see how the portal is used (page views, searches with no result, "Try it" and MCP calls and their error rate), so that I can justify renewing. | M6 | must | P | Brief, M6 "analytics". The contents are J; nothing defines them. |
 | EV-5 | As an enterprise buyer, I want a static export I can host myself, so that the portal meets my hosting rules. | none | could | P | D: "Static export stays possible". c21 keeps it possible. No milestone delivers it. |
 | EV-6 | As a buyer who is leaving, I want to export my patched spec, accepted fixes, theme tokens and a static copy of the portal, so that I am not locked in. | M6 | should | N | J. Partly enabled by c26 and ADR 0004 (patched spec offered for download). |
 | EV-7 | As a buyer, I want portal pages to be indexable by search engines with correct titles, canonical URLs and a sitemap, so that developers find my API. | M4 | should | N | J. |
+| EV-8 | As an evaluator with a private preview, I want to see that publishing needs a plan and domain verification, which of the two I still lack, and how to start each, so that I know the whole cost of going live before I commit. | M4 | must | P | D: "Free private preview, pay to publish", 2026-11-27. How a plan is obtained before M6 billing is conflict 10. |
 
 ### SU: Portal owner
 
 | Id | Story | M | Pri | St | Basis and pointer |
 |---|---|---|---|---|---|
 | SU-1 | As a portal owner, I want to create a project from a spec URL or an uploaded file and be led to a first published portal, so that setup takes minutes. | M4 | must | P | Brief, "Product" and control plane; ADR 0003, "Spec fetch policy". |
-| SU-2 | As a portal owner, I want to connect the spec from a Git repository and have the portal republish when it changes, so that the portal stays correct without effort. | M4 | must | P | TS (Git sync). E: docs out of sync, SmartBear 52%. ADR 0003 says tokens need a reviewed path first. |
+| SU-2 | As a portal owner, I want to connect the spec from a Git repository and have the portal republish when it changes, so that the portal stays correct without effort. | M4 | must | P | TS (Git sync). E: docs out of sync, SmartBear 52%. ADR 0003 says tokens need a reviewed path first. From 2026-11-27 the connection is our GitHub App (SU-20). |
 | SU-3 | As a portal owner, I want to use a spec URL that needs a token, so that a private spec can be the source. | M4 | should | P | ADR 0003: not covered by the fetch policy, "need their own reviewed path". Undesigned. |
 | SU-4 | As a portal owner, I want an unsupported or unparseable spec rejected with what is wrong and where, so that I can fix it. | M1 | must | C | c5. D: Swagger 2.0 rejected. |
 | SU-5 | As a portal owner, I want a spec with local defects to still build, with each defect reported, so that one bad schema does not block the portal. | M1 | must | C | c6. |
@@ -113,11 +124,14 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 | SU-12 | As a portal owner, I want the live portal kept as it is and a notification sent when my spec source is unreachable or returns an invalid document, so that an outage on my side does not break my docs. | M4 | must | N | J. ADR 0003 turns a failed fetch into a finding; nothing says what the live portal does. |
 | SU-13 | As a portal owner, I want to choose which operations "Try it" and the MCP may call, with write operations off until I enable each one, so that nothing is callable that I did not approve. | M2 | must | P | D: "MCP writes". ADR 0003, "an operation the tenant enabled". E: Postman 51%. |
 | SU-14 | As a portal owner, I want to turn "Try it" or the MCP off for the whole portal, so that I can stop calls at once. | M2 | must | N | J. Implied by per-operation enabling, not stated. |
-| SU-15 | As a portal owner, I want more than one API, or more than one version of an API, in one portal with a switcher, so that readers on an older version are served. | none | should | N | J. `m1.md` lists versioned docs as "not planned in any milestone". Contract 8: one bundle per spec version. |
+| SU-15 | As a portal owner, I want more than one API in one portal, each with its own spec and its own guide bundle, so that all my products are documented in one place. | M4 | should | P | D: "Multiple and versioned APIs", 2026-11-27. Content is keyed by project, API and version from the start. The per-API guide bundle arrives with guides in M5. Versions are SU-21. Demand is J. |
 | SU-16 | As a portal owner, I want to delete a project and have its portal, spec, fixes, theme and assets stop being served and be removed, so that nothing stale stays online. | M4 | must | N | J. |
 | SU-17 | As a portal owner using a keyboard or screen reader, I want the dashboard to meet the same accessibility bar as the portal, so that I can do my job. | M4 | should | N | J. c22 covers portal pages only. |
 | SU-18 | As a portal owner, I want to trigger a publish from my CI with a token, so that docs ship with the API. | M4 | could | N | J. |
 | SU-19 | As a portal owner, I want to prove control of my website's domain and of each domain my API is served from, and to see what each proof unlocks (going public, "Try it" and MCP for a server), so that I know exactly what stands between my preview and a live portal. | M4 | must | P | D: "Proof of domain control", 2026-11-27. Methods and the meaning of "under a domain" are undesigned: architect and security reviewer. |
+| SU-20 | As a portal owner, I want to connect a Git repository by installing your GitHub App on the repositories I choose, to see what it can read and write there, and to disconnect it, so that I control what you can touch. | M4 | must | P | D: "Guide bundles reach the customer's repository by pull request", 2026-11-27. Needs a security review before design. That it also carries spec sync (SU-2) and the patched-spec pull request (SM-6) is J. |
+| SU-21 | As a portal owner, I want more than one version of an API in one portal, each version with its own spec and guides, so that readers on an older version are served. | later | should | P | D: "Multiple and versioned APIs", 2026-11-27: later, no milestone. `m1.md` still lists versioned docs as "not planned in any milestone". Contract 8: one bundle per spec version. |
+| SU-22 | As a portal owner, I want to give the URL where developers get a key for my API, so that the portal can send readers there. | M2 | must | P | D: "Reader keys", 2026-11-27. The dashboard is M4, so M2 needs a stand-in such as a configuration file (conflict 6). What is accepted as a URL (`https` only, no script) is for the security reviewer. |
 
 ### IN: Web or infrastructure engineer
 
@@ -136,7 +150,7 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 | SM-3 | As a spec maintainer, I want to supply the one fact a fix needs (a token URL, a host), so that a fix that cannot be inferred can still be applied. | M1 | must | C | c10 as amended 2026-11-27 (with the input the finding goes, without it the finding stays and names the input); c31 for refused values. ADR 0004 (`inputs`, `bindFix`). |
 | SM-4 | As a spec maintainer, I want to undo an accepted fix, so that a wrong fix from the doctor is not permanent. | M1 | must | P | Contract 1.2 and ADR 0004 anticipate removal. In M1 this is editing the overlay file. No criterion. |
 | SM-5 | As a spec maintainer, I want to be told when an accepted fix no longer applies because my spec changed, with every other fix still applied, so that a stale fix is neither misapplied nor silent. | M1 | must | C | c28, added 2026-11-27. ADR 0004, step 3. |
-| SM-6 | As a spec maintainer, I want the patched spec as a file or a pull request, so that I can fix the source and stop depending on the overlay. | M1 | should | P | c26 writes the file. ADR 0004, step 4 mentions the pull request (M4). |
+| SM-6 | As a spec maintainer, I want the patched spec as a file or a pull request, so that I can fix the source and stop depending on the overlay. | M1 | should | P | c26 writes the file. ADR 0004, step 4 mentions the pull request (M4). The pull request is opened by the GitHub App (SU-20). |
 | SM-7 | As a spec maintainer, I want to see which operations use synthesized sample values, so that I know where to add real examples. | M1 | must | C | c7. E: 87% of specs lack examples. |
 | SM-8 | As a spec maintainer, I want to see which servers and operations have "Try it" and MCP withheld and why, so that I can make them callable. | M1 | must | C | c8 as amended 2026-11-27 names both findings; c29 checks the host rule row by row. Effect is visible in M2. From M4 a server can also be withheld because its domain is not verified; how that is shown is undesigned (SU-19). |
 | SM-9 | As a spec maintainer, I want to list the allowed hosts for a server with an open host variable by accepting a fix, so that "Try it" and MCP work for it. | M1 | must | C | c10, c29, c31. D: brief, "Open host variables", option B. The fix and the CLI are M1; the proxy honouring the list is M2 (AC-3), and from M4 each listed host must also be under a verified domain. |
@@ -151,16 +165,19 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 
 | Id | Story | M | Pri | St | Basis and pointer |
 |---|---|---|---|---|---|
-| DW-1 | As a docs owner, I want a commit of the guides bundle to reach the portal without manual upload steps, so that Git is the only place I work. | M5 | must | P | Contract 6. Transport is open. |
+| DW-1 | As a docs owner, I want a commit of the guides bundle to reach the portal without manual upload steps, so that Git is the only place I work. | M5 | must | P | D: 2026-11-27, the portal ingests from the customer's connected repository. Contract 6 still lists transport as open; the architect's to amend. |
 | DW-2 | As a docs owner, I want every problem in a bundle reported at once with file and line, so that I fix them in one pass. | M5 | must | P | Contract 5. |
 | DW-3 | As a docs owner, I want to preview a staged bundle with each `<Todo>` shown as a marked placeholder, so that I can see what is left. | M5 | must | P | Contract 4.7. |
 | DW-4 | As a docs owner, I want publishing blocked while any `<Todo>` or unfinished page remains, so that a placeholder never reaches a reader. | M5 | must | P | Contract 4.7. |
-| DW-5 | As a docs owner, I want my edits kept when guides are regenerated, so that my work is not lost when the spec changes. | M5 | must | P | D: "Guides are edited in Git". Contract 4.7. Built by the guides module; needs a joint test. |
+| DW-5 | As a docs owner, I want my edits kept when guides are regenerated, so that my work is not lost when the spec changes. | M5 | must | P | D: "Guides are edited in Git". Contract 4.7. Built by the guides module; needs a joint test. From 2026-11-27 a regeneration is also reviewed as a pull request (DW-12). |
 | DW-6 | As a docs owner, I want to be told when the live guides were generated from an older spec than the one published, so that I regenerate them. | M5 | must | P | Contract 1.2 (`spec-hash-mismatch`). |
 | DW-7 | As a docs owner, I want the generator's run report (skipped pages, gaps, spec problems) in the dashboard, so that I know what the guides do not cover. | M5 | should | P | Contract 5.2: the portal "may" show it. |
 | DW-8 | As a docs owner, I want a rejected bundle to leave the live guides unchanged, so that a bad commit is harmless. | M5 | must | P | Contract 6. |
 | DW-9 | As a docs owner, I want images in guides to display on the portal, so that guides can show diagrams and screenshots. | M5 | should | P | D: "Risky assets use a separate origin". Contract 9, the three-browser acceptance test. |
-| DW-10 | As a docs owner, I want to know who runs the generator and to receive a first bundle without installing anything, so that guides are part of the product and not a project of mine. | M5 | must | N | J. Contract 6 ends the generator's duty at a directory. No document says who runs it for a tenant or whose repository holds the bundle. |
+| DW-10 | As a docs owner, I want to know who runs the generator and to receive a first bundle without installing anything, so that guides are part of the product and not a project of mine. | M5 | must | P | D: 2026-11-27: we run the generator; the bundle is held by us until a repository is connected, then lives in the customer's repository. |
+| DW-11 | As a docs owner who has connected a repository, I want the generated bundle proposed as a pull request there, which I can review, edit and merge, so that nothing enters my repository or my portal without my approval. | M5 | must | P | D: "Guide bundles reach the customer's repository by pull request", 2026-11-27. Uses M4's App (SU-20). |
+| DW-12 | As a docs owner, I want each regeneration to arrive as a pull request showing what changed, so that I review the diff and my hand edits are never replaced without my seeing it. | M5 | must | P | D: same decision. Whether this replaces or adds to DW-5 is conflict 12. |
+| DW-13 | As a docs owner who has not connected a repository, I want to see the guides you generated, which pages are published, which are held back and why, and that connecting a repository is how I finish them, so that I know what readers see. | M5 | must | P | D: same decision: held by us, read-only; a page with a `<Todo>` or not marked ready stays unpublished. Withholding by page differs from contract 4.7 (conflict 11). |
 
 ### SC: Provider's security or compliance reviewer
 
@@ -177,6 +194,7 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 | SC-9 | As a security reviewer, I want portal pages served under my origin to set no cookies and load no third-party scripts, so that subpath hosting adds no risk to my site. | M4 | should | N | J. Follows from the subpath decision; nowhere stated. |
 | SC-10 | As a security reviewer, I want the dashboard to accept single sign-on from our identity provider, so that access follows our joiner and leaver process. | none | could | N | J. No evidence of demand. |
 | SC-11 | As a compliance reviewer, I want to know where data is stored, who the subprocessors are, and that data is deleted on termination, so that I can sign the contract. | none | should | N | J. Mostly documents, not software. |
+| SC-12 | As a security reviewer, I want your GitHub App limited to the repositories we select, with the least access that lets it open a pull request, and unable to change our default branch directly, so that I can approve installing it. | M4 | must | P | D: 2026-11-27: the App's write access needs a security review before it is designed. The three limits named here are J until that review. |
 
 ### AD: Account and billing admin
 
@@ -198,8 +216,8 @@ First visit.
 | RD-3 | As a developer, I want my language choice kept on every page, so that I choose once. | M1 | must | C | c16. |
 | RD-4 | As a developer, I want every parameter, enum value, constraint and documented response shown, so that I do not guess. | M1 | must | C | c3. |
 | RD-5 | As a developer, I want `oneOf`, `anyOf`, `allOf` and recursive schemas shown readably, so that I can build a valid body. | M1 | must | C | c1, c2. |
-| RD-6 | As a developer, I want to be told how to get a key (a link or instructions the provider supplies), so that I can start. | M4 | must | N | E: guides module status, "the spec does not describe how credentials are issued", a callout on every quickstart. The remedy is J. |
-| RD-7 | As a developer, I want to call an operation from the page with my own credential, which is not stored, so that I see a real response before writing code. | M2 | must | P | D: "MCP and proxy credentials". TS ("Try it"). |
+| RD-6 | As a developer, I want to be told how to get a key (a link or instructions the provider supplies), so that I can start. | M2 | must | P | D: "Reader keys", 2026-11-27: the quickstart and authentication pages link to the customer's "get a key" URL. E: guides module status, "the spec does not describe how credentials are issued". The quickstart is M5 and no authentication page is defined yet (conflict 13). |
+| RD-7 | As a developer, I want to call an operation from the page with my own credential, which is not stored, so that I see a real response before writing code. | M2 | must | P | D: "MCP and proxy credentials"; "Reader keys", 2026-11-27: the pasted key is held in the browser only. TS ("Try it"). |
 | RD-8 | As a developer, I want to be told why "Try it" is unavailable for an operation and what to do instead, so that I am not left with a dead button. | M2 | must | P | ADR 0004 withholds it; what the reader sees is unspecified. |
 | RD-9 | As a developer, I want a quickstart and guides whose samples appear in my chosen language, so that I learn the flow, not only the endpoints. | M5 | must | P | D: "Guides never contain API request code". Contract 1. |
 | RD-10 | As a developer, I want to search the reference and the guides, so that I find an operation without knowing its name. | M5 | must | P | TS. Brief M5. Postman 34% is about finding APIs, so applying it here is inference. |
@@ -212,7 +230,9 @@ Returning.
 | Id | Story | M | Pri | St | Basis and pointer |
 |---|---|---|---|---|---|
 | RD-14 | As a returning developer, I want links I saved to operations, responses and schemas to keep working, so that bookmarks and links in tickets stay good. | M1 | must | C | c11. |
-| RD-15 | As a returning developer, I want the credential I entered kept for my browser session across pages, and a way to clear it, so that I enter it once and can remove it. | M2 | must | N | J. Must be reconciled with "never stored": browser only. |
+| RD-15 | As a returning developer, I want the credential I entered kept for my browser session across pages, and a way to clear it, so that I enter it once and can remove it. | M2 | must | P | D: "Reader keys", 2026-11-27: held in the reader's browser only, never stored by us. Keeping it across pages and clearing it are J. |
+| RD-27 | As a developer, I want to switch between the provider's APIs from any page and always see which one I am reading, so that I do not follow the reference for the wrong product. | M4 | should | P | D: "Multiple and versioned APIs", 2026-11-27: a product switcher. |
+| RD-28 | As a developer on an older version of an API, I want to switch to my version and stay on the same operation where it exists, so that I read the docs for what I run. | later | should | P | D: same decision: a version switcher, later. Staying on the same operation is J. |
 | RD-16 | As a developer, I want dark mode, so that the docs match my environment. | M3 | should | P | `m1.md` out-of-scope table. |
 | RD-17 | As a returning developer, I want the old URL of a renamed or removed operation to lead somewhere useful, so that a spec change does not give me a dead link. | M4 | should | N | J. c11 covers an unchanged operation only. |
 | RD-18 | As a returning developer, I want to see what changed in the API since I last looked, so that I can update my integration. | none | could | N | J. `m1.md`: changelog "not planned". |
@@ -228,7 +248,8 @@ Debugging.
 | RD-23 | As a developer, I want webhooks documented with their payloads, so that I can handle events. | none | should | N | J. `m1.md` cuts them from M1; contract 8, open item 3. No milestone. |
 | RD-24 | As a developer whose API's descriptions are not in English, I want non-Latin and right-to-left text to display correctly in pages, twins and samples, so that the docs are legible. | M1 | must | N | J. No fixture is known to test it. |
 | RD-25 | As a developer who does not read English, I want the portal's own labels in my language, so that I can navigate. | none | could | N | J. No evidence of demand. Contract 8: localization out of scope. |
-| RD-26 | As a developer, I want to sign in and see my own API keys or sandbox credentials in the portal, so that samples and "Try it" are filled in for me. | none | could | N | Original capability list only. In no decision or milestone. See conflict 4. |
+| RD-26 | As a developer signed in to the provider's site, I want the portal to show my own key in samples and "Try it", so that I copy a sample that already works. | later | could | P | D: "Reader keys", 2026-11-27: a sign-in handoff from the customer's site, a paid-tier feature, in no milestone. Undesigned and needs a security review. See conflict 4. |
+| RD-29 | As a developer, I want to create an account with the portal and have it issue and manage my API keys or sandbox credentials, so that I need not go to the provider's site. | none | none | X | **Cut**, 2026-11-27: us issuing or managing developer accounts and keys is an API management product and out of scope. RD-6 and RD-26 serve the need. |
 
 ### AR: AI agent reading the docs
 
@@ -270,7 +291,7 @@ Debugging.
 | GM-2 | As the guides module, I want the portal to derive the same operation ids as I do, so that every link and sample resolves. | M1 | must | C | c12. Contract 1.1. |
 | GM-3 | As the guides module, I want a machine-readable validation report with stable codes, so that I can test my output against the portal. | M5 | must | P | Contract 5 and 5.1. |
 | GM-4 | As the guides module, I want to know which contract version the portal accepts, so that I emit that version. | M5 | must | P | Contract 7. |
-| GM-5 | As the guides module, I want to be told when the published spec changes, so that guides are regenerated without a person noticing. | M5 | must | N | J. Contract 1.2 defines the mismatch; nothing says what triggers regeneration. |
+| GM-5 | As the guides module, I want to be told when the published spec changes, so that guides are regenerated without a person noticing. | M5 | must | P | D: 2026-11-27: we run the module, so the trigger is ours, and a regeneration arrives as a pull request. When it runs (every publish, or on request) is undesigned. |
 | GM-6 | As the guides module, I want a shared set of bundles that both validators must agree on, so that the two do not drift. | M5 | should | P | Contract 9; module status ("the two will disagree somewhere"). |
 
 ### OP: Our operator or support person
@@ -289,6 +310,7 @@ Debugging.
 | OP-10 | As our operator, I want tenants' accepted fixes, themes and settings backed up and restorable, so that a storage fault does not lose their work. | M4 | should | N | J. |
 | OP-11 | As our support person, I want to view a tenant's project with their consent and with the access logged, so that I can help without their password. | M4 | could | N | J. |
 | OP-12 | As our operator, I want to tell affected tenants about an incident, so that they hear it from us. | M6 | could | N | J. |
+| OP-13 | As our operator, I want limits on what a free preview can consume (previews per account, spec fetches, brand extractions, guide generations), so that a free tier open to anyone is not a cost or an abuse route. | M4 | should | N | J, prompted by "Free private preview", 2026-11-27. No evidence on expected volume. |
 
 ## Conflicts with recorded decisions
 
@@ -307,14 +329,15 @@ Debugging.
    buyer needs a credential for the buyer's API. The standing constraint covers end-user
    credentials; a provider's test credential is a different secret, and storing one is a new
    kind of data for us. Needs a decision and a security review before M2 scope is set.
-4. **RD-26 (reader sign-in and keys) against static pages and "never stored".** Filling a reader's
-   key into pages needs per-reader state. It can be done in the browser, but obtaining the key from
-   the provider is an integration nobody has designed. RD-6 (a link to where keys are issued) is
-   the small version and has no conflict.
+4. **RD-26 (sign-in handoff) against static pages and "never stored".** Decided 2026-11-27 as a
+   later, paid-tier feature, so the conflict is deferred, not removed. Filling a reader's key into
+   pages needs per-reader state. It can be done in the browser, but the handoff from the
+   customer's site is an integration nobody has designed, and it must keep "never stored by us"
+   true. RD-6 (a link to where keys are issued) is the M2 version and has no such conflict.
 5. **RD-25 (translation) against contract 8**, which puts localization out of scope.
-6. **SU-13 in M2 against milestone order.** Per-operation enabling is an M2 requirement on the
-   proxy, and the dashboard where a tenant would set it is M4. M2 needs a stated stand-in, such as
-   a configuration file.
+6. **SU-13 and SU-22 in M2 against milestone order.** Per-operation enabling and the "get a key"
+   URL are M2 requirements, and the dashboard where a tenant would set them is M4. M2 needs a
+   stated stand-in, such as a configuration file.
 7. **Decision B and the published spec.** The allowed hosts are stored in the spec patch, so
    accepting that fix changes the published spec's bytes and marks existing guides out of date,
    like any other fix. Expected, and worth saying in the dashboard. Separately, ADR 0004 says a fix
@@ -330,17 +353,53 @@ Debugging.
    record on. Whether another proof is accepted for one exact host is a security design question;
    whether we accept losing "Try it" and MCP for those tenants is the user's.
 
+Raised by the second four decisions of 2026-11-27. Defaults are in the brief, "Open product
+decisions".
+
+10. **Pay to publish (M4) against billing (M6).** Publishing needs a plan two milestones before
+    anything can take payment. Default: M4 builds the gate and we set a tenant's plan by hand; M6
+    adds self-serve payment.
+11. **Guides held by us against contract 4.7.** The decision withholds a page that has a `<Todo>`
+    or is not ready. Contract 4.7 blocks the whole bundle on one such page. Publishing by page
+    also leaves links from a published page to a withheld one. For the architect.
+12. **The GitHub App against "the portal never writes to a bundle" (contract 6; the old wording of
+    the brief), and review by pull request against "regenerating must not overwrite edits"
+    (contract 4.7).** The App writes generated bundles to a customer's repository, as a pull
+    request. The brief now says we change a bundle only by proposing a pull request. The decision
+    says edits are "not overwritten silently", which is weaker than "must not overwrite"; the brief
+    keeps the stronger rule until the user says otherwise.
+13. **The "get a key" link in M2 against where it is shown.** The decision names the quickstart
+    and authentication pages. The quickstart is a guide and arrives in M5; no M1 criterion defines
+    an authentication page. In M2 the link has "Try it" and the reference's credential section to
+    appear in. The guides module's `<Todo title="How credentials are issued">` could be answered
+    by the same URL; whether the portal or the module does that is a contract question.
+14. **"We run the guides module" against "we do not author or generate guides".** The old brief
+    row is rewritten: the module is still a separate project and the portal still writes no guide
+    content, but we operate the module. Contract 6 ("a generator's obligation ends when it has
+    written a directory") stays true of the module; what runs it is now ours and is M5 work.
+15. **Multiple APIs against what M2 and M5 build for one API.** One MCP endpoint, `llms.txt` and
+    search index per API or per portal is not decided, and page URLs gain an API part. M1 has no
+    hosted URLs, so nothing breaks, but M2's endpoint shape should not assume one API. For the
+    architect. `m1.md` still says versioned docs are "not planned in any milestone".
+16. **We run the generator against conflict 2.** This one helps: since we run the module, it can
+    be given a staged spec, so a preview can include guides before a publish. Inference, not
+    designed.
+
 ## Stories no milestone owns
 
 - **Headline or promised features without a milestone:** subpath hosting as a hosted mode (IN-1),
   white-label (EV-3), static export as a deliverable (EV-5).
-- **Not planned anywhere:** versioned and multiple APIs (SU-15), webhooks pages (RD-23), internal
-  operations (SM-14), changelog (RD-18), translation (RD-25), reader sign-in and keys (RD-26), SSO
-  (SC-10), compliance documents (SC-11), multi-file fixes for guides (SM-13).
-- **Assigned here to M4 by judgment, and M4 is now very large:** trial, preview, rollback, delete,
-  team roles, audit, nine operator stories, and since 2026-11-27 domain verification and the
-  verified domain suffix. M4 as titled ("multi-tenancy and onboarding") did not include them. See
-  "Proposal: splitting M4" below.
+- **Decided for later, in no milestone:** versions of one API (SU-21, RD-28), the sign-in handoff
+  (RD-26).
+- **Not planned anywhere:** webhooks pages (RD-23), internal operations (SM-14), changelog (RD-18),
+  translation (RD-25), SSO (SC-10), compliance documents (SC-11), multi-file fixes for guides
+  (SM-13).
+- **Cut:** us issuing or managing developer accounts and keys (RD-29).
+- **Assigned here to M4 by judgment, and M4 is now very large:** rollback, delete, team roles,
+  audit, ten operator stories, and since 2026-11-27, by decision, the free preview and the plan
+  gate, domain verification and the verified domain suffix, multiple APIs, and the GitHub App. M4
+  as titled ("multi-tenancy and onboarding") did not include them. See "Proposal: splitting M4"
+  below.
 - **Table stakes in the brief with no explicit owner:** "AI search" is listed as table stakes; M5
   says "search", and `m1.md` lists AI chat as not planned. Whether M5 search is AI search is not
   decided.
@@ -349,18 +408,24 @@ Debugging.
 
 ## Proposal: splitting M4
 
-A proposal for the user, not a decision. M4 holds 33 of the 130 stories, 17 of them "must". The
-split is by what a tenant can do at the end of each part, so each part can be checked on its own.
+A proposal for the user, not a decision. M4 holds 38 of the 142 stories, 19 of them "must". Before
+the second four decisions of 2026-11-27 it held 33, 17 of them "must": RD-6 left for M2, and EV-8,
+SU-15, SU-20, SC-12, RD-27 and OP-13 arrived. The split is by what a tenant can do at the end of
+each part, so each part can be checked on its own.
 
 | Part | A tenant can | Stories | Why here |
 |---|---|---|---|
-| **M4a: tenancy and private preview** | Sign in, create a project from a spec URL or file, accept and dismiss fixes in the dashboard, and see the whole portal in a private preview. Nothing is public. | EV-1, SU-1, SU-8, SU-9, SU-16, SU-17, SM-2, OP-6 | No public surface, so it needs no verification and no abuse process, and can ship to evaluators first. |
-| **M4b: going public** | Prove control of domains, make the portal public on our host or under their subpath, and use "Try it" and MCP against verified servers. We can suspend a portal and take an abuse report. | SU-19, OP-3, OP-4, OP-1, OP-2, IN-1, SC-8, SC-9, EV-7, RD-6, then SM-10 | Everything that must be true the first time a stranger can reach a portal. SM-10 comes last, after its own security review, and is the first thing to cut. |
-| **M4c: staying correct and operating** | Connect Git and republish on change, roll back, add team members, and be told when the source breaks or new findings appear. We can support, back up and upgrade tenants. | SU-2, SU-3, SU-10, SU-11, SU-12, SU-18, SM-11, SC-5, AD-1, RD-17, OP-5, OP-9, OP-10, OP-11 | Needed to keep a live portal correct, not to launch one. |
+| **M4a: tenancy and private preview** | Sign in, create a project from a spec URL or file, accept and dismiss fixes in the dashboard, and see the whole portal in a free private preview. Nothing is public. | EV-1, SU-1, SU-8, SU-9, SU-16, SU-17, SM-2, OP-6, OP-13 | No public surface, so it needs no verification and no abuse process, and can ship to evaluators first. Content is keyed by project, API and version here, even with one API. |
+| **M4b: going public** | Get a plan, prove control of domains, make the portal public on our host or under their subpath, and use "Try it" and MCP against verified servers. We can suspend a portal and take an abuse report. | EV-8, SU-19, OP-3, OP-4, OP-1, OP-2, IN-1, SC-8, SC-9, EV-7, then SM-10 | Everything that must be true the first time a stranger can reach a portal. SM-10 comes last, after its own security review, and is the first thing to cut. |
+| **M4c: staying correct and operating** | Connect a repository through the GitHub App and republish on change, roll back, add team members, and be told when the source breaks or new findings appear. We can support, back up and upgrade tenants. | SU-2, SU-3, SU-20, SC-12, SU-10, SU-11, SU-12, SU-18, SM-11, SC-5, AD-1, RD-17, OP-5, OP-9, OP-10, OP-11 | Needed to keep a live portal correct, not to launch one. |
+| **Not placed** | Put several APIs in one portal, with a product switcher. | SU-15, RD-27 | Decided for M4 on 2026-11-27, after this proposal was written. It fits none of the three parts by their titles; where it goes is part of the open question. |
 
 Costs of the split, as judgment: Git sync (SU-2) is table stakes and "stays correct without effort"
 is the buyer's reason to buy, so M4c cannot be deferred long; and M4b cannot be designed until the
-architect and security reviewer have designed verification. M5 and M6 are unchanged.
+architect and security reviewer have designed verification. M6 is unchanged. M5 now depends on
+M4c: its bundle and regeneration pull requests (DW-11, DW-12) use the GitHub App that M4c builds,
+so M4c, or at least SU-20 and SC-12, must come before that part of M5. Guides held by us (DW-13)
+do not depend on it.
 
 ## M1 stories the criteria did not cover
 
@@ -383,16 +448,18 @@ before the spec doctor step. D to G can be decided any time before M1 is closed.
 
 ## Questions only the user can answer
 
-1. Who runs the guides module for a tenant, and whose Git repository holds the bundle: ours,
-   automatically, or the customer's? (DW-10, GM-5)
-2. Is there a free trial or preview before payment, and what does it include? (EV-1)
-3. Reader sign-in, API keys and sandbox credentials: build, reduce to a provider-supplied "get a
-   key" link, or cut? (RD-6, RD-26)
+1. Answered 2026-11-27: we run the guides module. Bundles are held by us until a repository is
+   connected, then proposed as pull requests on the customer's repository. (DW-10 to DW-13, GM-5,
+   SU-20, SC-12)
+2. Answered 2026-11-27: a free private preview, and pay to publish. (EV-1, EV-8)
+3. Answered 2026-11-27: a "get a key" link in M2, a sign-in handoff later on a paid tier, and us
+   issuing accounts or keys cut. (RD-6, SU-22, RD-26, RD-29)
 4. Answered 2026-11-27: yes, proof of domain control is required before a portal is public, built
    in M4. (OP-3, OP-4, SU-19)
 5. Answered 2026-11-27: yes, MCP writes go through a separate tool. (AH-4)
 6. "Samples tested against the API": whose credential, and may we store it? (SM-12)
-7. Versioned APIs and more than one API per portal: which milestone, or cut? (SU-15)
+7. Answered 2026-11-27: multiple APIs per portal in M4; versions of one API later. (SU-15, RD-27,
+   SU-21, RD-28)
 8. Which milestone owns hosted subpath hosting, and is white-label a plan tier or the default?
    (IN-1, EV-3)
 9. Answered 2026-11-27: the fix from decision B is built in M1. (c29, c31)
@@ -408,4 +475,15 @@ Raised by the decisions of 2026-11-27:
 12. Is an operation that only reads but is not `GET`, such as a `POST` search, always a write for
     the MCP, or may the tenant mark it as a read? Default: always a write. (AC-3, AH-4)
 13. Split M4 into three parts as proposed above? (and with it, whether the verified domain suffix,
-    SM-10, stays at the end of M4b or is cut to later)
+    SM-10, stays at the end of M4b or is cut to later, and which part takes multiple APIs)
+
+Questions 10, 11 and 13 are still open with the user. Their options are in the brief, "Open
+product decisions", as (b), (c) and (a).
+
+Raised by the second four decisions of 2026-11-27; each has a default in the brief:
+
+14. How does a tenant get a plan in M4, before M6 builds billing? (conflict 10)
+15. Does review by pull request replace "regenerating must not overwrite edits", or add to it?
+    (conflict 12)
+16. After a repository is connected, is a guide page with a `<Todo>` withheld on its own, or does
+    it block the bundle as contract 4.7 says? (conflict 11)
