@@ -6,8 +6,7 @@ ingestion (M5) here.
 ## Where it is
 
 - Repository: `daniel085/ez-devdocs`, branch `main`.
-- The changes dated 2026-11-27 below are on its branch `claude/sharp-pascal-a7vqwn` and are not
-  merged to `main` yet.
+- The changes dated 2026-11-27 below were merged to `main` in its pull request 1.
 - It targets contract **v0.1** as written in this directory. It holds a copy of the contract and the
   manifest schema under `contract/`; that copy must be re-synced when the contract changes.
 - Its feedback on the contract is in [`guides-contract-feedback.md`](./guides-contract-feedback.md), kept only in this repository:
