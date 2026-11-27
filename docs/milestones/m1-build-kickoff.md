@@ -87,6 +87,27 @@ manager before building it.
   fix that takes the allowed hosts as input (ADR 0004, "The fix for an open host variable"). The
   finding, the fix and its input validation are M1 work. Enforcement at the proxy is M2.
 
+## Added after the third security review (2026-11-27)
+
+Read `docs/reviews/2026-11-27-security-review-allowed-hosts-and-published-spec.md` before the spec
+doctor step. It changed three things the M1 code must follow:
+
+- **When a server with a host variable is callable.** The rule and a table of worked examples are
+  in ADR 0004. Test the doctor against every row of that table.
+- **The Public Suffix List.** The rule needs it, and its licence (MPL 2.0) is outside the
+  dependency policy in ADR 0001. The user has not yet decided whether to allow the exception that
+  ADR 0004 describes. **Until that is decided, do not vendor the list: pass `publicSuffixes: null`,
+  which is the strict mode** where every host variable without an `enum` is not callable. The
+  engine interface is the same either way, so nothing built is wasted.
+- **The published spec.** The CLI prints that the file is public and holds the whole root document,
+  including comments and `x-` fields, and a flag omits it (ADR 0003, "Who can read it").
+
+ADR 0004 also lists details the architect added to make the host rule decidable. The security
+reviewer has not confirmed them, so include them when the doctor's server checks go to review.
+
+The architect listed eight acceptance criteria these changes imply, and the product manager three
+more. They are proposed, not yet in `m1.md`; ask the user before treating them as agreed.
+
 ## Open product decisions that do not block M1
 
 - Whether readers, as well as buyers, see that a sample uses synthesized values. M1 default: buyers

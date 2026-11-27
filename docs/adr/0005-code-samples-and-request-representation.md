@@ -7,6 +7,10 @@ subject to required fixes: R1, R3, R5, the encoder rule and the MCP note. They a
 text. The M1 language list was also changed from three to the eight in `docs/milestones/m1.md`.
 Revised 2026-11-27 for the product decision on allowed hosts: the tenant-listed set under "Server
 variables" is the variable's `enum` after the spec doctor's fix (ADR 0004).
+Revised again that day to apply the security review of that fix
+(`docs/reviews/2026-11-27-security-review-allowed-hosts-and-published-spec.md`): the host clause
+under "Server variables" is replaced (F1), an empty `enum` allows no value, and the parsed host
+must equal the host built by position.
 
 ## Context
 
@@ -110,23 +114,34 @@ Rules:
   the confusion by name as well as by scope.
   The engine never sees a real credential in M1. In M2 the real value is supplied per request to
   `resolveRequest`, a pure function, and is not stored anywhere.
-- **Server variables.** A value comes from the variable's `enum`. With no `enum`: a variable in
-  the host is one label, `[A-Za-z0-9_-]{1,63}`; in the port, `[0-9]{1,5}`; in the path,
-  `[A-Za-z0-9._~-]+` segments joined by `/`, none `.` or `..`. A variable that forms or follows
-  the last label of the host needs an `enum` or a tenant-listed set, or the server is not
-  callable. The substituted URL is then parsed and vetted. Position is read from the server URL
-  as the spec writes it; a variable in the scheme, userinfo, query or fragment makes the server
-  not callable. The engine does the position check and the substitution, and reports
-  `server-not-callable` (ADR 0004). Parsing the result and vetting the address are the caller's,
-  under ADR 0003. **Decided 2026-11-27:** the tenant-listed set is not separate configuration,
-  and no caller passes one in. The tenant lists the values by accepting the spec doctor's fix on
+- **Server variables.** A value comes from the variable's `enum`. An empty `enum` allows no
+  value. With no `enum`: a variable in the port is `[0-9]{1,5}`; in the path, `[A-Za-z0-9._~-]+`
+  segments joined by `/`, none `.` or `..`. With no `enum`, a variable in the host is callable
+  only if: (a) its value matches `[A-Za-z0-9_-]{1,63}` and the label it sits in is at most 63
+  characters; (b) that label is followed by `.` and then literal text to the end of the host,
+  with no variable in it; (c) that literal text is not an IP address and is not a public suffix
+  under the Public Suffix List, ICANN and private sections, so it contains a registrable domain.
+  Any other host variable needs an `enum`, or the server is not callable. The list is a pinned
+  snapshot shipped as data; the caller passes it to the engine (ADR 0004, "The Public Suffix
+  List", which also has worked examples). The substituted URL is then parsed and vetted.
+  Position is read from the server URL as the spec writes it; a variable in the scheme,
+  userinfo, query or fragment makes the server not callable. The engine does the position
+  check and the substitution, and reports `server-not-callable` (ADR 0004). Parsing the result
+  and vetting the address are the caller's, under ADR 0003. After substitution, the parsed host
+  must equal the host built by position, lower-cased; otherwise the request is not sent. In M2
+  `resolveRequest` returns that host with the URL: the host part of the server URL as written,
+  with the values placed, lower-cased, without the port. The proxy compares it with the host its
+  URL parser reports. A server with a variable and a literal host that the parser would rewrite,
+  such as a non-ASCII name, is therefore never sent to; the tenant writes the `xn--` form.
+  **Decided 2026-11-27:** there is no set of allowed values outside the spec, and no caller
+  passes one in. The tenant lists the values by accepting the spec doctor's fix on
   `server-not-callable`, which adds them as the variable's `enum` in the patched spec (ADR 0004).
-  The engine reads that `enum` from the model, so in effect such a variable needs an `enum`. A
-  server with an open host variable, such as `https://{host}/v1` with no `enum`, is reported
-  `server-not-callable` until the fix is accepted or the source spec gains an `enum`. The rule
-  above is unchanged. The finding and the fix are M1; the proxy enforces the rule in M2. A
-  verified domain suffix, for hosts that cannot be listed, is planned for M6 and not designed
-  here; it would be a second way to meet this rule and needs its own security review (ADR 0004).
+  The engine reads that `enum` from the model. A server with an open host variable, such as
+  `https://{host}/v1` with no `enum`, is reported `server-not-callable` until the fix is accepted
+  or the source spec gains an `enum`. The finding and the fix are M1; the proxy enforces the
+  rule in M2. A verified domain suffix, for hosts that cannot be listed, is planned for M6 and
+  not designed here; it would be a second way to meet this rule and needs its own security
+  review (ADR 0004).
 - Variables being first-class lets each language decide how to show one (an environment variable
   in curl, a named constant in Python) and lets "Try it" substitute real values.
 - One emitter per language: a function `(request: HttpRequest) => (string | Var)[]` written by

@@ -44,6 +44,9 @@ Dependency rules:
    compile. ESLint bans `Date`, `Math.random`, `console` and `node:*` there.
 5. A new runtime dependency in any package needs an ADR line naming the package, its license and
    why our own code would not do. Permitted licenses: MIT, ISC, BSD, Apache-2.0.
+   Open, 2026-11-27: the Public Suffix List is a data file under MPL 2.0, which this rule does
+   not permit. ADR 0004 states the one-file exception it would need. This rule is unchanged
+   until the user decides.
 
 Fixtures: the spec corpus lives in `fixtures/specs/` at the repository root and is read only by
 tests and by the `ezdp` CLI in development. Tests may do I/O; library source may not. Expected

@@ -9,6 +9,9 @@ made before 0.2 was released to the guides module, so the version is unchanged; 
 them. Product decisions of 2026-11-27 are recorded the same way: guides are generated from the
 patched spec (1.2), incomplete content is resolved by editing the bundle in Git (4.7, 6), and the
 allowed hosts of a server with an open host variable are listed as its `enum` (4.3).
+The security review of 2026-11-27 is applied the same way: the rule for a host variable with no
+`enum` is tightened (4.3), and the published spec of a hosted portal is not a public download by
+default (1.2).
 Awaiting the guides module's re-sync and confirmation.
 
 This is the interface between two projects:
@@ -94,6 +97,15 @@ tenant's original document.**
 - The guides module takes the published spec from the portal, generates from those bytes, and
   hashes those bytes (section 3). It must not parse and re-serialize the document before hashing,
   and must not generate from the tenant's original.
+- Where the bytes come from depends on how the portal is run. A static build writes the file
+  beside the portal's other output as `spec/openapi.json` or `spec/openapi.yaml`, unless the
+  person running the build chose to omit it; they then hand the same bytes over another way. A
+  hosted portal does not offer the file for public download unless its tenant chooses that, so
+  the guides module must not assume a public URL: it fetches the published spec over an
+  authenticated path, which is settled with transport in M5 (section 6). The bytes and the hash
+  are the same whichever way they arrive (ADR 0003, "The published spec").
+- The published spec holds the whole root document, including comments and `x-` fields. The
+  portal removes nothing from it.
 - A spec-doctor fix never changes an operation id. Where a fix adds an `operationId`, the value it
   writes is exactly the id the algorithm in 1.1 gave that operation before the fix (ADR 0004). So
   accepting or removing such a fix leaves every id as it was.
@@ -470,17 +482,26 @@ with server variables limited as the next paragraph says, subject to the proxy d
 in ADR 0003; final method and path must match an operation the tenant enabled. A request that never
 passed through a bundle validator, such as a direct call to the proxy, meets the same rules.
 
-**Server variables.** A server variable that has an `enum` takes one of its values. With no `enum`:
-a variable in the host is one label, `[A-Za-z0-9_-]{1,63}`; in the port, `[0-9]{1,5}`; in the path,
-`[A-Za-z0-9._~-]+` segments joined by `/`, none `.` or `..`. A variable that forms or follows the
-last label of the host needs an `enum` or a tenant-listed set, or the server is not callable. The
-substituted URL is then parsed and vetted. A variable's position is read from the server URL as
-the spec writes it, before anything is substituted. A variable in any other position (scheme,
-userinfo, query or fragment) makes the server not callable. The tenant-listed set is the
-variable's `enum` in the published spec (1.2). A tenant lists the allowed values by accepting a
-spec-doctor fix that writes them into the spec as that `enum` (ADR 0004), so there is no set
-outside the spec, and in effect such a variable needs an `enum`. A listed value is exempt from
-nothing: the substituted URL is still parsed and vetted on every request.
+**Server variables.** A server variable that has an `enum` takes one of its values. An empty
+`enum` allows no value. With no `enum`: a variable in the port is `[0-9]{1,5}`; in the path,
+`[A-Za-z0-9._~-]+` segments joined by `/`, none `.` or `..`. With no `enum`, a variable in the
+host is callable only if: (a) its value matches `[A-Za-z0-9_-]{1,63}` and the label it sits in is
+at most 63 characters; (b) that label is followed by `.` and then literal text to the end of the
+host, with no variable in it; (c) that literal text is not an IP address and is not a public
+suffix under the Public Suffix List, ICANN and private sections, so it contains a registrable
+domain. Any other host variable needs an `enum`, or the server is not callable. The list is a
+pinned snapshot shipped as data. So `https://{x}.example.com` and `https://api-{x}.example.com`
+are callable with no `enum`, and `https://{host}/v1`, `https://{x}example.com`,
+`https://{x}.co.uk` and `https://{x}.github.io` are not (ADR 0004 has the full table).
+
+The substituted URL is then parsed and vetted. After substitution, the parsed host must equal
+the host built by position, lower-cased; otherwise the request is not sent. A variable's
+position is read from the server URL as the spec writes it, before anything is substituted. A
+variable in any other position (scheme, userinfo, query or fragment) makes the server not
+callable. There is no set of allowed values outside the spec: a tenant lists the allowed values
+by accepting a spec-doctor fix that writes them into the spec as the variable's `enum`
+(ADR 0004), so they are in the published spec (1.2). A listed value is exempt from nothing: the
+substituted URL is still parsed and vetted on every request.
 
 **When the portal will not send a request.** The portal sends requests to `https` servers only.
 For a server that is `http://`, is localhost, is relative, or is not callable under the paragraph
@@ -952,9 +973,10 @@ What is fixed now:
 
 - Git is the editing surface. The portal reads bundles and never writes to one, in the repository
   or anywhere else.
-- The guides module takes the published spec from the portal (1.2). Where it is fetched from, and
-  whether a spec that is staged but not yet published can be fetched, are settled with transport
-  in M5.
+- The guides module takes the published spec from the portal (1.2). For a hosted portal it is
+  fetched over an authenticated path and not from a public URL; public download is the tenant's
+  choice and is off by default. What that path is, and whether a spec that is staged but not yet
+  published can be fetched, are settled with transport in M5.
 - A valid bundle is staged, not published. Publishing is a separate step.
 - Publishing is atomic. A bundle replaces the previous one as a whole, and a failed bundle leaves
   the live portal unchanged.
@@ -995,12 +1017,13 @@ Decided on 2026-11-27:
 | Which document guides are generated from, and which hash is compared | The published spec: the root document with the accepted spec-doctor fixes applied, as the portal published it (1.2, 3). |
 | How a `<Todo>` or a page that is not `ready` gets resolved | A person edits the bundle in its Git repository and the portal ingests the new commit. Regenerating must not overwrite those edits (4.7). |
 | Swagger 2.0 | Out of scope. The portal rejects it with a clear message (1.1). |
-| Where the allowed hosts are listed for a server with an open host variable, such as `https://{host}/v1` with no `enum` | In the spec, as the variable's `enum`. The tenant supplies the values through a spec-doctor fix, so they are in the published spec. The rule in 4.3 is unchanged, and a generator is not affected. A verified domain suffix, for hosts that cannot be listed, is planned for a later milestone and is not part of this contract. |
+| Where the allowed hosts are listed for a server with an open host variable, such as `https://{host}/v1` with no `enum` | In the spec, as the variable's `enum`. The tenant supplies the values through a spec-doctor fix, so they are in the published spec. This decision did not change the rule in 4.3; the security review of the same day tightened it (10). A generator is not affected. A verified domain suffix, for hosts that cannot be listed, is planned for a later milestone and is not part of this contract. |
 
 Still open, and not blocking 0.2:
 
-1. Transport (section 6), for M5: how a commit of the bundle reaches the portal, and where the
-   guides module fetches the published spec from. That Git is the editing surface is decided.
+1. Transport (section 6), for M5: how a commit of the bundle reaches the portal, and the
+   authenticated path by which the guides module fetches the published spec from a hosted portal.
+   That Git is the editing surface is decided, and so is that the path is authenticated.
 2. Capturing a value whose key is not a plain identifier, such as `user-id`. The path grammar in 4.3
    cannot express it.
 3. Linking to a webhook's documentation. There is no link form for it.
@@ -1087,6 +1110,10 @@ engine and renderer. They are here so they are written down on the portal side.
   headers from inbound requests (4.3; ADR 0003, "Proxy destination policy"). For an `http://` or
   localhost server the samples still render and "Try it" and MCP are withheld with a spec-doctor
   finding.
+- The proxy does not send a request whose parsed host differs from the host built by position
+  (4.3). This is an M2 requirement.
+- The hosted portal does not serve the published spec for public download unless the tenant
+  chose that, and gives the guides module an authenticated path to it (1.2; ADR 0003). M4 and M5.
 - MCP `call` rejects a parameter the operation does not declare. This is an M2 requirement. The
   `undeclared-parameter` warning in 4.3 is about values a guide sample sends; it does not make MCP
   accept them.
@@ -1199,9 +1226,8 @@ released:
   internal prefix `X-Ezdp-`, which the proxy also strips from inbound requests. An operation that
   requires a controlled header gets a spec-doctor finding and "Try it" is withheld (4.3).
 - The sample checks are stated to be a bundle check. The proxy and MCP enforce the same rules
-  server-side. A server variable with no `enum` is validated by its position in the server URL,
-  and one that forms or follows the last label of the host needs an `enum` or a tenant-listed set
-  (4.3).
+  server-side. A server variable with no `enum` is validated by its position in the server URL
+  (4.3). The rule for a variable in the host was replaced on 2026-11-27; see below.
 - The portal sends requests to `https` servers only. For any other server the samples still
   render, and "Try it" and MCP are withheld with a spec-doctor finding (4.3).
 - svg, pdf, json and zip assets are always served from a dedicated per-tenant asset origin with
@@ -1237,9 +1263,23 @@ Product decisions of 2026-11-27, also made before 0.2 was released:
   bundle as ingested, whoever wrote it (4.7, 6).
 - Swagger 2.0 is stated to be out of scope (1.1).
 - The allowed hosts of a server with an open host variable are listed as the variable's `enum`,
-  written by a spec-doctor fix and so present in the published spec. The rule in 4.3 is unchanged
-  (1.2, 4.3, 8).
+  written by a spec-doctor fix and so present in the published spec. This decision did not change
+  the rule in 4.3 (1.2, 4.3, 8).
 - One item is added to the open list: specs split over several files (8).
+
+Required by the security review of 2026-11-27, also made before 0.2 was released. None of it
+changes what a generator writes:
+
+- The rule for a host variable with no `enum` is replaced. Such a variable is callable only when
+  its label is followed by literal text that holds a registrable domain under the Public Suffix
+  List. The earlier draft allowed any single label that was not the last, which made
+  `https://{x}example.com` and `https://{x}.github.io` callable (4.3).
+- An empty `enum` allows no value (4.3).
+- After substitution the parsed host must equal the host built by position, or the request is
+  not sent (4.3, 9).
+- The published spec of a hosted portal is not a public download unless the tenant chooses that.
+  The guides module fetches it over an authenticated path, settled in M5. The portal removes
+  nothing from the published spec (1.2, 6, 8).
 
 ## 11. Decisions on the v0.1 feedback
 

@@ -30,7 +30,7 @@ portal side's answer to the guides module's feedback on v0.1: section 11 of the 
 every proposal and assumption by number, and section 10 lists what changed, including the
 corrections the portal's security review and re-review required before 0.2 was released and the
 product decisions of 2026-11-27 (which spec you generate from, and how incomplete pages get
-finished). A module built against v0.1 must re-sync its copy of all three files and set
+finished) and the security review of that day (where the published spec can be fetched from). A module built against v0.1 must re-sync its copy of all three files and set
 `contractVersion` to `"0.2"`; a portal on 0.2 rejects `"0.1"`. A module that synced 0.2 before
 2026-11-27 must sync again. If
 the contract cannot express something the guides need, say so and propose a change. Do not work
@@ -57,9 +57,14 @@ around it.
    original spec. The portal's spec doctor proposes fixes (missing auth schemes, servers,
    examples, `operationId`s), the customer accepts some, and the portal publishes the patched
    document as a file. That file, the **published spec**, is what you generate from (contract
-   section 1.2). It comes from the portal: it is an output of the portal's publish step, written
-   beside the portal's other output as `spec/openapi.yaml` or `spec/openapi.json`. Put the SHA-256
-   of its bytes, exactly as you received them, in the manifest as `spec.sha256`. Do not parse and
+   section 1.2). It comes from the portal: it is an output of the portal's publish step. A static
+   build writes it beside the portal's other output as `spec/openapi.yaml` or
+   `spec/openapi.json`, unless the person running the build omits it and hands you the same
+   bytes another way. A hosted portal does not offer it for public download by default, so do
+   not assume a public URL: you will fetch it over an authenticated path that is not designed
+   yet (milestone M5). Take the bytes as an input and do not build in where they come from. Put
+   the SHA-256 of its bytes, exactly as you received them, in the manifest as `spec.sha256`. Do
+   not parse and
    re-serialize before hashing. When the customer accepted no fixes the published spec is their
    original document, byte for byte. When the published spec changes, for example because the
    customer accepts one more fix, the portal reports your existing bundle as out of date
@@ -143,7 +148,8 @@ customer lists the allowed hosts of a server with an open host variable as an `e
 published spec (this does not affect you).
 
 Still open, and listed in the same section: transport (for milestone M5: how a commit of the
-bundle reaches the portal and where you fetch the published spec from when the portal is hosted),
+bundle reaches the portal, and the authenticated path by which you fetch the published spec when
+the portal is hosted),
 capturing values whose keys are not plain identifiers, linking to webhook documentation, and
 specs split over several files (the published spec and its hash cover the root
 document only).

@@ -8,6 +8,10 @@ Revised 2026-11-27 for the product decision that guides are generated from the p
 published spec" is added and `buildModel` takes two hashes. No security ruling is changed.
 Revised again that day for the product decision on allowed hosts (ADR 0004): the tenant-listed
 set is the variable's `enum` after the spec doctor's fix.
+Revised again that day to apply the security review of the allowed-hosts fix and the published
+spec (`docs/reviews/2026-11-27-security-review-allowed-hosts-and-published-spec.md`): the host
+clause (F1), the parsed-host invariant (ruling 5), the Public Suffix List as an input to
+`diagnose`, and who may fetch the published spec.
 
 ## Context
 
@@ -41,7 +45,10 @@ buildModel(input: { root: ParsedDocument; documents: ParsedDocument[];
   : { model: ApiModel | null; findings: Finding[] }
 
 // 4. Spec doctor (ADR 0004).
-diagnose(model: ApiModel, docs: ParsedDocument[]): Finding[]
+diagnose(model: ApiModel, docs: ParsedDocument[],
+         options: { publicSuffixes: PublicSuffixList | null }): Finding[]   // null: no list, so every
+                                       // host variable needs an enum (ADR 0004)
+parsePublicSuffixList(text: string): PublicSuffixList   // pure; the caller reads the file
 bindFix(fix: Fix, inputs: Record<string, string>): SpecPatch | null   // the engine's patch with inputs
                                        // placed; null if an input is over 2,048 characters or fails
                                        // its format or list rules (ADR 0004)
@@ -103,6 +110,8 @@ Who does the I/O:
 |---|---|
 | Read or fetch the spec, compute its SHA-256 (`fetchedHash`) | Caller (`publisher`) |
 | Write the published spec and compute its SHA-256 (`publishedHash`); see "The published spec" | Caller (`publisher`) |
+| Read the Public Suffix List snapshot and pass its text to the engine (ADR 0004) | Caller (`publisher`; in M2 also the proxy) |
+| Parse each allowed-host value with the WHATWG `URL` parser when a fix is accepted (ADR 0004) | Caller. `URL` does not compile in the engine (ADR 0001 rule 4). |
 | Fetch external `$ref` targets: loop `listExternalRefs` -> fetch -> `parseDocument` until the set is closed or a cap is reached | Caller, under the spec fetch policy below |
 | Write bundle files | Caller |
 | Timestamps, UUIDs, any randomness | Caller passes them in, or they are left out |
@@ -142,11 +151,46 @@ hash.
   an open item in contract section 8 and does not block M1.
 - The file is tenant content. It is served as a file with `X-Content-Type-Options: nosniff` and is
   never inlined into a page. It holds everything in the root document, including YAML comments and
-  vendor extensions the reference pages do not show. Where the hosted portal serves it from, and
-  who may fetch it, are M4 and M5 design and go to the security reviewer before either is built.
+  vendor extensions the reference pages do not show.
+
+**Who can read it.** Required by the security review of 2026-11-27.
+
+- *No stripping.* The publisher never removes comments, `x-` fields or anything else from the
+  file. Stripping would break the byte-for-byte rule above, and with it `spec.sha256`, and it
+  would give false assurance: no filter can know what a tenant considers private.
+- *M1, the `ezdp` CLI.* The file is written into the static output directory by default, and
+  whoever deploys that directory makes it public. So on every build that writes it the CLI
+  prints that the file is public and holds the whole root document, including comments and `x-`
+  fields. A flag, `--no-published-spec`, omits the file. With the flag the publisher still
+  computes `publishedHash` from the bytes it would have written, so `model.json` is the same with
+  and without it, and the person running the build hands the spec to the guides module another
+  way.
+- *Hosted, recorded now and built in M4.* Public download of the published spec is the tenant's
+  explicit choice and is off by default. The guides module fetches it over an authenticated
+  path. If any feature hides part of the spec from the portal, the public file is not served.
+  The authenticated path is designed with transport in M5 (guides contract 6) and goes to the
+  security reviewer first.
+- *Origin and headers, hosted.* The hosted portal serves it only from the per-tenant asset
+  origin, never the page origin, with `Content-Type` fixed by the file name (`application/json`
+  or `application/yaml`, `charset=utf-8`), `nosniff`, `Content-Disposition: attachment`,
+  `Content-Security-Policy: default-src 'none'; sandbox`, and no CORS headers. This matches the
+  product brief's rule that JSON is served from the per-tenant asset origin, and under subpath
+  hosting headers cannot be
+  guaranteed through the customer's reverse proxy.
+- *Static export.* The file sits beside the pages, and the host must send `nosniff` with it.
+  The export cannot set headers itself; the CLI's message says so.
+
+To check at M4, before the hosted portal serves either file:
+
+- `model.json` already carries `extensions` (ADR 0002). If it is publicly fetchable, `x-` fields
+  are exposed whatever is decided for the published spec.
+- External `$ref` URLs stay as written in the published file and may reveal internal hostnames.
 
 Libraries:
 
+- **The Public Suffix List is data, not a library**, and it is passed to the engine, not shipped
+  in it. Its licence, MPL 2.0, is outside ADR 0001 rule 5, and the exception is an open decision
+  for the user (ADR 0004).
 - **`yaml`** (ISC, no dependencies) parses YAML and JSON and exposes node ranges, which gives the
   source map, and it can re-serialize a patched document with comments kept. It is the engine's only
   runtime dependency. `Limits` caps alias expansion, depth, node count and input size while parsing,
@@ -217,14 +261,28 @@ These are requirements on M2's design.
   returned to the caller.
 - The destination is built from the model's servers and nothing else. Server variables are limited
   as contract 4.3 says: a value from the `enum`, or, with no `enum`, a value valid for the
-  variable's position, and a variable that forms or follows the last label of the host needs an
-  `enum` or a tenant-listed set, or the server is not callable. The substituted URL is then parsed
-  and vetted: `https` only, no userinfo, and address vetting as above. The tenant-listed set is
-  the `enum` the tenant adds by accepting the spec doctor's fix (ADR 0004; decided 2026-11-27).
-  It is in the published spec and so in the model, and the proxy reads it there like any `enum`.
-  There is no other set, so such a variable needs an `enum`. A listed value is tenant input and
-  is exempt from nothing: the substituted URL is parsed and vetted on every request. A verified
-  domain suffix is planned for M6 and needs its own security review first (ADR 0004).
+  variable's position. An empty `enum` allows no value. With no `enum`, a variable in the host is
+  callable only if: (a) its value matches `[A-Za-z0-9_-]{1,63}` and the label it sits in is at
+  most 63 characters; (b) that label is followed by `.` and then literal text to the end of the
+  host, with no variable in it; (c) that literal text is not an IP address and is not a public
+  suffix under the Public Suffix List, ICANN and private sections, so it contains a registrable
+  domain. Any other host variable needs an `enum`, or the server is not callable. The list is a
+  pinned snapshot shipped as data (ADR 0004, "The Public Suffix List"). The proxy asks the
+  engine, with the same snapshot the publisher used, and does not re-implement the clause.
+- The substituted URL is then parsed and vetted: `https` only, no userinfo, and address vetting
+  as above. After substitution, the parsed host must equal the host built by position,
+  lower-cased; otherwise the request is not sent. The engine returns the host it built by
+  position with the URL (ADR 0005); the proxy parses the URL and compares. This holds for every
+  server that has a variable, whether a value came from an `enum` or passed a position rule. It
+  stops an `enum` value containing `/`, `?`, `#`, `\` or `:` from moving a boundary that the
+  position rules for other variables rely on. A spec-authored `enum` is not syntax-checked, so
+  this is the check that covers it.
+- The allowed values of a host variable that needs an `enum` are the `enum` the tenant adds by
+  accepting the spec doctor's fix (ADR 0004; decided 2026-11-27), or one written in the source
+  spec. It is in the published spec and so in the model, and the proxy reads it there like any
+  `enum`. There is no other set. A listed value is tenant input and is exempt from nothing: the
+  substituted URL is parsed and vetted on every request. A verified domain suffix is planned for
+  M6 and needs its own security review first (ADR 0004).
 - `https` only, with no exception for development servers. A server that is `http://`, localhost
   or relative is not callable. Plain `http` would put the user's key on the wire in clear, and the
   hosted proxy cannot reach localhost under address vetting in any case. For such a server the
