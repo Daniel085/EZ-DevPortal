@@ -7,7 +7,10 @@ ingestion (M5) here.
 
 - Repository: `daniel085/ez-devdocs`, branch `main`.
 - The changes dated 2026-11-27 below were merged to `main` in its pull request 1.
-- It targets contract **v0.1** as written in this directory. It holds a copy of the contract and the
+- It targets contract **v0.1**. This directory now holds **v0.2**, which the module has not been
+  moved to: its bundles say `contractVersion` `0.1`, and a portal implementing v0.2 accepts only
+  `0.2`. Its copy of the contract needs a re-sync and its output a pass against v0.2.
+- It holds a copy of the contract and the
   manifest schema under `contract/`; that copy must be re-synced when the contract changes.
 - Its feedback on the contract is in [`guides-contract-feedback.md`](./guides-contract-feedback.md), kept only in this repository:
   answers to the four open questions, six proposed changes and 18 assumptions. **Nothing in it has
@@ -115,7 +118,9 @@ What this means for the portal:
   `headers`. **A page can now hold several samples that each use `{{idempotency_key}}`** (17 of
   Retavon's 89 pages do). The module assumes the portal generates a fresh value for each sample;
   one value shared across a page would send the same key with different requests, which an API
-  may refuse. The contract says only "a generated UUID".
+  may refuse. Contract v0.1 said only "a generated UUID"; v0.2 (4.6) settles it: each `<Sample>`
+  gets its own, as the module assumes. v0.2 also allows a name to be captured only once on a page
+  (4.3); no page in the Retavon, Stripe or GitHub bundles captures one twice.
 - **Longer step text.** A flow step carries up to 1,200 characters of an operation's description
   (was 320). A description cut short ends with a sentence that links the operation with `op:`.
   Elsewhere a shortened text ends with `…`.
