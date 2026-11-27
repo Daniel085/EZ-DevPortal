@@ -38,7 +38,7 @@ Each step names the agent that owns it. Give a reviewer the code or the running 
 2. **Write the missing fixtures and the test harness** that runs every fixture through the engine.
    `qa-engineer`. The corpus in `fixtures/specs/` lacks these, and the criteria need them:
    - `hard-schemas`: `oneOf`, `anyOf`, `allOf`, discriminators and mutual recursion in one small
-     committed spec (criteria 1 and 2).
+     committed spec (criteria 1, 2 and 22).
    - Hostile content: HTML, script, event handlers and `javascript:` URLs in descriptions,
      summaries, examples, enum values and names (criterion 19).
    - A parseable spec with an invalid schema and an example that violates its schema
@@ -47,7 +47,12 @@ Each step names the agent that owns it. Give a reviewer the code or the running 
      multipart bodies; bearer, basic, and API key in a header and in the query (criterion 14).
    - Servers with host variables, one per row of the worked-examples table in ADR 0004
      (criterion 29).
-   - A local mock built from the same spec, as ADR 0005 defines it (criteria 14, 18 and 25).
+   - A local mock built from the same spec, as ADR 0005 defines it, with the one-patch overlays
+     that point the Petstore and Museum builds at it (criteria 18 and 25). The request-shape
+     matrix fixture declares the mock as its server and needs no overlay (criterion 14).
+   - A spec with an unsatisfiable schema, and the expected `synthesis-failed` findings
+     (criterion 7).
+   - A test-generated document over the size limit, for `limit-exceeded` (criterion 5).
 3. **Engine, in this order**, each with tests against the fixtures before the next starts.
    `engine-developer`.
    1. Parsing, `$ref` resolution and the normalized model (ADR 0002), including the operation id

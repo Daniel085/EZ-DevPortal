@@ -1,7 +1,8 @@
 # User Stories: M1 to M6
 
 Status: first full pass, 2026-11-27. Owner: product manager. No code exists yet. Updated the same
-day for four decisions by the user: eleven M1 criteria adopted (31 in all), the Public Suffix List
+day for four decisions by the user: eleven proposals for M1 criteria adopted, which amended two
+criteria and added five (31 in all), the Public Suffix List
 licence exception, the MCP call tool split into read and write, and proof of domain control before
 a portal is public, built in M4. Updated again that day for four more: we run the guides module
 and deliver bundles by pull request; reader keys (a link in M2, a handoff later, accounts cut); a
@@ -180,9 +181,9 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 | SM-10 | As a spec maintainer, I want to prove control of a domain once and have every host under it allowed, so that I do not list each host. | M4b | should | P | D: option C, moved from M6 to M4 on 2026-11-27 because the verification it depends on is now M4b. Last in M4b, after verification and its own security review, and the first thing cut from M4b. Demand is J. |
 | SM-11 | As a spec maintainer, I want to be notified when a spec update brings new findings, so that a regression is caught without my checking. | M4c | should | N | J. |
 | SM-12 | As a spec maintainer, I want samples run against my real API and the results shown to me, so that I know the samples work, not only that they parse. | M2 | should | P | Brief, "Open differentiators"; `m1.md` out-of-scope table. See conflict 3. |
-| SM-13 | As a maintainer of a multi-file spec, I want a fix accepted in a referenced file to reach the guides too, so that the reference and guides agree. | none | could | P | Brief, open decision "Multi-file specs". |
+| SM-13 | As a maintainer of a multi-file spec, I want a fix accepted in a referenced file to reach the guides too, so that the reference and guides agree. | none | could | P | Brief, open decision "Multi-file specs". In M1 a `$ref` to another document is not followed at all (`m1.md`, out-of-scope table); resolving one is M4. |
 | SM-14 | As a spec maintainer, I want to keep operations I mark as internal out of the portal, twins, search and MCP, so that one spec serves internal and public use. | none | should | N | J. No research in the brief. |
-| SM-15 | As a spec maintainer, I want webhooks and callbacks listed as "not rendered", so that I know they are missing by design. | M1 | should | P | `m1.md` out-of-scope table promises it. No criterion. |
+| SM-15 | As a spec maintainer, I want webhooks and callbacks listed as "not rendered", so that I know they are missing by design. | M1 | should | P | `m1.md` out-of-scope table promises it. ADR 0004 now names the findings, `webhook-not-rendered` and `callback-not-rendered`. No criterion. |
 
 ### DW: Docs owner or technical writer
 
@@ -533,7 +534,7 @@ criteria. D to G are still proposals.
 | A | Adopted as c28: a stale patch is reported as not applied, naming the fix; the build completes and every other patch is applied. | SM-5 | ADR 0004, step 3 | Done. |
 | B | Adopted by amending c10: with its input a fix removes its finding; without it the finding remains and names the input. | SM-3 | ADR 0004 (`bindFix`) | Done. Undoing a fix (SM-4) still has no criterion. |
 | C | Adopted by amending c8, which names `server-not-callable`, including an open host variable, and `controlled-header-required`. The allowed-hosts fix is M1 (c29, c31). | SM-8, SM-9 | ADR 0004; decision B | Done. |
-| D | The doctor lists every webhook and callback as "not rendered". | SM-15 | `m1.md` out-of-scope table | Can wait until M1 close. |
+| D | The doctor lists every webhook and callback as "not rendered". | SM-15 | `m1.md` out-of-scope table; ADR 0004 (`webhook-not-rendered`, `callback-not-rendered`) | Can wait until M1 close. Testable on `oai-webhook-example` and `oai-callback-example`. |
 | E | A 3.2 document builds as 3.1 with a warning finding. | SU-4 | Brief decision; ADR 0003 | Can wait. |
 | F | A fixture with non-Latin, right-to-left and emoji text in descriptions, names and examples renders correctly in pages and twins, and its samples pass criteria 13 and 14. | RD-24 | J | Can wait; add with the QA fixtures. |
 | G | At 320 CSS pixels wide, an operation page needs no sideways scrolling outside code blocks and tables. | RD-13 | J | Can wait; tell UX before the reference page is specified (step 5). |

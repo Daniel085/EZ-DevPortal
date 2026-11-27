@@ -165,7 +165,17 @@ has to win on safety and reliability.
 
 - **Whether readers see that a sample uses synthesized values.** M1 default: buyers only.
 - **Multi-file specs:** a fix accepted in a `$ref`'d file reaches the portal but not the guides
-  module, because the published spec covers the root document only. Does not block M1.
+  module, because the published spec covers the root document only. Does not block M1: the M1
+  CLI reads one file and follows no `$ref` to another document, so multi-file specs are not
+  resolved until ingestion in M4 (ADR 0003, "Spec fetch policy").
+
+Note for M4, not a decision. **The hosted fetch cap would refuse both GitHub specs.** A fetched
+spec is capped at 10 MB per document (10,000,000 bytes; ADR 0003, "Spec fetch policy", the
+security review's figure). The two GitHub descriptions in our fixtures are 10,037,279 and
+14,401,584 bytes (the architect's figures in that ADR, not re-measured here), so the hosted
+product could publish neither. M1 is unaffected: its CLI reads a local file under a 16 MiB cap.
+The hosted limit needs a decision by the product manager and the security reviewer before M4
+builds ingestion. No evidence yet on how many customers' specs exceed 10 MB.
 - **An operation that reads but is not `GET`**, such as a `POST` search. Default: it is a write,
   so the tenant must enable it and the agent's client may ask for approval. Decide before M2.
 
