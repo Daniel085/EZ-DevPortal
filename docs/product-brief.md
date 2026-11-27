@@ -32,16 +32,18 @@ that lets AI agents call their API.
 | Operation ids | Declared ids are used verbatim. Missing ones are derived by the rule in section 1.1 of the guides contract, which is normative for both projects. |
 | Credentials are placed only by the portal | Guides and specs cannot name the reader's credential. Only the sample generator places it. |
 | Proxy and MCP are `https` only | For a server on `http://` or localhost, samples still render but "Try it" and MCP are withheld, with a spec-doctor finding. |
-| Open host variables | Decided 2026-11-27: "B now, C later". A server such as `https://{host}/v1` with no listed values is not callable, so "Try it" and MCP are withheld for it. **B:** the spec doctor's finding for an uncallable server carries a fix that takes the allowed host values as input and stores them in the spec patch like any other fix. Once it is accepted the server is callable for those hosts. **C, planned for M4** (moved from M6 on 2026-11-27): a verified domain suffix. The tenant proves control of a domain once and any host under it is allowed. It uses the domain verification M4 now builds, comes after it, and needs its own security review first. |
-| Free private preview, pay to publish | Decided 2026-11-27, built in M4. This is the one definition of the private preview. Anyone who signs in can supply a spec URL and a site URL and get, at no charge, a **private preview**: the whole portal, branded from any site URL, visible only to signed-in members of that tenant's account and not indexable. **Publishing**, which is making the portal public as the next row defines it, needs both a plan and domain verification. Whether "Try it" runs in a preview is open (see open decisions). |
-| Proof of domain control before a portal is public | Decided 2026-11-27, built in M4. **Public** means reachable by anyone who is not signed in to our dashboard as a member of that tenant's account: a portal on our host, under the customer's subpath or on a custom domain, its Markdown twins and `llms.txt`, and its MCP endpoint. **Before verifying**, a tenant has the private preview defined in the row above. **Which domain for what:** (1) to make a portal public, the tenant has verified the domain of the website it is branded from; (2) "Try it" and the MCP send only to server hosts under a domain the tenant has verified, and a server on another domain needs its own verification; until then they are withheld for that server and samples still render, the same treatment as a server that is not callable. Hosts listed by the allowed-hosts fix (B) are bound by rule 2 like any other. Nothing from M2 or M3 is offered as a public hosted service before this exists. Basis: product manager's judgment about abuse (a look-alike portal; the proxy as a relay), not research. The verification methods, what counts as "under" a domain, shared-hosting hosts, re-checking and where the check is enforced are for the architect and the security reviewer. |
+| Open host variables | Decided 2026-11-27: "B now, C later". A server such as `https://{host}/v1` with no listed values is not callable, so "Try it" and MCP are withheld for it. **B:** the spec doctor's finding for an uncallable server carries a fix that takes the allowed host values as input and stores them in the spec patch like any other fix. Once it is accepted the server is callable for those hosts. **C, planned for M4b** (moved from M6 on 2026-11-27): a verified domain suffix. The tenant proves control of a domain once and any host under it is allowed. It uses the domain verification M4b builds, comes last in M4b, needs its own security review first, and is the first thing cut from M4b. |
+| Free private preview, pay to publish | Decided 2026-11-27. The preview is built in M4a and publishing in M4b. This is the one definition of the private preview. Anyone who signs in can supply a spec URL and a site URL and get, at no charge, a **private preview**: the whole portal, branded from any site URL, visible only to signed-in members of that tenant's account and not indexable. **The private preview is the free trial**; there is no other. **Nothing of a preview is readable without sign-in**: not its pages, Markdown twins or `llms.txt`, and not the published spec or the per-tenant asset origin, which have their own URLs (ADR 0003, "Who can read it"). Its MCP is off, and its "Try it" runs in example-response mode (the row after next). **Publishing**, which is making the portal public as the next row defines it, needs both a plan and domain verification. **Until M6 builds billing we set a tenant's plan by hand**; the gate itself is built in M4b. |
+| Proof of domain control before a portal is public | Decided 2026-11-27, built in M4b. **Public** means reachable by anyone who is not signed in to our dashboard as a member of that tenant's account: a portal on our host, under the customer's subpath or on a custom domain, its Markdown twins and `llms.txt`, and its MCP endpoint. **Before verifying**, a tenant has the private preview defined in the row above. **Which domain for what:** (1) to make a portal public, the tenant has verified the domain of the website it is branded from; (2) "Try it" and the MCP send only to server hosts under a domain the tenant has verified, and a server on another domain needs its own verification; until then they are withheld for that server and samples still render, the same treatment as a server that is not callable, except in a private preview, where "Try it" runs in example-response mode (next row). Hosts listed by the allowed-hosts fix (B) are bound by rule 2 like any other. Nothing from M2 or M3 is offered as a public hosted service before this exists. Basis: product manager's judgment about abuse (a look-alike portal; the proxy as a relay), not research. The verification methods, what counts as "under" a domain, shared-hosting hosts, re-checking and where the check is enforced are for the architect and the security reviewer. |
+| "Try it" in a private preview: example-response mode | Decided 2026-11-27. In a private preview the console works but sends nothing: **no request leaves the browser**. It returns the example response the spec declares for the operation, **clearly labelled as an example**, with a prompt to verify the domain for live calls. **Where the spec declares no example for a response, the console says so and invents nothing**; the values we synthesize for request samples are not used as a response. **The MCP is off in a private preview.** This closes the question of rule 2 in a preview without loosening it: nothing is sent to an unverified server. **Ownership:** M2 builds the mode in the console (the example shown, its label, the no-example message, no request sent), since it is console behaviour and needs only the M1 model; M4a makes it the state of every private preview, adds the prompt to verify, and keeps the MCP off. Not decided, with defaults in "Open product decisions": what a preview does once the server's domain is verified, and which example is shown when an operation has several responses. |
 | Public Suffix List licence exception | Decided 2026-11-27. One file, `public_suffix_list.dat` from publicsuffix.org, is vendored and shipped under MPL 2.0 as data, unmodified, with its licence text beside it. MPL 2.0 does not become a permitted licence for code dependencies; the policy in ADR 0001 is otherwise unchanged. |
 | Risky assets use a separate origin | SVG, PDF, JSON and ZIP are served from a per-tenant asset origin. Raster images may be served on the page origin after the portal re-encodes them. |
 | Guides use the patched spec | The portal publishes the spec with accepted spec-doctor fixes applied, and guides are generated from that file. The bundle's hash is of its bytes. |
 | Guides are edited in Git | A person resolves a `<Todo>` or a draft page by editing the bundle in the customer's Git repository. We offer no editor for a bundle and change one only by proposing a pull request (next row). Regenerating guides must not overwrite those edits. |
-| Guide bundles reach the customer's repository by pull request | Decided 2026-11-27. **Once a repository is connected**, our GitHub App proposes the generated bundle as a pull request on the customer's repository; they review, edit and merge; the portal ingests from that repository. A regeneration arrives as a pull request too, so a person reviews the diff and hand edits are not overwritten silently. **Before a repository is connected**, we generate and hold the guides, read-only: there is nowhere to edit, so a page that contains a `<Todo>` or is not marked ready stays unpublished. The App has write access to customer repositories, which needs a security review before it is designed. **Ownership:** M4 builds the App, connecting a repository and the ability to open a pull request; M5 builds everything specific to guides (see Milestones). Contract sections 4.7 and 6 predate this and are the architect's to amend. |
+| Guide bundles reach the customer's repository by pull request | Decided 2026-11-27. **Once a repository is connected**, our GitHub App proposes the generated bundle as a pull request on the customer's repository; they review, edit and merge; the portal ingests from that repository. A regeneration arrives as a pull request too, so a person reviews the diff and hand edits are not overwritten silently. **Before a repository is connected**, we generate and hold the guides, read-only: there is nowhere to edit, so a page that contains a `<Todo>` or is not marked ready stays unpublished (next row). The App has write access to customer repositories, which needs a security review before it is designed. **Ownership:** M4c builds the App, connecting a repository and the ability to open a pull request; M5 builds everything specific to guides (see Milestones). Contract sections 4.7 and 6 predate this and are the architect's to amend. |
+| An incomplete guide page withholds only itself | Decided 2026-11-27, built in M5. A page that contains a `<Todo>`, or whose status is not ready, is withheld; **the rest of the bundle publishes**. This holds whether we hold the bundle or it is in the customer's repository. **A link to a withheld page renders as plain text**, not as a link. This replaces "one `<Todo>` blocks the whole bundle" in contract 4.7, which the architect is amending. Inference, not part of the decision: a withheld page also has no Markdown twin, `llms.txt` entry or search result. What happens to its navigation entry is the architect's and UX's. |
 | Reader keys: a link in M2, a handoff later, no accounts | Decided 2026-11-27. **M2, with "Try it":** the customer supplies a "get a key" URL; the quickstart and authentication pages link to it; the reader pastes a key into "Try it", where it is held in their browser only and never stored by us. **Later, a paid-tier feature, in no milestone yet:** a sign-in handoff, where the customer's site passes the signed-in reader's keys to the portal so samples show the reader's own key. **Cut:** us issuing or managing developer accounts and keys. That is an API management product and out of scope. Evidence for the link: the guides module reports that a spec does not say how a key is issued. |
-| Multiple and versioned APIs | Decided 2026-11-27. **M4:** several APIs in one portal with a product switcher, one spec and one guide bundle per API. **Later, in no milestone yet:** versions of one API with a version switcher, each version with its own spec and guides. The data model is shaped for both from the start: content is keyed by project, API and version. M1 is unaffected, since the engine takes one spec in. |
+| Multiple and versioned APIs | Decided 2026-11-27. **M4d:** several APIs in one portal with a product switcher, one spec and one guide bundle per API. Because portals go public in M4b, before the switcher exists, the public URL shape must already allow a second API by then (see Milestones). **Later, in no milestone yet:** versions of one API with a version switcher, each version with its own spec and guides. The data model is shaped for both from the start: content is keyed by project, API and version. M1 is unaffected, since the engine takes one spec in. |
 | Security review is recorded | Design reviews are kept in `docs/reviews/`. |
 | Themes are data | Design tokens as CSS variables. A brand extractor reads the customer's site and produces tokens, with a manual override editor. |
 
@@ -62,15 +64,38 @@ One TypeScript monorepo with four parts:
 1. **M1**: engine, spec doctor, reference, samples, Markdown twins and `llms.txt`
 2. **M2**: request proxy, "Try it", the API MCP on top of it, and the customer's "get a key" link
 3. **M3**: brand extraction
-4. **M4**: multi-tenancy, onboarding, the free private preview, the gate on publishing (a plan and
-   proof of domain control), multiple APIs per portal with a product switcher, the GitHub App
-   (connect a repository, spec sync, open a pull request), then verified domain suffixes for
-   server hosts
+4. **M4**, in four parts, built in this order (decided 2026-11-27; detail below):
+   - **M4a, tenancy and private preview**: sign-in, projects, fixes in the dashboard, the free
+     private preview with nothing readable without sign-in, "Try it" in example-response mode,
+     MCP off
+   - **M4b, going public**: the gate on publishing (a plan set by hand, and proof of domain
+     control), public portals on our host and under a subpath, live "Try it" and MCP for
+     verified servers, suspend, abuse intake, then verified domain suffixes last
+   - **M4c, the Git connection**: the GitHub App (connect a repository, spec sync, open a pull
+     request), private spec sources, behaviour when the source breaks
+   - **M4d, more APIs and operating**: multiple APIs per portal with a product switcher,
+     rollback, team members and roles, operator tooling
 5. **M5**: running the guides module, guides held by us before a repository is connected, bundle
    and regeneration pull requests, guides ingestion from the customer's repository, search, docs
    MCP
-6. **M6**: custom domains, billing, analytics. Custom domains reuse M4's domain verification and
-   add routing and TLS.
+6. **M6**: custom domains, billing, analytics. Custom domains reuse M4b's domain verification and
+   add routing and TLS. Billing replaces plans set by hand.
+
+**The M4 split** (the user decided on 2026-11-27 that M4 is split; the parts are the product
+manager's scope). Every M4 story is in exactly one part; the list is in
+`docs/product/user-stories.md`, "The M4 split".
+
+| Part | At the end of it | Needs | Why in this place |
+|---|---|---|---|
+| **M4a** | **Demoable, and the free trial.** Anyone can sign in, give a spec URL and a site URL, and see their own branded portal privately, with a console that shows example responses. Nothing is public and nothing can be sold. | M1 to M3 | No public surface, so no verification and no abuse process are needed. Not reading the published spec or the asset origin without sign-in is in this part, because the preview is where that rule applies. |
+| **M4b** | **Sellable.** A tenant with a plan and a verified domain has a public portal on our host or under their subpath, with live "Try it" and MCP. We can suspend a tenant and take an abuse report. | M4a | Everything that must be true the first time a stranger can reach a portal is in one part, so the minimum for running a public service is never deferred. The verified domain suffix is last and the first thing to cut. |
+| **M4c** | **Sellable as "stays correct without effort".** A tenant connects a repository through the GitHub App and the portal republishes when the spec changes. | M4a; the App's security review | Kept small and on its own because M5's bundle and regeneration pull requests need the App. It does not depend on M4b, so it may be built alongside it. It must be complete before that part of M5. |
+| **M4d** | **Sellable to larger customers, and cheaper for us to run.** Several APIs in one portal, rollback, team members and roles, support and upgrade tooling. | M4b | Needed to keep and grow customers, not to get the first one. It gates nothing in M5 and may run alongside it. It holds no "must" story. |
+
+Two conditions the order creates. Content is keyed by project, API and version from M4a, and the
+public URL shape must allow a second API before M4b publishes anything; otherwise M4d changes
+public URLs that readers have saved. That is the architect's to settle before M4b. And the plan
+gate in M4b works with plans set by hand until M6.
 
 **Later, in no milestone:** versions of one API, the sign-in handoff for reader keys (paid tier),
 static export.
@@ -79,24 +104,24 @@ static export.
 
 | Part | Owner |
 |---|---|
-| The GitHub App: install, choose a repository, disconnect; its permissions and their security review | M4 |
-| Reading a connected repository and republishing the spec when it changes | M4 |
-| Opening a pull request on a customer's repository, first used for the patched spec | M4 |
+| The GitHub App: install, choose a repository, disconnect; its permissions and their security review | M4c |
+| Reading a connected repository and republishing the spec when it changes | M4c |
+| Opening a pull request on a customer's repository, first used for the patched spec | M4c |
 | Running the guides module for a tenant, and running it again when the published spec changes | M5 |
-| Holding generated guides before a repository is connected, and withholding pages that are not ready | M5 |
-| Proposing a bundle, and each regeneration, as a pull request, using M4's App | M5 |
+| Holding generated guides before a repository is connected | M5 |
+| Withholding a page that is not ready, wherever the bundle is held, and rendering links to it as plain text | M5 |
+| Proposing a bundle, and each regeneration, as a pull request, using M4c's App | M5 |
 | Ingesting a merged bundle from the repository, validating, previewing and publishing it | M5 |
 
-M5's pull requests depend on M4's App. Guides held by us do not, so M5 can start without it.
+M5's pull requests and its ingestion from a repository depend on M4c's App. Guides held by us do
+not, so M5 can start once M4a exists.
 
 **Effect on size** (product manager's judgment, not an estimate from the developers): M4 is
 materially larger (multiple APIs, an App with write access where sync alone needed read access,
 the plan gate). M5 is materially larger: it was ingestion of a bundle someone else produced and is
 now also operating the generator, storing its output and proposing pull requests. M2 is not
-materially larger: one configured URL and a link.
-
-M4 is larger than one milestone. A proposal to split it into three is in
-`docs/product/user-stories.md`, "Proposal: splitting M4". It is not decided.
+materially larger by the key link (one configured URL and a link); it also gains the console's
+example-response mode, which is small and sends nothing.
 
 User stories for all six milestones, with what is covered and what no milestone owns yet, are in
 `docs/product/user-stories.md`.
@@ -138,31 +163,28 @@ has to win on safety and reliability.
 - **An operation that reads but is not `GET`**, such as a `POST` search. Default: it is a write,
   so the tenant must enable it and the agent's client may ask for approval. Decide before M2.
 
-Open with the user, not decided. Decide each before M4 scope is set.
+Open with the user, not decided. Decide before M4b scope is set.
 
-- **(a) Whether to split M4.** Options: (1) one M4; (2) three parts: M4a tenancy and private
-  preview, M4b going public, M4c staying correct and operating. The decisions of 2026-11-27 add
-  to the question: multiple APIs has no part yet, and M5's pull requests need the GitHub App,
-  which the proposal puts in M4c.
-- **(b) "Try it" in a private preview against an unverified server.** Options: (1) withheld, the
-  current default, so a free preview shows the reference and samples but no live call; (2)
-  allowed for signed-in members of the tenant only, which loosens rule 2 of domain control and
-  needs the security reviewer; (3) withheld, and the preview shows something else in its place,
-  such as the exact request that would be sent and an example response from the spec.
-- **(c) An API on a domain the customer cannot verify**, such as a cloud provider's host name.
-  Options: (1) accept that it has no "Try it" or MCP, the current default; samples still render;
-  (2) a different proof that works for one exact host, to be designed by the security reviewer;
-  (3) the customer puts the API behind a host name on a domain they can verify. Option 3 is the
-  product manager's suggestion and has not been checked with any customer.
+- **An API on a host the customer cannot verify by DNS**, such as a cloud provider's host name.
+  Options: (1) accept the gap: it has no live "Try it" or MCP, the current default; samples
+  still render; (2) an exact-host HTTP challenge as a second verification method, good for that
+  one host only, to be designed by the security reviewer; (3) advise the customer to put the API
+  on a host name under their own domain; (4) manual approval by us. No option has been checked
+  with a customer, and how many customers this affects is not known.
 
 Raised by the decisions of 2026-11-27. Each has a default that stands until someone objects.
 
-- **Pay to publish arrives before billing.** Publishing is M4 and billing is M6. Default: M4
-  builds the gate and we set a tenant's plan by hand; M6 adds self-serve payment.
-- **Withholding a guide page, not the bundle.** Guides held by us publish page by page; contract
-  4.7 blocks a whole bundle on one `<Todo>`. Default: page by page only while we hold the guides;
-  after a repository is connected, 4.7 as written. What a link to a withheld page does is
-  undesigned. For the architect.
+- **A private preview whose server domain is verified.** The decision says the console prompts
+  the tenant "to verify the domain for live calls". Default, as inference: once the server's
+  domain is verified, signed-in members get live "Try it" in the preview without a plan (rule 2
+  asks for verification only); the MCP stays off until the portal is published. The other
+  reading is that live calls need publishing, and so a plan.
+- **Which example the console shows** when an operation documents several responses or several
+  named examples, and what counts as a declared example. For UX and the architect. Default: the
+  first documented success response; only examples the spec declares; nothing synthesized.
+- **Example-response mode outside a preview.** Default: no. On a public portal a server that is
+  not callable or not verified keeps "Try it" withheld with a reason. Using the mode there would
+  be new scope for M2.
 - **Where the "get a key" link shows in M2.** The quickstart is a guide and arrives in M5; M1 has
   no authentication page. Default: M2 shows the link in "Try it" and wherever the reference
   states the credential; the quickstart carries it from M5.
