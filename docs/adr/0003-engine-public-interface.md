@@ -4,6 +4,8 @@ Status: accepted, 2026-11-26. Milestone: M1. Revised the same day to apply the s
 review (`docs/reviews/2026-11-26-security-design-review.md`, H4, M6, M7). The re-review
 (`docs/reviews/2026-11-26-security-design-re-review.md`) passed it subject to required fixes: R1,
 R2, rulings 2, 3, 4 and 7, the `bindFix` cap and the notes. They are applied in this text.
+Revised 2026-11-27 for the product decision that guides are generated from the patched spec: "The
+published spec" is added and `buildModel` takes two hashes. No security ruling is changed.
 
 ## Context
 
@@ -30,7 +32,10 @@ parseDocument(input: { uri: string; text: string }, limits: Limits): ParsedDocum
 listExternalRefs(doc: ParsedDocument): string[]
 
 // 3. Build the model from a closed set of documents. Missing documents become findings.
-buildModel(input: { root: ParsedDocument; documents: ParsedDocument[]; sourceHash?: string })
+//    root and documents are the patched ones when an overlay exists (ADR 0004). The hashes are
+//    copied into model.source (ADR 0002).
+buildModel(input: { root: ParsedDocument; documents: ParsedDocument[];
+                    fetchedHash?: string; publishedHash?: string })
   : { model: ApiModel | null; findings: Finding[] }
 
 // 4. Spec doctor (ADR 0004).
@@ -93,7 +98,8 @@ Who does the I/O:
 
 | Job | Owner |
 |---|---|
-| Read or fetch the spec, compute its SHA-256 | Caller (`publisher`) |
+| Read or fetch the spec, compute its SHA-256 (`fetchedHash`) | Caller (`publisher`) |
+| Write the published spec and compute its SHA-256 (`publishedHash`); see "The published spec" | Caller (`publisher`) |
 | Fetch external `$ref` targets: loop `listExternalRefs` -> fetch -> `parseDocument` until the set is closed or a cap is reached | Caller, under the spec fetch policy below |
 | Write bundle files | Caller |
 | Timestamps, UUIDs, any randomness | Caller passes them in, or they are left out |
@@ -106,6 +112,35 @@ share a worker with another tenant's.
 
 Enforcement: ADR 0001 rule 4 (restricted `lib`, no Node types, lint bans), no `async` in the public
 interface, and a test that builds the same fixture twice and compares bytes.
+
+### The published spec
+
+Guides are generated from the patched spec, not the tenant's original (guides contract 1.2). The
+patched spec is therefore an output of publishing, with bytes the guides module can fetch and
+hash.
+
+- The publisher writes it on every publish, beside the portal bundle: `spec/openapi.json` when the
+  first non-whitespace character of the text is `{`, otherwise `spec/openapi.yaml`. It is not one
+  of the `PortalBundle` files, because `buildPortalBundle` sees the model and not the documents.
+- Bytes: if `applyFixes` applied no patch to the root document (no overlay, or every patch for the
+  root conflicted), the file is the root document's bytes exactly as fetched, and
+  `serializeDocument` is not called, because re-serializing YAML does not reproduce its input
+  byte for byte. Otherwise the file is `serializeDocument(patched root)` encoded as UTF-8 with no
+  byte order mark.
+- `publishedHash` is the SHA-256 of the file's bytes. The publisher computes it before `buildModel`
+  and passes it in with `fetchedHash`, so it is in `model.json` and the bundle validator can
+  compare it with a guides bundle's `spec.sha256` without doing I/O.
+- `serializeDocument` is deterministic: the same parsed document and patches give the same text. A
+  golden test pins its output for patched fixtures. A change to that output, including one caused
+  by upgrading `yaml`, changes `publishedHash` for unchanged input on the next publish and marks
+  every tenant's guides `spec-hash-mismatch`, so it is treated as a breaking change of the engine.
+- Only the root document is published and hashed. Referenced documents are not, and a spec split
+  over several files keeps its `$ref`s as written. Publishing the patched referenced documents is
+  an open item in contract section 8 and does not block M1.
+- The file is tenant content. It is served as a file with `X-Content-Type-Options: nosniff` and is
+  never inlined into a page. It holds everything in the root document, including YAML comments and
+  vendor extensions the reference pages do not show. Where the hosted portal serves it from, and
+  who may fetch it, are M4 and M5 design and go to the security reviewer before either is built.
 
 Libraries:
 
@@ -181,7 +216,9 @@ These are requirements on M2's design.
   as contract 4.3 says: a value from the `enum`, or, with no `enum`, a value valid for the
   variable's position, and a variable that forms or follows the last label of the host needs an
   `enum` or a tenant-listed set, or the server is not callable. The substituted URL is then parsed
-  and vetted: `https` only, no userinfo, and address vetting as above.
+  and vetted: `https` only, no userinfo, and address vetting as above. Where a tenant-listed set
+  is managed is an open product decision (ADR 0005); until it is made there is no such set, and
+  the rule applies as written.
 - `https` only, with no exception for development servers. A server that is `http://`, localhost
   or relative is not callable. Plain `http` would put the user's key on the wire in clear, and the
   hosted proxy cannot reach localhost under address vetting in any case. For such a server the
@@ -214,3 +251,8 @@ These are requirements on M2's design.
 dereferencing. Both resolve references by doing file and HTTP I/O themselves or need it stubbed
 out, neither keeps the line and column positions the spec doctor requires, and full dereferencing
 is the representation ADR 0002 rejects. What remains to write ourselves is small.
+
+Also rejected, for the published spec: bundle the root and every referenced document into one
+file. It would cover fixes in referenced documents, but it needs a `$ref`-rewriting bundler, and
+it changes the bytes of a spec that has no fixes, so the tenant's own document would no longer
+hash to `spec.sha256`.

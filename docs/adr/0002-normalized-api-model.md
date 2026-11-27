@@ -1,7 +1,10 @@
 # ADR 0002: The engine's normalized API model
 
-Status: proposed, 2026-11-26. Milestone: M1. Longer than other ADRs because two developers code
-against it in parallel.
+Status: accepted, 2026-11-27. Proposed 2026-11-26; it passed the security design review and
+re-review of that day unchanged. Revised on acceptance for the product decision that guides are
+generated from the patched spec: `source` carries two hashes, and ids are computed on the patched
+document. The dropped header parameters, already stated in ADR 0004, are written down here.
+Milestone: M1. Longer than other ADRs because two developers code against it in parallel.
 
 ## Context
 
@@ -35,7 +38,9 @@ Building it twice from the same input gives byte-identical JSON. It carries `mod
   character outside `[A-Za-z0-9]` replaced by `_`. `get` + `/payments/{id}` = `get_payments__id_`.
 - **Collision rule for operation ids**: the algorithm in section 1.1 of
   `docs/contracts/guides-contract.md` is normative, because the guides module must derive
-  identical ids. Implement it exactly and test against its worked examples. In summary:
+  identical ids. Implement it exactly and test against its worked examples. It runs on the
+  patched document, the one `applyFixes` returns (ADR 0004), which is also the document the guides
+  module reads (contract 1.2). In summary:
   1. Order all path operations by path template, then by lowercase method, both compared by
      Unicode code point. Document order is not used, so re-ordering keys never changes an id.
   2. Walking that list, an operation keeps its declared `operationId` unless it is empty or an
@@ -60,7 +65,8 @@ type Markdown = string;                           // untrusted CommonMark source
 
 interface ApiModel {
   modelVersion: 1;
-  source: { openapi: string; dialect: '3.0' | '3.1'; hash?: string };  // hash supplied by caller
+  source: { openapi: string; dialect: '3.0' | '3.1';
+            fetchedHash?: string; publishedHash?: string };   // supplied by caller; see "Source hashes"
   documents: { uri: string }[];
   info: { title: string; version: string; summary?: string; description?: Markdown;
           termsOfService?: string; contact?: Json; license?: Json };
@@ -125,6 +131,28 @@ type SecurityScheme = { id: string; description?: Markdown; loc: Loc } & (
   | { type: 'mutualTLS' });
 ```
 
+### Source hashes
+
+Both are SHA-256 in lowercase hex, of the root document only, computed by the caller (ADR 0003).
+The model is built from the patched document in either case.
+
+- `fetchedHash`: the bytes of the root document as fetched, before the overlay. It tells the
+  caller whether the tenant's document changed upstream.
+- `publishedHash`: the bytes of the published spec, which is the patched root document as the
+  publisher wrote it out (ADR 0003, "The published spec"). This is the value a guides bundle's
+  `spec.sha256` is compared with (contract 1.2 and 3). When no fix was applied to the root
+  document the two hashes are equal.
+
+There is no field named `hash`; each consumer names the one it means.
+
+### Dropped header parameters
+
+A parameter with `in: 'header'` whose name is `Accept`, `Content-Type` or `Authorization`,
+compared case-insensitively, is not in the model: OpenAPI says such a definition is ignored. It
+appears in no `Operation.parameters`, whether declared on the operation or on its path item, so
+no sample, request or MCP input carries it. The spec doctor still sees the declaration in the
+parsed documents and reports it under its auth rules (ADR 0004).
+
 ### Schemas
 
 ```ts
@@ -174,8 +202,10 @@ range for diagnostics (ADR 0004). This keeps large models small.
   and discriminators arrive explicit, which is where existing tools render badly.
 - MCP clients that reject `$ref`, `anyOf` or `oneOf` need a flattened JSON Schema. That is a pure
   projection (`toJsonSchema`, ADR 0003), not a second model.
-- Numeric collision suffixes can shift when a colliding path is added. Guides are pinned to a spec
-  hash and regenerated, so this is acceptable, and collisions are reported for the owner to fix.
+- Numeric collision suffixes can shift when a colliding path is added. Guides are pinned to
+  `publishedHash` and regenerated, so this is acceptable, and collisions are reported for the
+  owner to fix. Accepting the doctor's fix that writes the ids into the spec does not shift them
+  (ADR 0004) and pins them against later additions.
 
 ## Alternative rejected
 

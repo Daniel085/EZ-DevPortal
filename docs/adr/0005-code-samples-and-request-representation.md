@@ -116,8 +116,11 @@ Rules:
   as the spec writes it; a variable in the scheme, userinfo, query or fragment makes the server
   not callable. The engine does the position check and the substitution, and reports
   `server-not-callable` (ADR 0004). Parsing the result and vetting the address are the caller's,
-  under ADR 0003. A tenant-listed set is tenant configuration the caller passes in; where it is
-  stored is M4's design.
+  under ADR 0003. A tenant-listed set is tenant configuration the caller passes in. Where the
+  tenant manages that set is an **open product decision** and does not block M1: in M1 no caller
+  passes one, so a server with an open host variable, such as `https://{host}/v1` with no `enum`,
+  is reported `server-not-callable`. The rule above is unchanged by the decision, whichever way
+  it goes; how the set is stored follows it, in M4.
 - Variables being first-class lets each language decide how to show one (an environment variable
   in curl, a named constant in Python) and lets "Try it" substitute real values.
 - One emitter per language: a function `(request: HttpRequest) => (string | Var)[]` written by

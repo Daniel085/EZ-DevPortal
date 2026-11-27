@@ -33,6 +33,8 @@ that lets AI agents call their API.
 | Credentials are placed only by the portal | Guides and specs cannot name the reader's credential. Only the sample generator places it. |
 | Proxy and MCP are `https` only | For a server on `http://` or localhost, samples still render but "Try it" and MCP are withheld, with a spec-doctor finding. |
 | Risky assets use a separate origin | SVG, PDF, JSON and ZIP are served from a per-tenant asset origin. Raster images may be served on the page origin after the portal re-encodes them. |
+| Guides use the patched spec | The portal publishes the spec with accepted spec-doctor fixes applied, and guides are generated from that file. The bundle's hash is of its bytes. |
+| Guides are edited in Git | A person resolves a `<Todo>` or a draft page by editing the bundle in Git. The portal never edits bundles. Regenerating guides must not overwrite those edits. |
 | Security review is recorded | Design reviews are kept in `docs/reviews/`. |
 | Themes are data | Design tokens as CSS variables. A brand extractor reads the customer's site and produces tokens, with a manual override editor. |
 
@@ -85,3 +87,13 @@ and `anyOf` in tool schemas. Some clients reject `oneOf` and `allOf`.
 
 **An API MCP alone is not a differentiator.** ReadMe, Stainless and Speakeasy already ship one. Ours
 has to win on safety and reliability.
+
+## Open product decisions
+
+- **Allowed hosts for a server with an open host variable** (`https://{host}/v1` with no listed
+  values). Until decided, "Try it" and MCP are withheld for such a server. Options considered: a
+  list in the dashboard, a spec-doctor fix that adds the allowed values, a verified domain suffix,
+  or leaving it uncallable. Does not block M1.
+- **Whether readers see that a sample uses synthesized values.** M1 default: buyers only.
+- **Multi-file specs:** a fix accepted in a `$ref`'d file reaches the portal but not the guides
+  module, because the published spec covers the root document only. Does not block M1.

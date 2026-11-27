@@ -27,7 +27,7 @@
       "required": ["sha256"],
       "properties": {
         "sha256": {
-          "description": "SHA-256, lowercase hex, of the bytes of the root OpenAPI document, with no normalization.",
+          "description": "SHA-256, lowercase hex, of the bytes of the published spec the guides were generated from: the root OpenAPI document with the accepted spec-doctor fixes applied, exactly as the portal published it, with no normalization. When no fix was applied these are the bytes of the original document. See sections 1.2 and 3 of guides-contract.md.",
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
         },

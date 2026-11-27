@@ -28,9 +28,11 @@ The interface is defined in three files in the EZ-DevPortal repository:
 Read the contract before designing anything. It is a draft, now at **v0.2**. Version 0.2 is the
 portal side's answer to the guides module's feedback on v0.1: section 11 of the contract decides
 every proposal and assumption by number, and section 10 lists what changed, including the
-corrections the portal's security review and re-review required before 0.2 was released. A module
-built against v0.1 must re-sync its copy of all three files and set `contractVersion` to `"0.2"`; a
-portal on 0.2 rejects `"0.1"`. A module that synced 0.2 before the re-review must sync again. If
+corrections the portal's security review and re-review required before 0.2 was released and the
+product decisions of 2026-11-27 (which spec you generate from, and how incomplete pages get
+finished). A module built against v0.1 must re-sync its copy of all three files and set
+`contractVersion` to `"0.2"`; a portal on 0.2 rejects `"0.1"`. A module that synced 0.2 before
+2026-11-27 must sync again. If
 the contract cannot express something the guides need, say so and propose a change. Do not work
 around it.
 
@@ -51,14 +53,29 @@ around it.
    `api_key`, `access_token`, `username` and `password` belong to the portal and cannot be
    `capture` names. A sample also cannot set the headers the portal controls; the list is in
    section 4.3 of the contract.
-5. **Record the spec hash.** Put the SHA-256 of the exact spec document you generated from in the
-   manifest, so the portal can detect guides that are out of date.
+5. **Generate from the published spec, and record its hash.** Your input is not the customer's
+   original spec. The portal's spec doctor proposes fixes (missing auth schemes, servers,
+   examples, `operationId`s), the customer accepts some, and the portal publishes the patched
+   document as a file. That file, the **published spec**, is what you generate from (contract
+   section 1.2). It comes from the portal: it is an output of the portal's publish step, written
+   beside the portal's other output as `spec/openapi.yaml` or `spec/openapi.json`. Put the SHA-256
+   of its bytes, exactly as you received them, in the manifest as `spec.sha256`. Do not parse and
+   re-serialize before hashing. When the customer accepted no fixes the published spec is their
+   original document, byte for byte. When the published spec changes, for example because the
+   customer accepts one more fix, the portal reports your existing bundle as out of date
+   (`spec-hash-mismatch`) until you regenerate from the new file.
 6. **Be deterministic where you can.** The same spec and settings should produce the same slugs and
    navigation, so URLs stay stable across regenerations.
 7. **External links pass one regex.** An `https://` link must match the pattern in section 4.5 and
    contain no `\`: a lowercase ASCII host, an optional port, then printable ASCII only. Write an
    internationalized host in its `xn--` form and percent-encode spaces and non-ASCII characters.
    The regex is all you implement; you need no URL parser.
+8. **Regenerating must not overwrite a person's edits.** The bundle lives in a Git repository.
+   A person finishes a `<Todo>` or a `draft` page by editing the page file there, and the portal
+   ingests the new commit; the portal never edits a bundle (contract 4.7). So when you run again
+   on a bundle that people have edited, including after the published spec changed, their edits
+   must survive. How you do that is your design: tell the portal side what you chose. An edited
+   page is held to every rule of the contract, like a generated one.
 
 ## What good output looks like
 
@@ -75,13 +92,16 @@ around it.
   idempotency, rate limits, webhooks.
 - Honest gaps. Specs are often thin. Where the spec does not say something, do not invent it.
   Leave it out, or mark it with `<Todo>` and a page `status` so a human can complete it. Marked
-  content shows in the portal's preview and blocks publishing until a new bundle resolves it.
+  content shows in the portal's preview and blocks publishing until a person resolves it by
+  editing the page in the bundle's Git repository (constraint 8).
 
 ## Specs you should expect
 
 Real specs are frequently incomplete: missing `operationId`s, no examples, sparse descriptions,
 undocumented error responses, inconsistent naming. Decide deliberately how the module behaves on
-weak input, and report what it could not do.
+weak input, and report what it could not do. The published spec you receive may have had some of
+this repaired by fixes the customer accepted, but do not count on it. Swagger 2.0 is out of scope:
+the portal rejects it, so you will not be given one.
 
 Some specs list servers the portal will not call: `http://`, localhost, or a server variable that
 could point anywhere. The portal calls `https` servers only. Your samples still render for those
@@ -93,7 +113,9 @@ followed by the path with each character outside `A-Z a-z 0-9` replaced by `_`. 
 added between the two; the path's leading `/` becomes the underscore. So `get` and `/payments/{id}`
 give `get_payments__id_`. Two paths can produce the same id (`/a-b` and `/a_b`), and real specs
 repeat explicit ids, so the contract fixes a collision rule as well. Implement section 1.1 of the
-contract exactly, including its ordering, so both projects derive identical identifiers.
+contract exactly, including its ordering, so both projects derive identical identifiers. Both
+sides run it on the published spec. A portal fix that adds an `operationId` writes exactly the
+derived id, so an id is the same before and after the customer accepts that fix.
 
 Real specs also use ids such as `gists/create`. The contract accepts any id: verbatim in attributes
 and frontmatter, percent-encoded in link targets where a character is outside the listed set.
@@ -107,6 +129,7 @@ and frontmatter, percent-encoded in link targets where a character is outside th
 - It reports, per run, which pages it produced and what it skipped and why. The report may be
   included in the bundle as `report.json` in the shape the contract defines.
 - It writes a bundle directory and nothing more. Transport into the portal is the portal's concern.
+- Run a second time over a bundle directory that a person has edited, it keeps those edits.
 
 ## Questions the portal side asked in v0.1
 
@@ -114,5 +137,12 @@ All four are answered; see section 8 of the contract. In short: no diagrams, vid
 0.2; one bundle per spec version; localization is out of scope; `tryIt="false"` disables "Try it"
 for a sample.
 
-Still open, and listed in the same section: transport (for milestone M5), capturing values whose
-keys are not plain identifiers, and linking to webhook documentation.
+Decided on 2026-11-27 and listed in the same section: guides are generated from the published
+spec; incomplete content is resolved by a person in Git; Swagger 2.0 is out of scope.
+
+Still open, and listed in the same section: transport (for milestone M5: how a commit of the
+bundle reaches the portal and where you fetch the published spec from when the portal is hosted),
+capturing values whose keys are not plain identifiers, linking to webhook documentation, where a
+portal customer manages allowed hosts for a server with an open host variable (this does not
+affect you), and specs split over several files (the published spec and its hash cover the root
+document only).

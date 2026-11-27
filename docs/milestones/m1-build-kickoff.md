@@ -7,11 +7,12 @@ read and in what order to work.
 
 1. `CLAUDE.md`: the feature team, who decides what, and the four standing constraints.
 2. `docs/product-brief.md`: the product and the decisions made.
-3. `docs/milestones/m1.md`: scope and the 25 acceptance criteria. This defines "done".
+3. `docs/milestones/m1.md`: scope and the 26 acceptance criteria. This defines "done".
 4. `docs/adr/0001` to `0006`: the architecture. All six are accepted. ADR 0002 (the API model) and
    ADR 0003 (the engine's interface) are what the engine and renderer developers code against.
-5. `docs/contracts/guides-contract.md`, section 1.1 only for M1: the operation id algorithm. It is
-   normative, and the guides module implements the same rule.
+5. `docs/contracts/guides-contract.md`, sections 1.1 and 1.2 only for M1: the operation id
+   algorithm, which is normative and which the guides module also implements, and the published
+   spec, which the guides module generates from.
 6. `docs/reviews/`: two security design reviews. Their rulings are already in the ADRs; read them
    to understand why a rule exists before changing it.
 
@@ -41,13 +42,13 @@ Each step names the agent that owns it. Give a reviewer the code or the running 
    2. Spec doctor findings and patches (ADR 0004).
    3. The request representation and the eight sample emitters (ADR 0005).
    4. Page models, Markdown twins and `llms.txt` (ADR 0003).
-4. **Publisher**: the CLI that reads a local spec file and writes the bundle (ADR 0003). M1 reads
-   local files only. `engine-developer`.
+4. **Publisher**: the CLI that reads a local spec file and writes the bundle and the published
+   spec (ADR 0003, criterion 26). M1 reads local files only. `engine-developer`.
 5. **Renderer**: `ux` specifies the reference page and `designer` the default theme tokens first;
    then `renderer-developer` builds the static portal (ADR 0006).
 6. **Close the milestone** as `m1.md` defines: `qa-engineer` runs the suite on all fixtures,
    `dx-reviewer` uses the built Petstore, Museum and GitHub portals, and `product-manager` marks
-   each of the 25 criteria.
+   each of the 26 criteria.
 
 Steps 3.3 and 5 can run in parallel once step 3.1 is done, because both depend only on the model.
 
@@ -60,6 +61,9 @@ The security reviewer has a veto. Send it the code, before the work is called do
   ADRs 0003 and 0004. The required test resolves and patches through `__proto__`, `constructor` and
   `prototype` and asserts `Object.prototype` is unchanged.
 - The renderer's handling of spec text: criteria 15 and 19.
+- The published spec file: ADRs 0003 and 0004 gained this output after the design review, so it
+  has not been reviewed. It exposes the whole root document, including comments and vendor
+  extensions the reference pages do not show.
 - The budgets and limits in ADR 0003, with a test using a small spec that expands to an enormous
   example.
 

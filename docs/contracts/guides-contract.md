@@ -6,7 +6,9 @@ in that feedback is answered by number in [section 11](#11-decisions-on-the-v01-
 draft also carries the corrections required by the security design review of 2026-11-26 and by its
 re-review the same day, which passed the contract subject to fixes that are applied here. They were
 made before 0.2 was released to the guides module, so the version is unchanged; section 10 lists
-them. Awaiting the guides module's re-sync and confirmation.
+them. Product decisions of 2026-11-27 are recorded the same way: guides are generated from the
+patched spec (1.2), and incomplete content is resolved by editing the bundle in Git (4.7, 6).
+Awaiting the guides module's re-sync and confirmation.
 
 This is the interface between two projects:
 
@@ -39,7 +41,12 @@ keeps guides in step with the reader's language choice and with the samples the 
 ### 1.1 The spec, and how operations are identified
 
 - The contract is defined for OpenAPI **3.0 and 3.1**. A 3.2 document is read as 3.1 by both sides;
-  constructs that exist only in 3.2 are ignored and cannot be referenced.
+  constructs that exist only in 3.2 are ignored and cannot be referenced. Swagger 2.0 is out of
+  scope: the portal rejects such a spec with a clear message and publishes nothing for it, so there
+  is nothing to generate guides from.
+- "The spec" in this contract always means the **published spec** defined in 1.2: the tenant's
+  document with the accepted spec-doctor fixes applied. Operation ids, schema names, examples and
+  every other lookup are taken from it, on both sides.
 - An **operation** is an HTTP operation under `paths`. Webhooks and callbacks are not operations in
   this contract and are not valid targets for `op:` links, `<Operation>`, `<Sample>`, `<Response>`
   or the `operations` frontmatter field. Each of those reports `unknown-operation`.
@@ -47,7 +54,8 @@ keeps guides in step with the reader's language choice and with the samples the 
   case-sensitively. A schema is referred to by its key under `components/schemas`, compared the same
   way.
 
-**Operation ids.** Both projects must derive identical ids, so the algorithm is fixed:
+**Operation ids.** Both projects must derive identical ids, so the algorithm is fixed. Both run it
+on the published spec (1.2):
 
 1. List every operation as a (path, method) pair. The path is the key under `paths`, exactly as
    written. The method is lowercase.
@@ -69,6 +77,35 @@ keeps guides in step with the reader's language choice and with the samples the 
 | `post /a-b` and `post /a_b`, neither with an `operationId` | `/a-b` sorts first and gets `post_a_b`; `/a_b` gets `post_a_b_2` |
 | `get /pets` with no `operationId`; `get /animals` with `operationId: get_pets` | `get /animals` is `get_pets`; `get /pets` is `get_pets_2` |
 | `get /a` and `get /b`, both with `operationId: list` | `get /a` is `list`; `get /b` is `get_b` |
+
+### 1.2 The published spec
+
+The portal's spec doctor proposes fixes to the tenant's spec, and the tenant accepts some of them.
+The portal is built from the result, and **guides are generated from the same result, not from the
+tenant's original document.**
+
+- The **published spec** is the root OpenAPI document with the accepted fixes applied. The portal
+  writes it out as a file each time it publishes the spec. It is an output of publishing, produced
+  by the portal's publisher (ADR 0003, "The published spec"; ADR 0004).
+- Its bytes are fixed at publish time. If no fix was applied to the root document, the published
+  spec is the document as the portal fetched it, byte for byte. Otherwise it is the portal's
+  serialization of the patched document, in the source's format (YAML or JSON), encoded as UTF-8.
+- The guides module takes the published spec from the portal, generates from those bytes, and
+  hashes those bytes (section 3). It must not parse and re-serialize the document before hashing,
+  and must not generate from the tenant's original.
+- A spec-doctor fix never changes an operation id. Where a fix adds an `operationId`, the value it
+  writes is exactly the id the algorithm in 1.1 gave that operation before the fix (ADR 0004). So
+  accepting or removing such a fix leaves every id as it was.
+- The order of events is: the portal fetches the spec; the spec doctor reports findings; the tenant
+  accepts fixes; the portal publishes, which produces the published spec; the guides module
+  generates a bundle from it; the portal ingests the bundle.
+- The published spec changes whenever its bytes change: the tenant's document changed upstream, a
+  further fix was accepted, an accepted fix was removed, or an accepted fix stopped applying
+  because the upstream document changed under it. From then on a bundle generated from the earlier
+  bytes is reported with `spec-hash-mismatch` (section 3) until the guides are regenerated.
+- Only the root document is covered. A spec split over several files keeps its external `$ref`s
+  as written, and the hash in section 3 does not cover the files they point to. See the open items
+  in section 8.
 
 ## 2. Bundle layout
 
@@ -151,10 +188,12 @@ The JSON Schema is in [`guides-manifest.schema.json`](./guides-manifest.schema.j
   (section 2) or fails the schema is `invalid-manifest`. One larger than 1 MB is `size-limit`.
 - `contractVersion` must be exactly `"0.2"` for a portal implementing this document. Anything else
   is `unsupported-contract-version`. See section 7.
-- `spec.sha256` is the SHA-256, in lowercase hex, of the bytes of the root OpenAPI document the
-  guides were generated from, with no normalization. The portal compares it with the spec it is
-  publishing and reports `spec-hash-mismatch` (a warning) when they differ. A bundle is pinned to
-  one spec document; the portal holds one bundle per spec version.
+- `spec.sha256` is the SHA-256, in lowercase hex, of the bytes of the published spec (1.2) the
+  guides were generated from: the patched root document exactly as the portal published it, with no
+  normalization. When no fix was applied, those are the bytes of the tenant's original document.
+  The portal compares the value with the hash of the published spec it is serving and reports
+  `spec-hash-mismatch` (a warning) when they differ. A bundle is pinned to one published spec; the
+  portal holds one bundle per spec version.
 - `generatedAt` is optional. A generator may leave it out to make output byte-identical.
 - `nav` is the single source of ordering and grouping. A group at the top level of `nav` is at depth
   1; a group inside it is at depth 2. A group at depth 4 or deeper is `nav-depth`. Pages may appear
@@ -732,13 +771,28 @@ Both are **visible in preview and block publishing**:
 
 These two codes have the severity `blocker` (section 5). A bundle whose only findings are blockers
 and warnings is valid: the portal stages it and shows it in preview, with each `<Todo>` rendered as
-a clearly marked placeholder. It cannot be published until a new bundle arrives without them. A
-`<Todo>` therefore never appears in a published page, a Markdown twin, `llms.txt`, the search index
-or the docs MCP.
+a clearly marked placeholder. It cannot be published until a new commit of the bundle arrives
+without them. A `<Todo>` therefore never appears in a published page, a Markdown twin, `llms.txt`,
+the search index or the docs MCP.
 
 `draft` and `review` block publishing equally. The difference is information for people.
 
-The portal never edits a bundle, so a `<Todo>` is resolved by producing a new bundle.
+**Incomplete content is resolved in Git.** The bundle lives in a Git repository. A person resolves
+a `<Todo>`, or finishes a `draft` or `review` page, by editing the page file in that repository:
+replacing the `<Todo>` with the missing content, or setting `status: ready`. The portal ingests the
+new commit and validates it like any other bundle. The portal never edits a bundle and offers no
+editor for one.
+
+Two things follow.
+
+- Guides are generated, so **regenerating must not overwrite a person's edits.** A page a person
+  has edited in the repository keeps those edits when the guides module runs again, including when
+  it runs because the published spec changed. How the guides module does this is its own design.
+  The requirement is the portal's, because a publish that loses a person's work is a defect of the
+  product whichever side caused it.
+- Every rule in this contract applies to the bundle as ingested, whoever wrote each line. Where the
+  contract says "a generator writes", an edit made by hand is held to the same rule and gets the
+  same finding.
 
 ## 5. Validation
 
@@ -828,7 +882,7 @@ names for the same conditions.
 
 | Code | Condition |
 |---|---|
-| `spec-hash-mismatch` | `spec.sha256` differs from the spec being published. |
+| `spec-hash-mismatch` | `spec.sha256` differs from the SHA-256 of the published spec (1.2): the patched document as the portal published it. |
 | `deprecated-operation` | A sample, operation card or link targets a deprecated operation. |
 | `image-missing-alt` | An image has empty alt text. |
 | `page-unreferenced` | A page of type `quickstart`, `how-to` or `tutorial` has no `operations`. Pages of type `concept` and `reference` are exempt. |
@@ -869,7 +923,7 @@ The JSON Schema is in [`guides-report.schema.json`](./guides-report.schema.json)
 - Every top-level member is optional. `pages[].page` is a slug; for a skipped page no file exists.
 - `placeholderValues: true` means sample values on that page were built from types because the spec
   had no examples.
-- `pointer` is a JSON Pointer into the spec document.
+- `pointer` is a JSON Pointer into the published spec (1.2).
 - Members the schema does not define are allowed anywhere and are ignored by the portal. A
   generator may keep its own detail there.
 - `pages`, `gaps` and `specProblems` hold at most 1,000 items each, and a slug is at most 197
@@ -882,12 +936,19 @@ The JSON Schema is in [`guides-report.schema.json`](./guides-report.schema.json)
 **The directory layout in section 2 is the contract.** A generator's obligation ends when it has
 written a conforming bundle directory. It does not upload, archive or push anything.
 
-How that directory reaches the portal is the portal's concern and will be settled in milestone M5.
-The candidates are an upload of an archive of the directory, and ingestion from a directory in a
-connected Git repository. Neither changes the layout, and neither is part of 0.2.
+The bundle directory is kept in a Git repository, and that repository is where people edit it
+(4.7). How a commit of it reaches the portal is the portal's concern and will be settled in
+milestone M5. The candidates are ingestion from a directory in a connected Git repository, and an
+upload of an archive of the directory made from a commit. Neither changes the layout, and neither
+is part of 0.2.
 
 What is fixed now:
 
+- Git is the editing surface. The portal reads bundles and never writes to one, in the repository
+  or anywhere else.
+- The guides module takes the published spec from the portal (1.2). Where it is fetched from, and
+  whether a spec that is staged but not yet published can be fetched, are settled with transport
+  in M5.
 - A valid bundle is staged, not published. Publishing is a separate step.
 - Publishing is atomic. A bundle replaces the previous one as a whole, and a failed bundle leaves
   the live portal unchanged.
@@ -921,12 +982,31 @@ What is fixed now:
 | Localization | Out of scope. If it comes into scope, it will be one bundle per locale, not a locale dimension in the layout. |
 | Disabling "Try it" per sample | Yes: `tryIt="false"` (4.3). |
 
+Decided on 2026-11-27:
+
+| Question | Answer |
+|---|---|
+| Which document guides are generated from, and which hash is compared | The published spec: the root document with the accepted spec-doctor fixes applied, as the portal published it (1.2, 3). |
+| How a `<Todo>` or a page that is not `ready` gets resolved | A person edits the bundle in its Git repository and the portal ingests the new commit. Regenerating must not overwrite those edits (4.7). |
+| Swagger 2.0 | Out of scope. The portal rejects it with a clear message (1.1). |
+
 Still open, and not blocking 0.2:
 
-1. Transport (section 6), for M5.
+1. Transport (section 6), for M5: how a commit of the bundle reaches the portal, and where the
+   guides module fetches the published spec from. That Git is the editing surface is decided.
 2. Capturing a value whose key is not a plain identifier, such as `user-id`. The path grammar in 4.3
    cannot express it.
 3. Linking to a webhook's documentation. There is no link form for it.
+4. Where the tenant-listed set of allowed hosts is managed. It concerns a callable server with an
+   open host variable, such as `https://{host}/v1` with no `enum` (4.3, "Server variables"). This
+   is an open product decision. It does not block M1 or 0.2, and a generator is not affected. The
+   rule in 4.3 stands as written: until the decision is made no tenant-listed set exists, so such
+   a server needs an `enum` or is not callable.
+5. Specs split over several files. The published spec and its hash cover the root document only
+   (1.2). A fix accepted in a file the root refers to is not in the published spec, and the hash
+   does not change with that file. Operation ids are not affected, because a fix never changes an
+   id. Whether the portal also publishes the patched referenced files is not decided; it does not
+   block M1.
 
 ## 9. What the portal must handle
 
@@ -935,9 +1015,13 @@ engine and renderer. They are here so they are written down on the portal side.
 
 **Engine**
 
-- Implement the operation id algorithm in 1.1 exactly, and expose for each operation its id and
-  whether the id was derived. Every other part uses the engine's ids. If the two projects differ,
-  every link and sample for a spec without `operationId`s fails.
+- Implement the operation id algorithm in 1.1 exactly, on the patched document, and expose for
+  each operation its id and whether the id was derived. Every other part uses the engine's ids. If
+  the two projects differ, every link and sample for a spec without `operationId`s fails.
+- A spec-doctor fix that adds or replaces an `operationId` writes exactly the id the operation
+  already has, so no fix changes an id (1.2; ADR 0004).
+- The model carries the hash of the published spec, and bundle validation compares `spec.sha256`
+  with it (ADR 0002, `source.publishedHash`).
 - Operation ids are not URL-safe. Real ids contain `/` (`gists/create`) and other punctuation. The
   URL of a reference page must be built from an id by a mapping the portal owns; an id must never
   be used as a path segment as is.
@@ -1008,6 +1092,10 @@ engine and renderer. They are here so they are written down on the portal side.
   rejects links, absolute paths and `..` (section 6).
 - Publishing a bundle runs under the same per-tenant worker and time limit as publishing a spec
   (ADR 0003).
+- Publishing a spec writes the published spec (1.2) as a file with fixed bytes and records its
+  SHA-256. The publisher does this; the engine only serializes (ADR 0003, "The published spec").
+- Never write to a bundle or to its repository. Incomplete content is resolved by a person in Git
+  (4.7).
 - Serve assets as section 2 says: svg, pdf, json and zip always from the dedicated per-tenant
   asset origin with the headers listed there; png, jpg, webp and gif from the asset origin, or,
   once re-encoded, on the page origin with `nosniff`.
@@ -1082,7 +1170,8 @@ Changed:
   which no validator could check without rejecting ordinary sentences. Nothing is evaluated either way.
 - File paths may contain one extension; v0.1's character list omitted the `.`.
 - The bundle root is the directory that holds `guides.json`; v0.1 showed it as `guides/`.
-- Delivery: the upload endpoint and Git ingestion are no longer proposed here. Transport moves to M5.
+- Delivery: the upload endpoint and Git ingestion are no longer proposed here. Transport moves to
+  M5. The bundle is kept in a Git repository, which is where people edit it (6).
 - Versioning: 0.x minors may break; the portal accepts exactly one 0.x version.
 
 Required by the security design review of 2026-11-26 and its re-review, and made before 0.2 was
@@ -1129,6 +1218,24 @@ released:
 - A heading anchor is not the HTML `id`; the portal prefixes ids (4.5).
 - Extraction enforces the limits on actual bytes, counted after content decoding, and rejects
   links, absolute paths and `..` (6).
+
+Product decisions of 2026-11-27, also made before 0.2 was released:
+
+- Guides are generated from the published spec: the root document with the accepted spec-doctor
+  fixes applied, written out by the portal when it publishes. `spec.sha256` is the SHA-256 of that
+  document's bytes as published, and `spec-hash-mismatch` compares against it. With no fix applied
+  the published spec is the original, byte for byte. Earlier drafts of 0.2 hashed "the root
+  OpenAPI document" without saying which (1.2, 3, 5.1).
+- The operation id algorithm runs on the published spec. A fix that adds an `operationId` writes
+  the id the operation already had, so a fix never changes an id (1.1, 1.2).
+- A changed published spec, including one changed by accepting a further fix, gives existing
+  guides `spec-hash-mismatch` until they are regenerated (1.2).
+- A `<Todo>` or a page that is not `ready` is resolved by a person editing the bundle in its Git
+  repository. Regenerating must not overwrite a person's edits. The contract's rules apply to the
+  bundle as ingested, whoever wrote it (4.7, 6).
+- Swagger 2.0 is stated to be out of scope (1.1).
+- Two items are added to the open list: where the tenant-listed set of allowed hosts is managed,
+  and specs split over several files (8).
 
 ## 11. Decisions on the v0.1 feedback
 

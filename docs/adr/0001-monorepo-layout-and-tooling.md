@@ -1,6 +1,7 @@
 # ADR 0001: Monorepo layout and tooling
 
-Status: proposed, 2026-11-26. Milestone: M1.
+Status: accepted, 2026-11-27. Proposed 2026-11-26; it passed the security design review and
+re-review of that day unchanged. Milestone: M1.
 
 ## Context
 

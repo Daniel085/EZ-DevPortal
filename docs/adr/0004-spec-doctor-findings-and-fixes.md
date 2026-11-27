@@ -3,7 +3,9 @@
 Status: accepted, 2026-11-26. Milestone: M1. Revised the same day to apply the security design
 review (`docs/reviews/2026-11-26-security-design-review.md`, M7). The re-review
 (`docs/reviews/2026-11-26-security-design-re-review.md`) passed it subject to required fixes:
-rulings 3, 6 and 7 and the `bindFix` cap. They are applied in this text.
+rulings 3, 6 and 7 and the `bindFix` cap. They are applied in this text. Revised 2026-11-27 for
+the product decision that guides are generated from the patched spec: the hashes, the published
+spec and the rule that a fix never changes an operation id. No security ruling is changed.
 
 ## Context
 
@@ -76,15 +78,36 @@ How a caller applies accepted fixes:
 1. The caller stores each accepted fix in the project's **overlay**, in order: the fix id, the
    `inputs` the person supplied, and the patch `bindFix` returned for them. It stores dismissed
    fingerprints too. The engine stores nothing.
-2. On every publish: fetch, `parseDocument`, `applyFixes(docs, overlay)`, then `buildModel` and
-   `diagnose` on the result. Findings already fixed do not reappear.
+2. On every publish: fetch, `parseDocument`, `applyFixes(docs, overlay)`, write the published
+   spec and hash it (ADR 0003, "The published spec"), then `buildModel` and `diagnose` on the
+   patched documents. Findings already fixed do not reappear.
 3. `applyFixes` returns `conflicts` for patches whose `test` fails or whose path is gone. The caller
    shows them as "this fix no longer applies" and drops or re-proposes them. A conflict never
    blocks the other patches.
-4. To hand the fixes back, `serializeDocument` returns the patched spec as text with comments and
-   key order kept, for download or a pull request.
+4. `serializeDocument` returns the patched spec as text with comments and key order kept. The
+   publisher writes that text as the published spec, and it is the same text that is offered for
+   download or a pull request.
 
-`source.hash` in the model is the hash of the spec as fetched, before the overlay.
+The model carries two hashes of the root document (ADR 0002): `source.fetchedHash`, of the spec as
+fetched, before the overlay, and `source.publishedHash`, of the published spec. The guides module
+generates from the published spec and puts its hash in `spec.sha256` (guides contract 1.2 and 3).
+
+The order of events is: fetch; `diagnose`; the tenant accepts fixes; publish, which writes the
+published spec; the guides module generates from it; the portal ingests the bundle. The published
+spec's bytes, and so `publishedHash`, change when the upstream document changes, when a further fix
+is accepted, when an accepted fix is removed, and when an accepted fix becomes a conflict and is
+no longer applied. Each of these gives existing guides `spec-hash-mismatch`, a warning, until they
+are regenerated.
+
+**A fix never changes an identifier.** No fix changes the id of an operation or the key of a
+schema. A fix that adds an `operationId`, or replaces a duplicate or empty one, writes exactly
+the id that operation has in the model the finding was produced from: its `Operation.id`,
+including any `_2` suffix, as the algorithm in contract 1.1 assigned it. That id is by
+construction held by no other operation, so on the patched document the operation keeps it as a
+declared id and every other operation's id is unchanged. Accepting such fixes for some operations
+and not others, or removing one later, also leaves every id as it was. A test runs each
+id-writing fix over the fixture corpus and asserts the ids before and after are equal. After the
+fix, `idSource` is `'declared'`, and the id no longer shifts if a colliding path is added upstream.
 
 Rules are pure functions `(model, docs) => Finding[]` in a registry inside the engine. The M1 rule
 list is for the product manager and engine developer; the areas are auth, servers, examples,
@@ -114,9 +137,12 @@ Both are warnings: the portal still builds and every code sample still renders.
   plane the stored patches are only ever ones the engine generated, and the dashboard posts a fix
   id and inputs.
 - `fingerprint` lets the dashboard remember accepted and dismissed findings between runs.
-- The published portal is built from the patched spec. The guides module generates from the
-  original and pins its hash, so the guides contract must say which hash is compared and which
-  document guides are generated from. Raised with the contract owner; not decided here.
+- The published portal is built from the patched spec, and the guides module generates from that
+  same document and pins its hash. Decided 2026-11-27; the rule is in guides contract 1.2 and 3.
+- Guides can be generated only after a publish has produced the published spec. Accepting one
+  more fix marks the existing guides out of date until they are regenerated.
+- A fix in a referenced document, not the root, is applied to the portal but is not in the
+  published spec, which is the root document only. This is an open item in contract section 8.
 
 ## Alternative rejected
 
