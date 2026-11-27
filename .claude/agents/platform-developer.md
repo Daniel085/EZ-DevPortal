@@ -25,8 +25,10 @@ These are the product's most exposed surfaces. Treat every rule as a requirement
   error report or cache. Redact `Authorization`, cookies and any header the spec marks as a
   security scheme before logging.
 - Rate-limit per tenant and per end user. Cap request and response sizes and set timeouts.
-- The MCP exposes three meta-tools: find operations, describe an operation, call an operation. Not
-  one tool per endpoint. Keep tool names under 60 characters and tool input schemas free of `$ref`,
+- The MCP exposes four meta-tools: find operations, describe an operation, call a read operation,
+  call a write operation. Not one tool per endpoint. Reads and writes are separate tools so that an
+  MCP client can require approval for writes only. The server decides which tool an operation
+  belongs to, and refuses a call made through the wrong one. Keep tool names under 60 characters and tool input schemas free of `$ref`,
   `oneOf`, `anyOf` and `allOf`, because some clients reject them.
 - Operations are read-only by default. A write operation is callable only when the tenant has
   enabled that operation. Enforce this on the server, by HTTP method and operation, not by trusting
