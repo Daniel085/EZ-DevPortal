@@ -32,6 +32,7 @@ that lets AI agents call their API.
 | Operation ids | Declared ids are used verbatim. Missing ones are derived by the rule in section 1.1 of the guides contract, which is normative for both projects. |
 | Credentials are placed only by the portal | Guides and specs cannot name the reader's credential. Only the sample generator places it. |
 | Proxy and MCP are `https` only | For a server on `http://` or localhost, samples still render but "Try it" and MCP are withheld, with a spec-doctor finding. |
+| Open host variables | Decided 2026-11-27: "B now, C later". A server such as `https://{host}/v1` with no listed values is not callable, so "Try it" and MCP are withheld for it. **B:** the spec doctor's finding for an uncallable server carries a fix that takes the allowed host values as input and stores them in the spec patch like any other fix. Once it is accepted the server is callable for those hosts. **C, planned for M6:** a verified domain suffix. The tenant proves control of a domain once and any host under it is allowed. Built alongside custom-domain verification. |
 | Risky assets use a separate origin | SVG, PDF, JSON and ZIP are served from a per-tenant asset origin. Raster images may be served on the page origin after the portal re-encodes them. |
 | Guides use the patched spec | The portal publishes the spec with accepted spec-doctor fixes applied, and guides are generated from that file. The bundle's hash is of its bytes. |
 | Guides are edited in Git | A person resolves a `<Todo>` or a draft page by editing the bundle in Git. The portal never edits bundles. Regenerating guides must not overwrite those edits. |
@@ -57,7 +58,10 @@ One TypeScript monorepo with four parts:
 3. **M3**: brand extraction
 4. **M4**: multi-tenancy and onboarding
 5. **M5**: guides ingestion, search, docs MCP
-6. **M6**: custom domains, billing, analytics
+6. **M6**: custom domains, verified domain suffixes for server hosts, billing, analytics
+
+User stories for all six milestones, with what is covered and what no milestone owns yet, are in
+`docs/product/user-stories.md`.
 
 ## What the research found
 
@@ -90,10 +94,6 @@ has to win on safety and reliability.
 
 ## Open product decisions
 
-- **Allowed hosts for a server with an open host variable** (`https://{host}/v1` with no listed
-  values). Until decided, "Try it" and MCP are withheld for such a server. Options considered: a
-  list in the dashboard, a spec-doctor fix that adds the allowed values, a verified domain suffix,
-  or leaving it uncallable. Does not block M1.
 - **Whether readers see that a sample uses synthesized values.** M1 default: buyers only.
 - **Multi-file specs:** a fix accepted in a `$ref`'d file reaches the portal but not the guides
   module, because the published spec covers the root document only. Does not block M1.
