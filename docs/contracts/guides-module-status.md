@@ -1,20 +1,35 @@
 # Guides Module: Status and Context for the Portal Side
 
 As of 2026-11-27. Written by the guides module session for whoever picks up the contract or guides
-ingestion (M5) here.
+ingestion (M5) here. Portal sessions cannot read the module's repository, so this is the account
+of what it emits.
 
 ## Where it is
 
-- Repository: `daniel085/ez-devdocs`, branch `main`.
-- The changes dated 2026-11-27 below were merged to `main` in its pull request 1.
-- It targets contract **v0.1**. This directory now holds **v0.2**, which the module has not been
-  moved to: its bundles say `contractVersion` `0.1`, and a portal implementing v0.2 accepts only
-  `0.2`. Its copy of the contract needs a re-sync and its output a pass against v0.2.
-- It holds a copy of the contract and the
-  manifest schema under `contract/`; that copy must be re-synced when the contract changes.
-- Its feedback on the contract is in [`guides-contract-feedback.md`](./guides-contract-feedback.md), kept only in this repository:
-  answers to the four open questions, six proposed changes and 18 assumptions. **Nothing in it has
-  been agreed.** The contract is still the draft the portal proposed.
+- Repository: `daniel085/ez-devdocs`, branch `main`. Generator version `0.2.0`.
+- **It targets contract v0.2** as written in this directory, synced at commit `f26100d`. Its
+  bundles carry `contractVersion` `"0.2"`. It holds copies of the contract, the manifest schema and
+  the report schema under `contract/`, which must be re-synced when any of them changes.
+- Its feedback on contract v0.1 is in [`guides-contract-feedback.md`](./guides-contract-feedback.md).
+  Section 11 of the contract decides every item; the module now does what each decision says.
+
+## How it is run
+
+The brief asks the module to say what it offers.
+
+- **Both a library and a command.** The library is one pure function,
+  `generate(specBytes, { manifestSchema, reportSchema, existing? })`, which returns the bundle's
+  files in memory, the manifest, the run report and a validation report. It touches no file,
+  network, clock or environment. The command, `node src/cli.ts generate <spec> --out <dir>
+  [--existing <bundle-dir>]`, is the only code that reads or writes files.
+- **Inputs:** the bytes of the published spec, and optionally the existing bundle. Nothing else.
+- **Pinning.** There is no published package yet. Pin by Git commit. It needs Node 22.18 or later
+  and has no build step.
+- **Dependencies at run time:** `ajv` (MIT), `ajv-formats` (MIT), `yaml` (ISC). The module itself
+  declares no licence yet; that is the owner's to choose.
+- **Determinism.** No clock in the output unless `--timestamp` is passed by a person. The suite
+  checks that every fixture, Stripe and GitHub give byte-identical files on a second run, and
+  again when the first run's output is given back as the existing bundle.
 
 ## What the portal will receive
 
@@ -22,72 +37,46 @@ A bundle from the module looks like this (Petstore):
 
 ```
 guides.json
-pages/quickstart.md
+report.json
 pages/authentication.md
 pages/errors.md
-pages/rate-limits.md
 pages/pet/manage.md
+pages/quickstart.md
+pages/rate-limits.md
 pages/store-order/manage.md
 pages/user/manage.md
 ```
 
-- **Nav:** `quickstart` first, then groups `Concepts`, `Guides`, `Tutorials`. Depth is 2. No `label` or `hidden` is used.
+- **Nav:** `quickstart` first, then groups `Concepts`, `Guides`, `Tutorials`. Depth is 1. The module
+  writes no `label` or `hidden`; it keeps ones a person added (below).
 - **Slugs:** fixed names for concept pages (`authentication`, `errors`, `pagination`, `idempotency`,
   `rate-limits`, `webhooks`); `<resource>/manage` or `<resource>/browse` for how-to guides;
   `tutorials/<parent>-<child>` for tutorials. Resource slugs come from the collection path, so they
   change only if the path does.
 - **Page types used:** `quickstart`, `concept`, `how-to`, `tutorial`. Never `reference`.
-- **Components used:** `Steps`, `Step`, `Callout`, `CardGroup`, `Card`, `Operation`, `Schema`,
-  `Sample`, `Response`. `Tabs` is not used. No assets are produced.
-- **Variables used:** `{{api_name}}`, `{{base_url}}`, `{{idempotency_key}}` and captured names.
-  `{{api_key}}` is never written; the module assumes the portal adds credentials to samples.
-- **`generatedAt`** is set by the CLI and can be left out for byte-identical output.
+- **Components used:** `Steps`, `Step`, `CardGroup`, `Card`, `Operation`, `Schema`, `Sample`,
+  `Response`. `Tabs`, `Callout` and `Todo` are not written. No assets are produced.
+- **Never withheld by its own doing.** The module writes no `<Todo>` and no `status`, so every page
+  it generates is `ready`. What the spec did not say is left out of the page and listed under
+  `gaps` in `report.json`. The quickstart says nothing about how credentials are issued; the gap is
+  in the report so the portal's "get a key" link can be checked.
+- **Variables used:** `{{api_name}}` and `{{base_url}}` in prose; `{{idempotency_key}}` and captured
+  names in sample values. Never in a code block.
+- **`generatedAt`** is left out.
 
 ### How samples are written
-
-These are the forms the portal's parser and sample generator must handle. Each depends on an
-assumption in the feedback document.
 
 ````markdown
 <Sample operation="getInventory" />
 
 <Sample operation="createSpecialEvent" example="default_example" capture="event_id=$.eventId" />
 
-<Sample operation="getPetById">
-```json
-{
-  "path": {
-    "petId": "{{pet_id}}"
-  }
-}
-```
-</Sample>
-````
-
-- The first form, with no example and no block, is used when an operation needs no values (assumption 1).
-- A captured value is always written as a quoted string, including where the parameter is an integer (assumption 3).
-- Inline blocks include only the keys that have values, not all four.
-- One `capture` pair per sample, with paths made of `$`, `.name` and `[n]` only.
-- Component tags are on their own lines with blank lines around Markdown content; the fenced block inside `<Sample>` has none.
-
-### Prerequisite steps (2026-11-27)
-
-A request body often refers to another record by identifier, such as `customer_id` on a site. When
-that field has the name of the path parameter of a resource the spec can create, the guide now
-creates that record first and sends the captured identifier in place of the spec's example value:
-
-````markdown
-<Sample operation="createCustomer" capture="customer_id=$.id">
-```json
-{ "body": { "name": "Pat Lee" } }
-```
-</Sample>
-
 <Sample operation="createSite" capture="site_id=$.id">
 ```json
 {
   "body": {
     "customer_id": "{{customer_id}}",
+    "idempotency_key": "{{idempotency_key}}",
     "street": "12 Lakeview Rd"
   }
 }
@@ -95,76 +84,83 @@ creates that record first and sends the captured identifier in place of the spec
 </Sample>
 ````
 
-What this means for the portal:
+- Form 1 is written only for an operation that needs no values. Form 2 only when the named example
+  supplies everything. Form 4, an example plus inline values, is not written yet.
+- A variable is always a whole quoted string, including where the schema says integer.
+- Inline blocks hold only the keys that have values.
+- One `capture` pair per sample; paths use `$`, `.member` and `[index]`. A name is captured once
+  per page. `tryIt` is never written.
+- **Captured names appear inside `body` values**, at any depth, including inside arrays.
+- **Several samples on a page can use `{{idempotency_key}}`**, in `headers` or in `body`, relying on
+  4.6: each `<Sample>` gets its own.
+- Headers the portal controls and names that carry a credential are never sent, even where the
+  spec declares them as required parameters.
 
-- **Captured names now appear inside `body` values**, at any depth, including inside arrays. Before,
-  they appeared only in `path` and `query`. A body value that is a variable is still written as a
-  quoted string whatever the field's type (assumption 3).
-- **A page can capture several names**, one per sample, and a later sample can use more than one.
-  Up to five prerequisite steps are added to a page, in the order the calls must be made.
-- **A page's `operations` now includes operations of other resources.** `sites/manage` lists
+### Prerequisite steps
+
+A request body often refers to another record by identifier, such as `customer_id` on a site. When
+that field has the name of the path parameter of a resource the spec can create, the guide creates
+that record first, captures its identifier and sends it in place of the spec's example value. Up to
+five such steps are added to a page, in the order the calls must be made.
+
+- **A page's `operations` includes operations of other resources.** `sites/manage` lists
   `createCustomer`. Anything that maps a page to "its" resource from that list should not assume one.
 - A prerequisite step links the other resource's guide with `guide:<resource>/manage` when that
   page is in the bundle.
-- An identifier field that matches nothing the spec can create keeps its example value, and the
-  run report lists it as a gap.
-- Slugs, navigation, page types and components are unchanged.
 
-### Other changes (2026-11-27)
+### Operation ids
 
-- **Idempotency key in the body.** Where an API takes its key as a field of the request body, not a
-  header, samples now send `"idempotency_key": "{{idempotency_key}}"` in `body`, and the
-  `idempotency` page is produced for such an API. Before, `{{idempotency_key}}` appeared only in
-  `headers`. **A page can now hold several samples that each use `{{idempotency_key}}`** (17 of
-  Retavon's 89 pages do). The module assumes the portal generates a fresh value for each sample;
-  one value shared across a page would send the same key with different requests, which an API
-  may refuse. Contract v0.1 said only "a generated UUID"; v0.2 (4.6) settles it: each `<Sample>`
-  gets its own, as the module assumes. v0.2 also allows a name to be captured only once on a page
-  (4.3); no page in the Retavon, Stripe or GitHub bundles captures one twice.
-- **Longer step text.** A flow step carries up to 1,200 characters of an operation's description
-  (was 320). A description cut short ends with a sentence that links the operation with `op:`.
-  Elsewhere a shortened text ends with `…`.
-- **Quickstart.** When the spec has security schemes, the first call is one that needs credentials.
-- **Run report.** `no-request-example` no longer counts a request whose schema carries `example`
-  or `examples`.
+Implemented as section 1.1 says, sort order and collision rule included, and tested against the
+five examples in its table. An id is written verbatim in attributes and frontmatter and
+percent-encoded in link targets. An id that contains `"`, a line break, `<` or `>` is shown as text
+and not linked; the last two are the module's own limit, because its validator reads tags line by line.
 
-### Spec audit (2026-11-27)
+### The run report
 
-Every run of the module now audits the API description and writes, next to the bundle and not in
-it, `spec-audit.md`: what the owner of the spec should change so that better guides can be
-generated. The same findings are in the module's `report.json` under `audit`, each with a code, a
-severity (`high`, `medium`, `low`), a count, the fix and every affected operation id.
+`report.json` is in the bundle, in the shape of 5.2, and passes the report schema.
 
-- Findings: no server URL, duplicate or missing `operationId`, unresolved `$ref`, operations with
-  no error or no success response, a GET response with no schema, path parameters and request
-  bodies with no example, a create response that does not show the new identifier, undefined,
-  unused or undescribed security schemes, parameters with no description, and the same body under
-  several success statuses.
-- It reads standard OpenAPI only. It overlaps with what the portal's spec doctor looks for; it is
-  the module's view of what limited the guides, not a second doctor, and it proposes no patch.
-- **Nothing in the bundle changes.** The bundle root still holds only what the contract allows.
-- **Not yet mapped to contract v0.2.** There, `report.json` is in the bundle and its place for
-  this is `specProblems` (`pointer`, `message`). The module's `audit` has no `pointer` and carries
-  more than that shape holds. When the module moves to v0.2, each finding can become one
-  `specProblems` entry with the rest as extra members, which the schema allows and the portal
-  ignores. Whether the portal should show severity and the fix is a question for the contract.
-- `spec-audit.md` has no place in v0.2: the bundle root does not allow it (section 2) and the
-  portal's pipeline takes only the bundle directory (section 6), so only what is in `report.json`
-  reaches the portal.
-- Extra members count toward the report's limits (2 MB, nesting 64, 1,000 items per array). A
-  finding lists every affected operation id, so on a large spec the lists will need a cap, or the
-  whole report is ignored as `invalid-report`.
+- `pages`: every page written or skipped, with the reason. The module adds `type`, `title`,
+  `operations`, and **`sha256`, the hash of the page as it wrote it** (see the next section).
+- `gaps`: what a person should complete.
+- `specProblems`: the module's **spec audit**, one entry per finding, most serious first. `message`
+  is one line; the extra members are `code`, `severity` (`high`, `medium`, `low`), `title`, `detail`,
+  `fix`, `count`, `of`, `unit` and up to 200 affected operation ids in `subjects`. No `pointer` is
+  written. It overlaps with what the portal's spec doctor looks for; it is the module's view of
+  what limited the guides, and it proposes no patch.
+- Also at the top level: `generator`, `contractVersion`, `spec` and `navSha256`.
+- Sizes seen: 54 KB for Retavon, 80 KB for Stripe, 61 KB for GitHub, against the 2 MB limit. Arrays
+  are cut at 1,000 items, with the number left out recorded under `omitted`.
+- The command also writes `spec-audit.md` **beside** the bundle directory, for a person. It is not
+  in the bundle and does not reach the portal.
 
-### Derived operation ids
+## Regenerating without reverting edits
 
-Method, then the path with every non-alphanumeric character replaced by `_`: `get` and
-`/payments/{id}` give `get_payments__id_`. This matches the example in the brief. If the portal
-derives ids differently, every link and sample for a spec without `operationId`s will fail.
+The contract (4.7) leaves two choices to the module. These are the choices made.
 
-### Operation ids with unusual characters
+**How an edited page is told from a generated one.** By the `sha256` the module recorded for each
+page in `report.json`. Given the existing bundle:
 
-GitHub's spec uses ids such as `gists/create`. The module writes these into `op:` links and
-`operation="…"` attributes as they are. The portal needs to accept them or say which characters it allows.
+- a page whose bytes do not match its recorded hash was edited by a person;
+- a page with no record was added by a person;
+- a page whose bytes match was not touched.
+
+No input beyond the existing bundle is needed. **This depends on `report.json` staying in the
+bundle in the tenant's repository.** If it is deleted there, the module cannot tell pages apart and
+keeps every existing page as it is.
+
+**What happens to each.**
+
+- An edited or added page is emitted byte for byte. Nothing is merged into it, so it does not pick
+  up later improvements; the report lists it with `kept: "edited"` on every run.
+- An untouched page is regenerated, or removed when the spec no longer supports it.
+- **An edited page that no longer fits the spec is kept as the person left it**, for example one
+  that names a removed operation. The report says so under `gaps`, naming the code. The module
+  does not hide the problem: the bundle then has an `error` on that page, so under section 5 the
+  whole bundle is not staged until a person fixes or deletes the page.
+- **Navigation.** If `nav` differs from what the module last wrote (`navSha256`), it is the person's:
+  their order, groups, labels and `hidden` stand, entries for pages that are gone are removed, and
+  new pages are appended to the group for their type. Otherwise the module orders it.
+- Assets in the existing bundle are carried over unchanged.
 
 ## What it was run against
 
@@ -175,36 +171,42 @@ GitHub's spec uses ids such as `gists/create`. The module writes these into `op:
 | Clubhouse, APIs.guru (3.0, no `operationId`s) | 41 | 3 | passed |
 | Stripe (3.0) | 612 | 120 | passed |
 | GitHub Enterprise Server 3.9 (3.0) | 908 | 25 | passed |
-| Retavon 0.1.0 (3.1, assembled from its per-operation reads; 560 operations on 2026-11-26, 565 a day later) | 565 | 89 | passed |
+| Retavon 0.1.0 (3.1, assembled from its per-operation reads) | 565 | 89 | passed |
 
-"Passed" means the module's validator found no errors. **No bundle has been through a portal
-validator, because none exists yet.** The two will disagree somewhere; the first real ingestion
-should be treated as a test of both.
+"Passed" means no errors, no blockers and no warnings from the module's validator against v0.2.
+**No bundle has been through a portal validator, because none exists yet.** The two will disagree
+somewhere; the first real ingestion should be treated as a test of both.
 
 ## Things the portal side should know
 
+- **The module's validator is not a CommonMark parser.** It reads pages line by line, uses the
+  contract's codes and severities for what it can see, and rejects what it cannot check as
+  `unsupported-syntax`. It is a pre-flight check, not a reference implementation. Known gaps: it
+  measures nesting by component depth only; it looks up `example` in the sample media type only;
+  it does not apply the WHATWG host comparison to external links, which the contract leaves to the
+  portal.
+- **Stricter with its own output:** a generated page that would draw `api-request-code` is left out,
+  though the contract makes that a warning.
 - **Placeholder values.** Where a spec has no examples, sample values are built from types
-  (`"email": "string"`). They pass the schema but are not realistic. 85 of Stripe's 120 pages have
-  them. The module reports which pages; the bundle itself does not say.
-- **Gaps are outside the bundle.** What the spec did not say goes in `report.json`, written next to
-  the bundle, not in it. The contract has no marker for incomplete content (proposal 1). One
-  reader-visible callout in the quickstart says the spec does not describe how credentials are issued.
-- **The run report** also lists skipped pages with reasons and problems found in the spec. Contract
-  v0.1 had no place for it (proposal 6); v0.2 takes it as an optional `report.json` in the bundle
-  (5.2). The module still writes its v0.1 report, next to the bundle and in its own shape.
-- **Spec text is sanitized by the module** (reduced to plain text, escaped) before it reaches a page.
-  The portal must still treat every page as untrusted and must not rely on this.
-- **The module's validator is not a CommonMark parser.** It scans line by line and rejects what it
-  cannot check. It is a pre-flight check for the module's own output, not a reference
-  implementation for the portal's validator. Its error codes are provisional (proposal 5).
-- **Warnings to expect on every bundle:** `page-unreferenced` for concept pages with no operations (proposal 4).
+  (`"email": "string"`). They pass the schema but are not realistic. The report marks those pages
+  with `placeholderValues: true`.
+- **Spec text is sanitized by the module** (reduced to plain text, escaped) before it reaches a
+  page. The portal must still treat every page as untrusted and must not rely on this.
 - **No LLM step.** Output is built from templates and the spec's own words, so it is deterministic
-  and plain. Guides cover resource lifecycles, parent/child flows and the records a request
-  body refers to by identifier.
+  and plain. Guides cover resource lifecycles, parent/child flows and the records a request body
+  refers to by identifier.
+- **Information architecture.** A review of the generated bundles on 2026-11-27 found that at scale
+  the navigation is too flat (Stripe has 102 entries in one group), page titles drop the qualifier
+  that tells similar resources apart, and steps use generic verbs where the spec has its own. None
+  of that is fixed yet. Fixing it will change titles, step titles and navigation grouping, and may
+  change slugs; a bundle regenerated after that will differ widely from one generated now.
 
-## Decisions waiting on the portal side
+## Questions for the portal side
 
-1. Confirm or correct the 18 assumptions. Numbers 1, 3, 5, 11 and 12 affect whether bundles parse at all.
-2. Decide on the six proposed changes; a marker for incomplete content and `tryIt` on `<Sample>` matter most.
-3. Publish the validator's error codes.
-4. Settle delivery (contract section 6). The module only writes a directory today; it does not upload or build a `.tar.gz`.
+1. **An edited page that no longer fits the spec blocks the whole bundle**, because its finding is
+   an `error`. The module keeps the person's text, as 4.7 requires, and cannot make the page valid.
+   Is that the intended outcome, or should there be a way to withhold only that page?
+2. **`report.json` must survive in the tenant's repository** for edits to be recognised. Should the
+   portal say so where it describes the repository, or protect the file?
+3. **Should the portal show the audit's severity and fix text** from `specProblems`, beside its own
+   spec doctor findings? Today those are extra members, which the portal ignores.
