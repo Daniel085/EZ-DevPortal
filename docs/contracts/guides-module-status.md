@@ -128,6 +128,27 @@ What this means for the portal:
 - **Run report.** `no-request-example` no longer counts a request whose schema carries `example`
   or `examples`.
 
+### Spec audit (2026-11-27)
+
+Every run of the module now audits the API description and writes, next to the bundle and not in
+it, `spec-audit.md`: what the owner of the spec should change so that better guides can be
+generated. The same findings are in the module's `report.json` under `audit`, each with a code, a
+severity (`high`, `medium`, `low`), a count, the fix and every affected operation id.
+
+- Findings: no server URL, duplicate or missing `operationId`, unresolved `$ref`, operations with
+  no error or no success response, a GET response with no schema, path parameters and request
+  bodies with no example, a create response that does not show the new identifier, undefined,
+  unused or undescribed security schemes, parameters with no description, and the same body under
+  several success statuses.
+- It reads standard OpenAPI only. It overlaps with what the portal's spec doctor looks for; it is
+  the module's view of what limited the guides, not a second doctor, and it proposes no patch.
+- **Nothing in the bundle changes.** The bundle root still holds only what the contract allows.
+- **Not yet mapped to contract v0.2.** There, `report.json` is in the bundle and its place for
+  this is `specProblems` (`pointer`, `message`). The module's `audit` has no `pointer` and carries
+  more than that shape holds. When the module moves to v0.2, each finding can become one
+  `specProblems` entry with the rest as extra members, which the schema allows and the portal
+  ignores. Whether the portal should show severity and the fix is a question for the contract.
+
 ### Derived operation ids
 
 Method, then the path with every non-alphanumeric character replaced by `_`: `get` and
@@ -148,7 +169,7 @@ GitHub's spec uses ids such as `gists/create`. The module writes these into `op:
 | Clubhouse, APIs.guru (3.0, no `operationId`s) | 41 | 3 | passed |
 | Stripe (3.0) | 612 | 120 | passed |
 | GitHub Enterprise Server 3.9 (3.0) | 908 | 25 | passed |
-| Retavon 0.1.0 (3.1, assembled from its per-operation reads) | 560 | 89 | passed |
+| Retavon 0.1.0 (3.1, assembled from its per-operation reads) | 565 | 89 | passed |
 
 "Passed" means the module's validator found no errors. **No bundle has been through a portal
 validator, because none exists yet.** The two will disagree somewhere; the first real ingestion
