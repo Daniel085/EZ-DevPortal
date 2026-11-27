@@ -344,27 +344,42 @@ Debugging.
 - **Table stakes in the brief with no explicit owner:** "AI search" is listed as table stakes; M5
   says "search", and `m1.md` lists AI chat as not planned. Whether M5 search is AI search is not
   decided.
-- **Trust and safety arrives late.** OP-3 and OP-4 need the tenant to prove control of a domain.
-  That mechanism is planned for M6 (option C, custom domains), but public tenants arrive in M4.
+- **Trust and safety no longer arrives late.** OP-3 and OP-4 need the tenant to prove control of a
+  domain. Decided 2026-11-27: that is built in M4, where public tenants arrive, not M6.
 
-## M1 stories the 26 criteria do not cover
+## Proposal: splitting M4
 
-`m1.md` is not changed by this file. These are proposals for the user to decide.
+A proposal for the user, not a decision. M4 holds 33 of the 130 stories, 17 of them "must". The
+split is by what a tenant can do at the end of each part, so each part can be checked on its own.
+
+| Part | A tenant can | Stories | Why here |
+|---|---|---|---|
+| **M4a: tenancy and private preview** | Sign in, create a project from a spec URL or file, accept and dismiss fixes in the dashboard, and see the whole portal in a private preview. Nothing is public. | EV-1, SU-1, SU-8, SU-9, SU-16, SU-17, SM-2, OP-6 | No public surface, so it needs no verification and no abuse process, and can ship to evaluators first. |
+| **M4b: going public** | Prove control of domains, make the portal public on our host or under their subpath, and use "Try it" and MCP against verified servers. We can suspend a portal and take an abuse report. | SU-19, OP-3, OP-4, OP-1, OP-2, IN-1, SC-8, SC-9, EV-7, RD-6, then SM-10 | Everything that must be true the first time a stranger can reach a portal. SM-10 comes last, after its own security review, and is the first thing to cut. |
+| **M4c: staying correct and operating** | Connect Git and republish on change, roll back, add team members, and be told when the source breaks or new findings appear. We can support, back up and upgrade tenants. | SU-2, SU-3, SU-10, SU-11, SU-12, SU-18, SM-11, SC-5, AD-1, RD-17, OP-5, OP-9, OP-10, OP-11 | Needed to keep a live portal correct, not to launch one. |
+
+Costs of the split, as judgment: Git sync (SU-2) is table stakes and "stays correct without effort"
+is the buyer's reason to buy, so M4c cannot be deferred long; and M4b cannot be designed until the
+architect and security reviewer have designed verification. M5 and M6 are unchanged.
+
+## M1 stories the criteria did not cover
+
+Proposals A to C were adopted by the user on 2026-11-27 and are in `m1.md`, which now has 31
+criteria. D to G are still proposals.
 
 | # | Proposed addition | Story | Basis | Timing |
 |---|---|---|---|---|
-| A | A patch whose `test` no longer holds is reported as not applied, naming the fix; the build completes and every other patch is applied. | SM-5 | ADR 0004, step 3 | Decide before the spec doctor is built (kickoff step 3.2). |
-| B | A fix that needs an input is applied only when the overlay supplies it: with the input the finding disappears, without it the finding remains and names the input. Criterion 10's "applying all offered patches" should say how such fixes count. | SM-3, SM-4 | ADR 0004 (`bindFix`) | Before step 3.2. |
-| C | Criterion 8 names `server-not-callable`, including a server with an open host variable, and `controlled-header-required`. Whether the fix from decision B is built in M1 with the finding or in M2 with the proxy is undecided. | SM-8, SM-9 | ADR 0004; decision B | Before step 3.2. |
+| A | Adopted as c28: a stale patch is reported as not applied, naming the fix; the build completes and every other patch is applied. | SM-5 | ADR 0004, step 3 | Done. |
+| B | Adopted by amending c10: with its input a fix removes its finding; without it the finding remains and names the input. | SM-3 | ADR 0004 (`bindFix`) | Done. Undoing a fix (SM-4) still has no criterion. |
+| C | Adopted by amending c8, which names `server-not-callable`, including an open host variable, and `controlled-header-required`. The allowed-hosts fix is M1 (c29, c31). | SM-8, SM-9 | ADR 0004; decision B | Done. |
 | D | The doctor lists every webhook and callback as "not rendered". | SM-15 | `m1.md` out-of-scope table | Can wait until M1 close. |
 | E | A 3.2 document builds as 3.1 with a warning finding. | SU-4 | Brief decision; ADR 0003 | Can wait. |
 | F | A fixture with non-Latin, right-to-left and emoji text in descriptions, names and examples renders correctly in pages and twins, and its samples pass criteria 13 and 14. | RD-24 | J | Can wait; add with the QA fixtures. |
 | G | At 320 CSS pixels wide, an operation page needs no sideways scrolling outside code blocks and tables. | RD-13 | J | Can wait; tell UX before the reference page is specified (step 5). |
 
 **Does anything change M1 before the build starts? No.** Scaffolding, the `hard-schemas` fixture
-and the parser and model (kickoff steps 1, 2 and 3.1) are unaffected. A, B and C should be decided
-before the spec doctor step, because they affect what a fix is. D to G can be decided any time
-before M1 is closed.
+and the parser and model (kickoff steps 1, 2 and 3.1) are unaffected. A, B and C were decided
+before the spec doctor step. D to G can be decided any time before M1 is closed.
 
 ## Questions only the user can answer
 
@@ -373,11 +388,24 @@ before M1 is closed.
 2. Is there a free trial or preview before payment, and what does it include? (EV-1)
 3. Reader sign-in, API keys and sandbox credentials: build, reduce to a provider-supplied "get a
    key" link, or cut? (RD-6, RD-26)
-4. Will we require proof of domain control before a portal is public, which means moving part of
-   option C from M6 to M4? (OP-3, OP-4)
-5. Should MCP writes go through a separate tool so a client can ask for approval? (AH-4)
+4. Answered 2026-11-27: yes, proof of domain control is required before a portal is public, built
+   in M4. (OP-3, OP-4, SU-19)
+5. Answered 2026-11-27: yes, MCP writes go through a separate tool. (AH-4)
 6. "Samples tested against the API": whose credential, and may we store it? (SM-12)
 7. Versioned APIs and more than one API per portal: which milestone, or cut? (SU-15)
 8. Which milestone owns hosted subpath hosting, and is white-label a plan tier or the default?
    (IN-1, EV-3)
-9. Is the fix from decision B built in M1 with the finding, or in M2? (table row C)
+9. Answered 2026-11-27: the fix from decision B is built in M1. (c29, c31)
+
+Raised by the decisions of 2026-11-27:
+
+10. In a private preview, may a signed-in member use "Try it" against a server whose domain is not
+    verified? Default: no, so a trial shows no live call until the tenant verifies. (EV-1,
+    conflict 8)
+11. An API served from a domain the tenant cannot verify, such as a cloud provider's host name: do
+    we accept that it has no "Try it" or MCP, or ask the security reviewer for a proof that works
+    on one exact host? (conflict 9)
+12. Is an operation that only reads but is not `GET`, such as a `POST` search, always a write for
+    the MCP, or may the tenant mark it as a read? Default: always a write. (AC-3, AH-4)
+13. Split M4 into three parts as proposed above? (and with it, whether the verified domain suffix,
+    SM-10, stays at the end of M4b or is cut to later)

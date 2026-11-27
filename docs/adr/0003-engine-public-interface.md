@@ -286,7 +286,7 @@ These are requirements on M2's design.
   spec. It is in the published spec and so in the model, and the proxy reads it there like any
   `enum`. There is no other set. A listed value is tenant input and is exempt from nothing: the
   substituted URL is parsed and vetted on every request. A verified domain suffix is planned for
-  M6 and needs its own security review first (ADR 0004).
+  M4 and needs its own security review first (ADR 0004).
 - `https` only, with no exception for development servers. A server that is `http://`, localhost
   or relative is not callable. Plain `http` would put the user's key on the wire in clear, and the
   hosted proxy cannot reach localhost under address vetting in any case. For such a server the

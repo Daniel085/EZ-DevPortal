@@ -316,13 +316,14 @@ and existing guides get `spec-hash-mismatch` until they are regenerated.
 | The finding, the host clause and the Public Suffix List snapshot, the fix, `format` and `list` in `bindFix`, the CLI's check of each value with the URL parser, and the CLI's overlay file holding the values | M1 |
 | The proxy and MCP refusing a server variable value that is not in the `enum`, and a request whose parsed host is not the host built by position | M2 |
 | The dashboard form that collects the values and posts a fix id and `inputs` | M4 |
-| A verified domain suffix; see below | M6, planned |
+| A verified domain suffix; see below | M4, planned |
 
-**Planned, not designed: a verified domain suffix (M6).** Some tenants give each customer its own
+**Planned, not designed: a verified domain suffix (M4).** Some tenants give each customer its own
 subdomain and cannot list them. For them the tenant would prove control of a domain once, by a
-DNS record, and any host under it would be allowed. It depends on the domain verification that
-M6 builds for custom domains, and it needs its own security review before it is designed in
-detail. Until then an `enum` is the only way to make such a server callable.
+DNS record, and any host under it would be allowed. It depends on domain verification, which
+the user moved from M6 to M4 on 2026-11-27 so that proof of domain control is required before a
+portal is public. The suffix follows it in M4 and needs its own security review before it is
+designed in detail. Until then an `enum` is the only way to make such a server callable.
 
 ### The Public Suffix List
 
@@ -402,7 +403,7 @@ host is not callable. Every host variable needs an `enum`." This is stricter tha
 requires and needs no list. Its cost is that `https://{tenant}.example.com` loses "Try it" and
 MCP until the tenant adds an `enum` in its source spec, since the fix is offered only for a
 variable that ends the host, and a tenant with unbounded subdomains has no route until the
-verified domain suffix of M6. The publisher and the proxy of one deployment use the same mode.
+verified domain suffix of M4. The publisher and the proxy of one deployment use the same mode.
 Both modes meet the review's rule, so a mismatch is not unsafe, but the spec doctor's findings
 would then disagree with what the proxy sends.
 

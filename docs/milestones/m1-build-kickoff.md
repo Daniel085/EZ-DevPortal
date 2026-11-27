@@ -7,7 +7,7 @@ read and in what order to work.
 
 1. `CLAUDE.md`: the feature team, who decides what, and the four standing constraints.
 2. `docs/product-brief.md`: the product and the decisions made.
-3. `docs/milestones/m1.md`: scope and the 26 acceptance criteria. This defines "done".
+3. `docs/milestones/m1.md`: scope and the 31 acceptance criteria. This defines "done".
 4. `docs/adr/0001` to `0006`: the architecture. All six are accepted. ADR 0002 (the API model) and
    ADR 0003 (the engine's interface) are what the engine and renderer developers code against.
 5. `docs/contracts/guides-contract.md`, sections 1.1 and 1.2 only for M1: the operation id
@@ -48,7 +48,7 @@ Each step names the agent that owns it. Give a reviewer the code or the running 
    then `renderer-developer` builds the static portal (ADR 0006).
 6. **Close the milestone** as `m1.md` defines: `qa-engineer` runs the suite on all fixtures,
    `dx-reviewer` uses the built Petstore, Museum and GitHub portals, and `product-manager` marks
-   each of the 26 criteria.
+   each of the 31 criteria.
 
 Steps 3.3 and 5 can run in parallel once step 3.1 is done, because both depend only on the model.
 
@@ -104,8 +104,8 @@ doctor step. It changed three things the M1 code must follow:
 ADR 0004 also lists details the architect added to make the host rule decidable. The security
 reviewer has not confirmed them, so include them when the doctor's server checks go to review.
 
-The architect listed eight acceptance criteria these changes imply, and the product manager three
-more. They are proposed, not yet in `m1.md`; ask the user before treating them as agreed.
+The acceptance criteria for all of this are in `m1.md`: criteria 8 and 10 as amended, and 27 to 31.
+Security sign-off is required on 29 and 31.
 
 ## Open product decisions that do not block M1
 

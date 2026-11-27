@@ -143,7 +143,7 @@ Rules:
   The engine reads that `enum` from the model. A server with an open host variable, such as
   `https://{host}/v1` with no `enum`, is reported `server-not-callable` until the fix is accepted
   or the source spec gains an `enum`. The finding and the fix are M1; the proxy enforces the
-  rule in M2. A verified domain suffix, for hosts that cannot be listed, is planned for M6 and
+  rule in M2. A verified domain suffix, for hosts that cannot be listed, is planned for M4 and
   not designed here; it would be a second way to meet this rule and needs its own security
   review (ADR 0004).
 - Variables being first-class lets each language decide how to show one (an environment variable
