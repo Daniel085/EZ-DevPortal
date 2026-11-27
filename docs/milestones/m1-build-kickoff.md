@@ -42,8 +42,8 @@ The engine's own build order is ADR 0003, "Build order in M1"; the steps below f
    criteria need them:
    - `hard-schemas`: `oneOf`, `anyOf`, `allOf`, discriminators and mutual recursion in one small
      committed spec (criteria 1, 2 and 22).
-   - Hostile content: HTML, script, event handlers and `javascript:` URLs in descriptions,
-     summaries, examples, enum values and names (criterion 19).
+   - Hostile content: HTML, script, event handlers, a `javascript:` link and a remote image, in
+     descriptions, summaries, examples, enum values and names (criterion 19).
    - A parseable spec with an invalid schema and an example that violates its schema
      (criterion 6).
    - The request-shape matrix: path, query and header parameters; JSON, form-urlencoded and
