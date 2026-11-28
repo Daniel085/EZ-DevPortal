@@ -1,0 +1,14 @@
+{
+  "name": "@ezdp/portal",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ezdp/engine": "workspace:*",
+    "@ezdp/theme": "workspace:*"
+  }
+}

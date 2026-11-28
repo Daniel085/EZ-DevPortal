@@ -1,2 +1,10 @@
 # Large fixture specs, downloaded by fixtures/specs/fetch.sh
 fixtures/specs/large/
+
+# Dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+apps/portal/.next/
+apps/portal/out/
+.venv/

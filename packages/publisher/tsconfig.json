@@ -1,0 +1,13 @@
+{
+  // The I/O shell (ADR 0001): Node built-ins are allowed here.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "references": [{ "path": "../engine" }]
+}

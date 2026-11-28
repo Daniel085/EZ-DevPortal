@@ -1,0 +1,9 @@
+{
+  // Type-checks tests only, never emits.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["test"]
+}

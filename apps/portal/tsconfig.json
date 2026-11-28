@@ -1,0 +1,10 @@
+{
+  // Placeholder until the renderer step (ADR 0006) brings Next.js, which owns this app's build. Type-check only.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,13 @@
+{
+  // ADR 0001 rule 4: lib ES2023 and no ambient types, so fetch, process, fs and DOM do not compile. test/no-io.test.ts asserts this.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "lib": ["ES2023"],
+    "types": []
+  },
+  "include": ["src"]
+}

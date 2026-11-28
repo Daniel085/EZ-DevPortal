@@ -1,0 +1,9 @@
+{
+  // Tests may do I/O (ADR 0001, Fixtures); library source may not. Type-checks tests only, never emits.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["test"]
+}
