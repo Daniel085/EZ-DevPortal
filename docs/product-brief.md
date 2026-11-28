@@ -186,11 +186,11 @@ and public needs a plan and a verified domain.
 To confirm with the user. It follows from the decisions of 2026-11-27 on unverifiable hosts and
 live calls in a preview, and has a default that stands meanwhile.
 
-- **A server on an unverifiable host, on a public portal.** The decision says "Try it" and the
-  MCP are withheld and that "Try it" stays in example-response mode. Default reading: withheld
-  with a reason on a public portal, example-response mode in a private preview. The other
-  reading puts example-response mode on public portals, which is the third item below and new
-  scope for M2.
+- **Decided by the user on 2026-11-28: one rule for the console.** Wherever live calls are not
+  allowed, in a private preview or on a public portal, "Try it" is in example-response mode, with
+  the reason shown. The console is never absent. This applies to a server on an unverifiable
+  host, an `http://` or localhost server, and any server that is not callable. The MCP's call
+  tools are still withheld for such a server.
 
 Raised by the decisions of 2026-11-27. Each has a default that stands until someone objects.
 

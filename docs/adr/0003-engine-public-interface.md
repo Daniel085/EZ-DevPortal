@@ -978,13 +978,9 @@ example stands in for it.
 
 - **One meaning of "withheld".** Where this or another document says "Try it" is withheld for
   a server, it means live calls are withheld and the console is in this mode.
-- **To be confirmed with the user: the mode in a public portal.** In a private preview the
-  mode is decided. For a public portal this ADR follows the decision as it was relayed on
-  2026-11-27, that the console stays in the mode. The product brief records the other reading
-  as its default, that on a public portal the console is absent with a reason, and lists the
-  point for the user. Scope is the product manager's. Nothing above about when a request is
-  sent depends on the answer: it changes only whether a public console that is not live shows
-  an example or is not shown, and M2 builds the mode either way.
+- **The mode in a public portal.** Decided by the user on 2026-11-28: wherever live calls are
+  not allowed, in a private preview or on a public portal, the console is in this mode and
+  shows the reason. The console is never absent.
 - **The MCP.** In a private preview the MCP endpoint is off for everyone, members included,
   whatever is verified. The user confirmed this on 2026-11-27. In a public portal the
   MCP's two call tools are withheld for a server that fails condition 1 or 2.

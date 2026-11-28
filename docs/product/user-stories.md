@@ -463,8 +463,9 @@ Raised by the fourth two decisions of 2026-11-27.
 23. **"Withheld" against "stays in example-response mode" for an unverifiable host.** The
     decision uses both for the same server. Read here as: example-response mode in a private
     preview, withheld with a reason on a public portal (RD-8), which keeps the default that the
-    mode is not used outside a preview. If the user meant example responses on a public portal
-    too, that is new scope for M2 and changes RD-8. To confirm with the user.
+    mode is not used outside a preview. **Decided by the user on 2026-11-28: example-response
+    mode on public portals too.** Wherever live calls are not allowed the console is in the
+    mode with the reason shown, and is never absent. This is M2 scope and changes RD-8.
 24. **Live calls without a plan against the proxy as a relay (OP-4).** Until now a plan stood
     between an account and any request leaving our proxy. An account that has paid nothing can
     now send requests, bounded by three rules: signed-in members of that tenant only, verified
@@ -589,14 +590,13 @@ Raised by the third three decisions of 2026-11-27; each has a default in the bri
 
 17. Answered 2026-11-27: yes. A private preview makes live "Try it" calls to a verified server
     without a plan; otherwise it is in example-response mode. (EV-10, OP-15, conflict 19)
-18. Is example-response mode used anywhere outside a private preview, for example on a public
-    portal where a server is not callable? Default: no. (RD-8, RD-30)
+18. **Decided 2026-11-28.** Example-response mode is used outside a private preview: on a
+    public portal, wherever live calls are not allowed. (RD-8, RD-30)
 
 Raised by the fourth two decisions of 2026-11-27. Both are to confirm with the user; each has a
 default in the brief:
 
 19. **Decided 2026-11-27.** The MCP stays off in a private preview whose server host is
     verified: off in every private preview. (EV-10, SC-13, conflict 22)
-20. **To confirm.** On a public portal, is "Try it" for a server on an unverifiable host
-    withheld with a reason, or shown in example-response mode? Default: withheld; the mode is
-    for previews. This is question 18 for one case. (RD-8, SU-24, conflict 23)
+20. **Decided 2026-11-28.** On a public portal, "Try it" for a server on an unverifiable host
+    is shown in example-response mode with the reason. (RD-8, SU-24, conflict 23)
