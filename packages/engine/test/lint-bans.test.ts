@@ -31,6 +31,10 @@ const banned: [string, string, string][] = [
   ['a relative path into another package', "import '../../theme/src/index.js';", 'no-restricted-imports'],
   ['new RegExp', "export const make = (s: string) => new RegExp(s);", 'no-restricted-syntax'],
   ['RegExp call', "export const make = (s: string) => RegExp(s);", 'no-restricted-syntax'],
+  ['toLowerCase', "export const f = (s: string) => s.toLowerCase();", 'no-restricted-syntax'],
+  ['toUpperCase', "export const f = (s: string) => s.toUpperCase();", 'no-restricted-syntax'],
+  ['toLocaleLowerCase', "export const f = (s: string) => s.toLocaleLowerCase();", 'no-restricted-syntax'],
+  ['toLocaleUpperCase', "export const f = (s: string) => s['toLocaleUpperCase']();", 'no-restricted-syntax'],
 ];
 
 describe('engine source lint bans', () => {

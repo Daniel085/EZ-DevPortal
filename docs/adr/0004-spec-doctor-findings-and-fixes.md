@@ -38,6 +38,11 @@ portal-supplied parameters; `request-invalid` covers a cookie the cookie encoder
 `example-missing` is not reported for a parameter the portal supplies. All are M1 work. The
 review did not read this ADR, so the two new findings go to the security reviewer with the
 doctor's code.
+Revised again that day for criterion 33 and the security review of ADR 0005's "Text outside
+ASCII" (`docs/reviews/2026-11-28-security-review-text-outside-ascii.md`): the `request-invalid`
+condition is replaced in the reviewer's wording (ruling B); the first `server-not-callable`
+clause covers every scheme other than `https` (F8); and `text-bidi-control` is planned for
+M4b, not M1 ("Planned after M1"). Revised for that review and accepted by the security re-review of 2026-11-28.
 
 ## Context
 
@@ -324,7 +329,7 @@ manager may cut one: the cell becomes "None" and the message states what to chan
 
 | Code | Severity | Trigger | Fix | By |
 |---|---|---|---|---|
-| `parse-error` | error | Not YAML or JSON, or empty | None | P |
+| `parse-error` | error | Not YAML or JSON, or empty, or a string decodes to an unpaired surrogate (ADR 0002) | None | P |
 | `limit-exceeded` | error | Past a parsing limit, or `bytes` over `inputBytes` (ADR 0003) | None | P |
 | `not-openapi` | error | The root is not a mapping, or has neither `openapi` nor `swagger` | None | M |
 | `unsupported-version` | error | `swagger` present, or `openapi` not naming 3.0.x, 3.1.x or 3.2.x; at that key | None | M |
@@ -354,7 +359,7 @@ manager may cut one: the cell becomes "None" and the message states what to chan
 | `example-missing` | info | A parameter declaration that is neither a controlled header nor a credential carrier (below), or the sample media type of a request body declaration, with no named example, no schema `examples`, no `default` and no `enum`, so that a sample value for it is synthesized. One per declaration, by `loc`, however many operations share it through a `$ref` | None | D |
 | `example-invalid` | warning | A declared example with `errors` under `validateValue` | None | D |
 | `webhook-not-rendered`, `callback-not-rendered` | info | One per webhook and per callback | None | D |
-| `request-invalid` | warning | `buildRequest` could not place a value as the spec describes it: a header name or value RFC 9110 forbids, two credentials for one header, or a cookie name or value the cookie encoder refuses (ADR 0005) | None | B |
+| `request-invalid` | warning | `buildRequest` could not place a value as the spec describes it: a header name that is not an RFC 9110 `token`; a header value, a cookie name or value, or a multipart part's name, filename or content type that ADR 0005, "Text outside ASCII", rule 2, refuses; two credentials for one header; or a path segment that rule 1 refuses once the path is assembled | None | B |
 | `synthesis-failed` | warning | A synthesized value that has `errors` (ADR 0003, "Schema validation") | None | B |
 | `budget-exceeded` | warning | Derived work cut at a budget (ADR 0003, "Budgets") | None | B |
 | `schema-allof-conflict` | info | `allOf` members give different values for a keyword (ADR 0003) | None | B |
@@ -408,7 +413,9 @@ None stops a build: the portal still builds and every code sample still renders.
 - `server-not-callable`: a server the proxy will not send to under ADR 0003's proxy destination
   policy. That is a server for which any of these holds. "Host clause" means clauses (a) to (c)
   of contract 4.3, "Server variables".
-  - Its URL is `http://`, localhost or relative.
+  - Its scheme is not `https`, or it is localhost or relative. (Revised for the 2026-11-28
+    review of "Text outside ASCII", F8: a `gopher:`, `file:` or any other scheme is covered,
+    not only `http:`.)
   - It has a variable in the scheme, userinfo, query or fragment, or a variable in the URL that is
     not declared under `variables`.
   - It has a variable whose `enum` is empty. An empty `enum` allows no value.
@@ -726,6 +733,22 @@ would then disagree with what the proxy sends.
 
 **Residual risk, accepted by the security review.** Shared-hosting domains that are not on the
 list, and a tenant's own subdomains that serve user content. A stale snapshot adds to the first.
+
+### Planned after M1: `text-bidi-control`
+
+Required by the security review of 2026-11-28 ("Text outside ASCII", the architect's two
+points) before any portal is public, which is M4b. It does not protect readers from a hostile
+tenant; it is how a buyer whose spec source was tampered with finds out.
+
+- **The rule, in the reviewer's wording:** "Each string in the spec that holds a code point
+  from U+202A to U+202E or U+2066 to U+2069 is reported as an `info` finding at its `loc`,
+  one per string. Marks are not reported." The code is `text-bidi-control`; it has no fix,
+  since an `info` is advice. "Each string" includes keys, such as a
+  property or tag name.
+- **Milestone.** Required before M4b. The review recommends it for M1. It is **not in M1
+  scope**: adding it is the product manager's call, with the user. If it is taken into M1, it
+  is one row in "The M1 rule table" (`text-bidi-control`, info, by `diagnose`, no fix) and a
+  criterion clause on `unicode-text`; nothing else in this ADR changes.
 
 ## Consequences
 

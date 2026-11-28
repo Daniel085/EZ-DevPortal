@@ -56,9 +56,14 @@ The engine's own build order is ADR 0003, "Build order in M1"; the steps below f
      (criterion 7).
    - A test-generated document over the size limit, for `limit-exceeded` (criterion 5).
    - `unicode-text`: right-to-left, non-Latin and emoji text in descriptions, summaries, names,
-     path templates and examples, with none in a header or cookie and no bidi control
-     character; the mock as its first server, as in the matrix, and the hand-written expected
-     request of each operation (criterion 33, which lists what it must hold).
+     path templates and examples; U+202E in a description, a JSON request-body example and a
+     tag name, an unclosed U+2067 in an operation summary, U+200F inside a right-to-left
+     sentence and U+2028 in a JSON body example; a required header and a required cookie with
+     non-ASCII examples, and a multipart part whose name is non-ASCII or holds `=`, each
+     expected to be absent from every sample with one `request-invalid`, its recorded request
+     still compared although the mock answers 400; the mock as its first server, as in the
+     matrix, and the hand-written expected request of each operation (criterion 33, which
+     lists what it must hold).
    - Update `fixtures/specs/malformed/expected.json` with the finding codes ADR 0004's rule table
      gives for each of the 16 malformed fixtures.
 3. **Engine**, each part with tests against the fixtures before the next starts.
@@ -69,7 +74,11 @@ The engine's own build order is ADR 0003, "Build order in M1"; the steps below f
    2. Schema views, `validateValue`, `synthesizeExample` and `selectResponseExample` (ADR 0003).
    3. Spec doctor findings and patches, from the rule table in ADR 0004. Vendor the Public Suffix
       List here, as that ADR describes.
-   4. The request representation and the eight sample emitters (ADR 0005).
+   4. The request representation and the eight sample emitters (ADR 0005), including "Text
+      outside ASCII". Each emitter's tests with hostile values (U+0003, ESC `[201~`, `@.env`,
+      `<.env`, `#{`, `\u000a`, U+0085, `?>`) go to the security reviewer with the emitter code
+      (ruling C of `docs/reviews/2026-11-28-security-review-text-outside-ascii.md`). They are
+      QA work with the engine developer, not an acceptance criterion.
    5. Page models, Markdown twins and `llms.txt` (ADR 0003, "The portal bundle"). The Markdown
       functions (`sanitizeMarkdown`, `parseMarkdown`) can be built at any point before this.
 4. **The local mock**, once step 3.2 is done, with the one-patch overlays that point the Petstore
@@ -81,8 +90,9 @@ The engine's own build order is ADR 0003, "Build order in M1"; the steps below f
    `renderer-developer` builds the static portal and its `export` script (ADR 0006). The page
    specification includes the operation page's layout at 320 CSS pixels wide, with no
    sideways scrolling outside code blocks and tables and with the navigation still reachable
-   (criterion 34), and how tenant text is isolated for right-to-left scripts (criterion 33,
-   clause (c)). `ux` specifies both before the reference page is built.
+   (criterion 34), and how the marker of a bidi control looks (criterion 33, clause (h);
+   ADR 0006, "Direction of tenant text", which fixes the isolation itself). `ux` specifies
+   both before the reference page is built.
 7. **Close the milestone** as `m1.md` defines: `qa-engineer` runs the suite on all fixtures,
    `dx-reviewer` uses the built Petstore, Museum and GitHub portals, and `product-manager` marks
    each of the 34 criteria.

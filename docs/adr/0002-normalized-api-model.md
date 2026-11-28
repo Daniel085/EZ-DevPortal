@@ -14,6 +14,13 @@ Revised again that day after the second audit. One change of shape: a server var
 says what the model holds for each.
 Checked 2026-11-28 against guides contract 0.3 and its security review: portal-supplied
 parameters need no change of shape ("Dropped header parameters" says why).
+Revised 2026-11-28 for criterion 33 (text in any script): "Identifiers" says "code point"
+where it said "character", as contract 1.1 does, and "Text is kept as authored" states that
+no Unicode normalization happens anywhere. The shape and every id are unchanged.
+Revised again that day for the security review of "Text outside ASCII"
+(`docs/reviews/2026-11-28-security-review-text-outside-ascii.md`, F9 and notes): the parser
+refuses unpaired surrogates, and ASCII lower-casing is defined. Accepted by the security
+re-review of 2026-11-28.
 Milestone: M1. Longer than other ADRs because two developers code against it in parallel.
 
 ## Context
@@ -70,7 +77,9 @@ unit is the whole portal.
   last pointer segment or file base name, then the collision rule below.
 - **OperationId**: the declared `operationId`, verbatim, whatever characters it contains
   (`repos/get` is valid). If absent, derived: lowercase method, then the path template with each
-  character outside `[A-Za-z0-9]` replaced by `_`. `get` + `/payments/{id}` = `get_payments__id_`.
+  code point outside `[A-Za-z0-9]` replaced by one `_`. A code point, not a UTF-16 code unit:
+  `get` + `/` + U+1F389 (one code point, two code units) is `get__`. `get` + `/payments/{id}` =
+  `get_payments__id_`. Contract 1.1 is the normative text and says the same.
 - **Collision rule for operation ids**: the algorithm in section 1.1 of
   `docs/contracts/guides-contract.md` is normative, because the guides module must derive
   identical ids. Implement it exactly and test against its worked examples. It runs on the
@@ -86,11 +95,12 @@ unit is the whole portal.
 - Synthesized schema ids use the same suffix rule, ordered by source pointer.
 - Webhooks share the pool and are assigned after all path operations. Derived webhook id:
   `webhook_` + method + `_` + sanitized name.
-- **Slug**: `slug` on operations, tags and schemas is the URL segment. Lowercase, runs outside
-  `[a-z0-9]` become `-`, trimmed, same collision rule with `-2`. Ids are for lookup; only slugs
+- **Slug**: `slug` on operations, tags and schemas is the URL segment. Lowercase, runs of code
+  points outside `[a-z0-9]` become `-`, trimmed, same collision rule with `-2`. Ids are for lookup; only slugs
   appear in URLs. Made exact on 2026-11-27, because URLs must be stable (m1.md, criterion 11):
   the source text is `Operation.id`, `Tag.name` or `NamedSchema.id`; lower-casing is ASCII
-  only; the result is cut to 120 characters and trimmed of `-` again; an empty result is `x`.
+  only; the result is cut to 120 characters (all ASCII by then, so characters, code points
+  and bytes are the same count) and trimmed of `-` again; an empty result is `x`.
   Operations, tags and schemas are three separate pools, since each has its own URL prefix (ADR
   0003). Within a pool, items that share a slug are taken in order of source text by code
   point: the first keeps it and the rest get `-2`, `-3`, the first unused. Each such item is
@@ -108,6 +118,39 @@ unit is the whole portal.
   - `Operation.tags` holds those ids, each once, in authored order. `Tag.operationIds` is in
     `model.operations` order. Webhooks and callback operations get `tags` by the same rule, but
     they neither create an entry in `model.tags` nor appear in `operationIds`.
+
+### Text is kept as authored
+
+Decided 2026-11-28 (criterion 33). Until now this was only implied by "verbatim".
+
+- **No Unicode normalization happens anywhere**: not in the engine, the publisher or the
+  renderer, and not to ids, names, slugs' source text, descriptions, examples, enum values or
+  path templates. No NFC, NFD, NFKC or NFKD, and no case folding beyond the ASCII lower-casing
+  that slugs and the derived id's method use.
+- **ASCII lower-casing maps U+0041 to U+005A to U+0061 to U+007A and changes no other code
+  point.** It is never `toLowerCase`, `toUpperCase` or a locale variant: in JavaScript
+  `"K".toLowerCase()` (U+212A, the Kelvin sign) is `k` and `"ſ".toUpperCase()` is `S`, so
+  those would map two strings to one name. The engine has its own function, and ESLint bans
+  the four methods in engine source (ADR 0001, rule 4). "Without regard to ASCII case",
+  wherever an ADR says it, means this mapping.
+- **Unpaired surrogates are refused.** The parser refuses a document in which a string decodes
+  to an unpaired surrogate, with a parse error that gives its location. Such text is not
+  Unicode, so no rule here can keep it as authored. The finding is `parse-error` (ADR 0004);
+  for the root document it is fatal. Otherwise two ids such as `a\uD800` and `a\uD801`
+  would differ in the model and be the same (`a` and U+FFFD) in every UTF-8 file.
+- **Every comparison of tenant text is by code point** on the text as authored (after the
+  JSON or YAML parser has decoded its escapes, which is not normalization). So two names that
+  are canonically equivalent but differ in code points are different: a tag named `café`
+  with U+00E9 and one written `cafe` + U+0301 are two tags, two navigation groups and two
+  pages. Their slugs differ too (`caf` and `cafe`). This is deliberate: an API whose
+  server compares names byte for byte treats them as two names, and the reference must not
+  claim otherwise. No finding reports it in M1.
+- **Lengths of tenant text count code points**: `minLength` and `maxLength` (ADR 0003,
+  "Schema validation"), and the 120-character slug cut. Byte budgets in `Limits` are a
+  different thing and count UTF-16 code units (ADR 0003, "Budgets").
+- Bidi control characters are text like any other in the model and in `model.json`. What a
+  page, a twin and a sample do with them is in ADR 0003 ("Twins and `llms.txt`"), ADR 0005
+  ("Text outside ASCII") and ADR 0006 ("Direction of tenant text").
 
 ### Shape
 

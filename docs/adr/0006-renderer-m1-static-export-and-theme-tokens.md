@@ -22,6 +22,11 @@ Revised again that day for guides contract 0.3 and its security review
 (`docs/reviews/2026-11-28-security-review-contract-0.3.md`, rulings 1 and 2): "Guide pages and
 generated values" is added. It is M5 work. Nothing in it changes the M1 renderer. The review
 did not read this ADR.
+Revised again that day for criterion 33 (text in any script): "Direction of tenant text" fixes
+how a page isolates tenant text for bidi and what it does with bidi control characters. The
+part on control characters is revised for the security review of that day
+(`docs/reviews/2026-11-28-security-review-text-outside-ascii.md`, ruling E) and was
+accepted by its re-review the same day.
 
 ## Context
 
@@ -208,6 +213,67 @@ rely on the engine having run: a page file is data, and the renderer trusts none
 - The same parser will serve guides in M5, with the contract's nesting cap of 32. It runs
   inside the engine's guides validator, and the renderer is given the validator's tree: it
   does not parse a guide page ("Guide pages and generated values").
+
+**Direction of tenant text.** Decided 2026-11-28 for criterion 33, clause (c). It binds M1
+pages and the doctor page, and M5 guide pages use the same component.
+
+- **The page is left-to-right**: the root element is `<html lang="en" dir="ltr">`, and all
+  text of ours is in that direction.
+- **One component renders a tenant string**, in an element of its own that carries
+  `dir="auto"`: a `<span>` by default, or the element the caller names (`h1`, `td`, `code`,
+  a link's text). HTML's rendering rules give any element with a `dir` attribute a computed
+  `unicode-bidi` of `isolate` (`plaintext` for `pre`), and `dir="auto"` takes the direction
+  from the string's first strong character. It needs no stylesheet and works with JavaScript
+  off. Every tenant string on a page goes through it: titles, summaries, the names of tags,
+  schemas, properties and parameters, enum values, path templates, examples, server URLs,
+  navigation titles, `PageRef.description`, and tenant text in a finding on the doctor
+  page. A tenant string never shares a text node with text of ours: a label, a `:` or a
+  type name beside it is outside its element.
+- **URLs and path templates are the exception: `dir="ltr"`, not `auto`.** A path template,
+  the method and path of an operation, and a server URL are isolated the same way but
+  always laid out left to right, as RFC 3987, section 4.1, requires for an IRI: with
+  `dir="auto"`, `/مستخدمين/{id}` would show its segments in reverse order. Their computed
+  `unicode-bidi` is still `isolate`. Criterion 33(c) exempts them (amended
+  2026-11-28).
+- **Markdown.** Each block element made from a safe-form description (paragraph, heading,
+  list item, table cell, block quote) carries `dir="auto"`, so each paragraph of a
+  description in two languages takes its own direction.
+- **Code reads left to right.** A `pre` has `dir="ltr"`. In a highlighted sample, every
+  token span has `unicode-bidi: plaintext` from the code block's CSS module, so a
+  right-to-left string literal takes its direction from its own first strong character and
+  cannot reorder the tokens around it. How such a line looks beyond that is UX's (m1.md,
+  "Not tested by these criteria"), but the isolation is not optional. Code that is not
+  highlighted (over the cap, or a code block in a description) has no per-token isolation;
+  its `pre` is isolated. Inline code that holds one tenant string is the component above as
+  `<code dir="auto">`.
+- **Bidi control characters** (revised for the 2026-11-28 review, ruling E;
+  accepted by the security re-review of 2026-11-28). The marks U+200E, U+200F and
+  U+061C are rendered as themselves: writers of right-to-left text use them, and they act
+  only on the neutral characters beside them inside an element that is already isolated.
+  Each embedding, override or isolate control, U+202A to U+202E and U+2066 to U+2069, is
+  rendered as an element of its own, `<span dir="ltr" data-ez-bidi="U+202E">` holding that
+  one code point. The control then starts an embedding that ends at its own element's edge
+  with nothing in it, so it reorders nothing, and an unmatched closing control is ignored.
+  A rule of ours, `[data-ez-bidi]::before { content: attr(data-ez-bidi) }`, styled from
+  tokens, shows the reader that the text holds one. The DOM's text content and copied text
+  are unchanged, because generated content is neither; the attribute's value is one of nine
+  fixed strings of ours. Where markup cannot wrap a character, in an attribute value
+  (`title`, `aria-label`, `alt`), in `<title>` and in a `<meta>` content, those nine
+  controls are removed and the marks kept. Samples never hold any of them (ADR 0005, "Text
+  outside ASCII", rule 3).
+- **How the markup is built** (ruling E, in the reviewer's wording). The component builds
+  React elements from the string's code points. No tenant text is put into an HTML string,
+  `dangerouslySetInnerHTML` or `innerHTML`. The rule applies inside `pre` and `code` as it
+  does everywhere else. The marker is `::before` and never `::after`: content after the
+  control would be inside its override and shown reversed. In an element that holds only
+  text (`<option>`, `<textarea>`, `<title>`), in an attribute value, in a `<meta>` content
+  and in text that a script sets (`textContent`, `document.title`), the nine controls are
+  removed and the marks are kept.
+- `lang` is not set on tenant text: OpenAPI does not say what language a description is in.
+
+Alternative rejected: `unicode-bidi: plaintext` from component CSS in place of `dir="auto"`.
+It reorders the same way but does not set `direction`, so a right-to-left paragraph is still
+aligned and laid out left to right, and it depends on a stylesheet loading.
 
 **Highlighting.** `shiki` (MIT), run at build time in server components, with its JavaScript regex
 engine and only the grammars for our sample languages plus JSON. We take tokens and render

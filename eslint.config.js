@@ -4,6 +4,7 @@
 // Rule 1: dependency direction is one way.
 // Rule 4: `engine` and `theme` source may not use `Date`, `Math.random`, `console` or `node:*`.
 // ADR 0003, "Schema validation": the engine never builds a RegExp from a non-literal.
+// ADR 0001 rule 4: engine source never calls toLowerCase/toUpperCase or their locale forms.
 //
 // `no-restricted-imports` is replaced, not merged, by a later block that matches the same file, so
 // every block below states the full list for the files it covers.
@@ -108,6 +109,12 @@ export default tseslint.config(
         {
           selector: "CallExpression[callee.name='RegExp']",
           message: 'The engine never constructs a RegExp; use a literal (ADR 0003, "Schema validation").',
+        },
+        {
+          selector:
+            "MemberExpression[property.name=/^to(Locale)?(Lower|Upper)Case$/], MemberExpression[property.value=/^to(Locale)?(Lower|Upper)Case$/]",
+          message:
+            'Not ASCII case mapping; use the engine\'s own function (ADR 0001 rule 4; ADR 0002, "Text is kept as authored").',
         },
       ],
     },

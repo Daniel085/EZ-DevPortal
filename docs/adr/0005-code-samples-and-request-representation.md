@@ -33,6 +33,17 @@ drawn (ruling 2), and who builds `Cookie` (F4). One type changes: `HttpRequest` 
 `cookies`, and "Cookies" is added. Ruling 3 and F4 change what the M1 sample builder and
 emitters produce; "Portal-supplied parameters in M1" says how. The review did not read this
 ADR's emitter text, so the cookie encoder goes to the security reviewer with the emitters.
+Revised again that day for criterion 33 (text in any script): "Text outside ASCII" is added. It
+fixes how a sample writes non-ASCII text (percent-encoded at publish time in the URL and a form
+body, in one form; as itself in string literals), refuses non-ASCII header and cookie values
+and multipart part names, and never writes a bidi control character as itself in a sample.
+"The local mock" gains how a received request is compared with the hand-written one, for
+criteria 14 and 33. No type is changed.
+Revised again that day for the security review of that text
+(`docs/reviews/2026-11-28-security-review-text-outside-ascii.md`), which blocked it on F1 and
+F2: rulings A, B and C and findings F1 to F10 are applied in the reviewer's wording. Rules 1, 2
+and 3 and "What an M1 sample shows", "Base URL", are revised for that review and await
+re-review. Emitter work does not start until the re-review passes.
 
 ## Context
 
@@ -237,7 +248,8 @@ Rules:
   tested on the fixture corpus with hostile values.
 - **Runtime substitution is encoding, not string replacement.** Every runtime substitution into a
   sample or request goes through the target language's encoder and the parameter location's
-  encoder (path segment: `/ ? # %` encoded, `.` and `..` rejected). String replacement into
+  encoder (path segment: every byte outside the unreserved set encoded, which includes
+  `/ ? # %`, and `.` and `..` rejected; "Text outside ASCII", rule 1). String replacement into
   emitted code does not conform. Escaping done at publish time acts on a placeholder and protects
   nothing once a value is filled in later, so each `Var` carries the encoders for its position, and
   the engine exports them as pure functions. The browser fills a placeholder with the encoded
@@ -247,7 +259,8 @@ Rules:
   through the JSON serializer and then the encoders, never into the body as its own text.
 - A runtime value is a string, number or boolean of at most 2,048 characters (contract 4.6).
   Header names match the RFC 9110 `token` and header values contain no CR, LF or NUL; `buildRequest`
-  reports a violation in `issues`, and `resolveRequest` checks again after substitution.
+  reports a violation in `issues`, and `resolveRequest` checks again after substitution. The
+  header value rule is narrowed to printable ASCII by "Text outside ASCII", rule 2.
 - Emitters target an HTTP client that needs no generated SDK: the language's standard library,
   or its most conventional client where the standard library is not what people reach for. M1 has
   eight emitters, the list in `docs/milestones/m1.md`. Each emitter is one function, and adding a
@@ -322,7 +335,9 @@ a credential cookie's is never filled from the spec.
   `in: cookie` in the requirement in effect, in the requirement's order, with a credential
   `Var` as its value. `headers` never has an entry named `Cookie`, in any letter case.
 - **The cookie encoder refuses; it never rewrites.** A name must be an RFC 9110 `token`. A
-  value must hold none of `;`, `,`, space, `"`, `'` and no control character. Cookies have no
+  value must hold none of `;`, `,`, space, `"`, `'` and no control character. Narrowed on
+  2026-11-28 to an allowlist that also refuses non-ASCII text and `\` ("Text outside ASCII",
+  rule 2). Cookies have no
   agreed escaping, so a value that fails is not percent-encoded or quoted: the cookie is
   left out, and `buildRequest` reports `request-invalid` in `issues` (ADR 0004). A cookie
   parameter serialized from an array or an object contains `,` and is refused in the same
@@ -363,6 +378,147 @@ What the rules above mean for the static sample of an operation, which is
   parameter list, because the spec declares it.
 - An M1 static sample uses the first requirement. Selecting another is M2.
 
+### Text outside ASCII
+
+Decided 2026-11-28 for criterion 33. A spec can hold text in any script in a path template, a
+parameter's value, a header's value and a body. Until now this ADR did not say how a sample
+writes it, and the eight clients disagree. Rules 1 and 3 make every sample send the same bytes
+for the same request; rule 2 refuses what clients cannot agree on. Rules 1, 2 and 3 are
+**revised for the 2026-11-28 review and accepted by the security re-review of 2026-11-28**
+(`docs/reviews/2026-11-28-security-review-text-outside-ascii.md`, rulings A to C, F1 to F10).
+The emitters and encoders still go to the security reviewer as code.
+
+1. **The URL and a form body are percent-encoded at publish time, in one form.**
+   `buildRequest` writes `HttpRequest.path`, every query name and value, and every field name
+   and value of a `form` body as literal text that is already encoded:
+   - A value, after its `style` and `explode` serialization: its UTF-8 bytes, with every byte
+     outside the RFC 3986 unreserved set `A-Z a-z 0-9 - . _ ~` written `%` and two
+     **upper-case** hex digits. A space is `%20`, never `+`, and `+` is `%2B`. The delimiters
+     the serialization itself adds (`,` between items, `=` and `&` between pairs, the `.` and
+     `;` prefixes of `label` and `matrix`) are written as themselves. `allowReserved` is not
+     honoured in M1: a reserved character in a value is encoded. Example: `q` = `שלום עולם`
+     is `q=%D7%A9%D7%9C%D7%95%D7%9D%20%D7%A2%D7%95%D7%9C%D7%9D`.
+   - The literal text of the path template, and the path of the server URL: each code point
+     that is not an RFC 3986 `pchar` or `/` is percent-encoded the same way; a `%` followed by
+     two hex digits is kept as written; everything else is kept. So `/مستخدمين/{id}` with
+     `id` = `7` is `/%D9%85%D8%B3%D8%AA%D8%AE%D8%AF%D9%85%D9%8A%D9%86/7`.
+   - The path-segment, query and form location encoders are this same function, so a value
+     filled in later is encoded exactly as a value placed at publish time. It encodes every
+     component that comes from the spec or a caller: a value, a parameter or field name, and
+     a property name that `form` or `deepObject` serialization makes into a name or puts
+     inside `[ ]`. Only the delimiters the serialization adds are written as themselves. A
+     string that holds an unpaired surrogate (U+D800 to U+DFFF not part of a pair) is
+     refused; it is never replaced, and the encoder never throws on it. The path-segment
+     encoder still refuses the values `.` and `..`. In addition, once the path is assembled
+     from the template's literal text, the style prefixes and the encoded values,
+     `buildRequest`, and `resolveRequest` in M2, refuse the request if any segment into which
+     a value was placed is empty, or is `.` or `..` when `%2E` and `%2e` are read as `.`.
+     (Revised for the 2026-11-28 review, ruling A, F6, F9, F10; accepted by the security re-review of 2026-11-28. It
+     replaces "`/ ? # %` encoded", which it includes.)
+   - Each emitter writes the URL, query included, as one string literal, and a form body as
+     one string literal with its `Content-Type`. No emitter uses its client's query or form
+     builder (`params=`, `URLSearchParams`, `url.Values`, `http_build_query`,
+     `URI.encode_www_form`): each would encode the `%` again, they disagree about a space,
+     and Go's sorts the keys. That literal still goes through the emitter's string or shell
+     encoder like any other text. Percent-encoding does not make it safe: the template's
+     literal text keeps RFC 3986 sub-delims as written, so `'`, `$`, `(`, `)`, `!`, `*`, `&`
+     and `;` can reach it.
+   - The `curl` emitter passes `--globoff`, so a `{name}` left in a server URL, or any
+     `{ } [ ]`, is sent as written and not expanded by curl.
+2. **Header values, cookie values and part names are printable ASCII, or refused.**
+   (Revised for the 2026-11-28 review, ruling B, F4, F7; accepted by the security re-review of 2026-11-28.)
+   - A header name must be an RFC 9110 `token`, which is ASCII only, so a non-ASCII header
+     name is already refused: the header is left out and `request-invalid` is in `issues`.
+   - A header value, from the spec or filled in at run time, holds only HTAB, space and
+     U+0021 to U+007E, and does not begin or end with a space or HTAB. Otherwise the header is
+     left out and `request-invalid` is in `issues`. It is not percent-encoded, RFC
+     8187-encoded or sent as Latin-1. The clients disagree: `fetch` takes code points up to
+     U+00FF only and throws above it, Python's `http.client` encodes Latin-1 and raises,
+     .NET refuses non-ASCII by default, and Go, PHP and curl send the bytes raw; and an
+     encoding the API did not ask for sends a value other than the one the spec declares.
+   - A cookie value holds only RFC 6265 `cookie-octet`s (U+0021, U+0023 to U+002B, U+002D to
+     U+003A, U+003C to U+005B, U+005D to U+007E) other than `'`. That is the list in
+     "Cookies" with non-ASCII text and `\` added to what is refused. A cookie name is a
+     `token`. A refused cookie is left out with `request-invalid`, as "Cookies" says.
+   - A multipart part's `name` and `filename` follow the header value rule and hold no `"`
+     or `\`, and a `name` holds no `=`; otherwise the part is left out with
+     `request-invalid`. (`=` is refused because `--form-string 'a=b=c'` sends the name `a`;
+     the review recommended it.)
+   - A part's `contentType` follows the header value rule and holds no `"` or `\`. A part's
+     `filename`, and a binary body's `filename`, are only the name sent in
+     `Content-Disposition`. In every language, the file a sample reads from the reader's disk
+     is named by fixed display text of ours, `YOUR_FILE_PATH`, and no text from the spec
+     names a path that a sample opens.
+   - Basic authentication: a `username` or `password` filled in at run time holds only
+     U+0020 to U+007E, and a `username` holds no `:`; otherwise `resolveRequest` refuses the
+     request.
+   - A refusal in `issues` names the parameter, scheme or part, the rule it failed and the
+     position of the first character that fails, never the value. A refused credential's
+     value appears in no issue, log, error report or trace.
+   - `resolveRequest` (M2) applies the same rules after substitution, to a credential too,
+     and refuses the request if one fails.
+   - A required parameter left out this way makes the request one the API may reject. That
+     is the honest result: the spec declared a value no client sends the same way.
+   - The guides contract's bundle check (4.3, "Header syntax") still forbids only CR, LF and
+     NUL. It is aligned with this rule in the next contract draft, and M5 ingests no guide
+     bundle until it is.
+3. **In a string literal, text is written as itself, except controls and bidi controls.**
+   (Revised for the 2026-11-28 review, ruling C, F1, F2, F3, F5; accepted by the security re-review of 2026-11-28.) Every
+   body (JSON, text, a multipart part's content) is sent as its UTF-8 bytes; an emitter whose
+   client would pick another encoding converts explicitly (Python sends a text body as
+   `data='…'.encode('utf-8')` and a JSON body with `json=`). In the sample's text, each
+   code point of tenant text, a JSON key included, is written as itself, in UTF-8, except:
+   (a) every code point in General Category Cc (U+0000 to U+001F and U+007F to U+009F, which
+   include U+0085, a line terminator in C#), and every character the language's escaping
+   writes as an escape, listed under "String literals" below. In `curl`, which has no escape
+   inside a single-quoted word, each Cc code point other than LF and HTAB is written with the
+   `printf` construct of (b). LF and HTAB are written as themselves inside the quoted word,
+   because command substitution drops a trailing LF. In JSON text, in every language, each
+   Cc code point and each code point of (b) is written as a `\uXXXX` escape.
+   (b) the bidi control characters and the line and paragraph separators, U+061C, U+200E,
+   U+200F, U+202A to U+202E, U+2066 to U+2069, U+2028 and U+2029, which are **never written
+   as themselves anywhere in a sample**, in a literal. Each is written as an escape made of
+   ASCII that the language turns back into that code point:
+
+   | Language | Escape, for U+202E |
+   |---|---|
+   | `javascript`, `python`, `go`, `java`, `csharp`, `ruby` | `\u202E`: four upper-case hex digits. Go: in an interpreted string literal, never a raw one. Ruby: in a double-quoted string. |
+   | `php` | `\u{202E}`, in a double-quoted string, with `$` escaped |
+   | `curl` | In JSON body text, the JSON escape `\u202E`. Anywhere else, the single-quoted word is closed and the code point is written as `"$(printf '\342\200\256')"`, its UTF-8 bytes in octal, which POSIX `printf` supports; the command text holds no tenant text. |
+
+   So a sample, and the twin's `## Example request`,
+   which is the cURL sample, never holds a bidi control, and a copied sample cannot read
+   differently from what it does ("Trojan Source"). In the URL and a form body these code
+   points are already percent-encoded by rule 1, and in a header or cookie they are refused
+   by rule 2, so (b) acts on body literals only.
+   - **String literals.** Each string literal that holds tenant text is of one kind, and
+     these characters are escaped in it. JavaScript: a single- or double-quoted string, never
+     a template literal. Python: a string with no `f` prefix. Ruby: a double-quoted string,
+     with `#` written `\#`. PHP: a double-quoted string, with `$` written `\$`. Go: an
+     interpreted string literal. Java: a string literal in which `"`, `\`, CR and LF are
+     written `\"`, `\\`, `\r` and `\n`, never as `\u` escapes, because Java decodes
+     `\u0022` before it reads the string. C#: a regular string literal, never an
+     interpolated or verbatim one. curl: a single-quoted word, with `'` written `'\''`.
+   - **No tenant text in a comment.** No sample, in any language, holds tenant text in a
+     comment. A comment holds only fixed text of ours. A comment has no escape: Java decodes
+     `\u000a` in a comment as a line end, PHP ends a `//` comment at `?>`, C# ends one at
+     U+0085, U+2028 and U+2029, and JavaScript ends one at U+2028 and U+2029.
+   - **curl reads no file named by the spec.** The `curl` emitter sends an inline body with
+     `--data-raw` and each multipart text value with `--form-string`. It never uses `-d`,
+     `--data`, `--data-binary` or `-F` with tenant text: each reads a local file when the
+     value starts with `@`, and `-F` also when it starts with `<`, and parses `;type=` in the
+     value. `-F` and `--data-binary` appear only with `@YOUR_FILE_PATH`. A file part's tenant
+     filename and content type follow as `;filename="…"` and `;type="…"`, which is
+     unambiguous because rule 2 refuses `"` and `\`.
+   - Alternative rejected: escape every non-ASCII code point. It is safe for any source
+     encoding, but the readers criterion 33 serves would see `\u0645\u0631…` in place of
+     their own language. All eight toolchains read UTF-8 source; the harness of criterion
+     13 compiles Java with `-encoding UTF-8` so that it does not depend on the JDK's
+     default.
+4. **A JSON body** may be written as JSON text or as the language's own structure; the two
+   send different bytes for the same value (Python's `json=` escapes non-ASCII, JavaScript's
+   `JSON.stringify` does not), which is why the local mock compares JSON parsed.
+
 ### Display text for generated values
 
 For M5. A `unique` variable is shown as `UNIQUE`, and `unique_1` to `unique_9` as `UNIQUE_1`
@@ -381,7 +537,9 @@ chosen, so (criterion 15):
 - **Base URL.** The first of the operation's effective servers (`Operation.servers[0]`, ADR
   0002), written as literal text with each variable replaced by its `default`. A variable with
   no `default` takes its first `enum` value; with neither, its `{name}` stays as written, and
-  the doctor has already reported it.
+  the doctor has already reported it. A server URL whose scheme is not `http` or `https`,
+  compared without regard to ASCII case, is treated as relative: the sample uses `base_url`,
+  and none of that URL's text follows it. (Revised for the 2026-11-28 review, F8; accepted by the security re-review of 2026-11-28.)
 - **No absolute URL.** If there is no server, or the first one's URL is relative, `baseUrl` is
   the `base_url` variable followed by the relative URL, if any. This is the only case in which
   a static sample has a `base_url` variable.
@@ -424,6 +582,35 @@ adds no dependency: Node's `http` module.
 - **Expected values are written by hand.** For criterion 14 the expected method, URL, headers
   and body of each matrix row are in the fixture. They are not taken from `buildRequest` or
   `HttpRequest`, or a serialization bug would agree with itself.
+- **How a received request is compared with the expected one** (decided 2026-11-28, for
+  criteria 14 and 33 alike). The harness compares what the mock recorded, whatever the mock
+  answered; an expected entry may also name the status it expects, such as 400 for a row
+  whose required header rule 2 of "Text outside ASCII" leaves out.
+  - Method: exactly.
+  - URL: the request target, path and query, byte for byte, in order, except that the two hex
+    digits of a percent-escape are compared without regard to case (RFC 3986, 6.2.2.1).
+    Nothing else is decoded: `%20` and `+` differ, and an encoded and an unencoded character
+    differ. That rule 1 writes upper case is checked on the sample text by the emitter tests,
+    not on the wire.
+  - Headers: each expected header is present exactly once, its name compared without regard
+    to ASCII case, its value byte for byte after removing leading and trailing spaces and
+    tabs. Headers the expected entry does not list are ignored (clients add `User-Agent`,
+    `Accept-Encoding`, `Host`, `Connection`, `Content-Length`), except that no header that the
+    operation declares as a parameter, that a security scheme carries a credential in, or
+    named `Cookie` or `Authorization` may be present unless it is expected. `Cookie` is
+    compared as one header, its pairs in order.
+  - `Content-Type`: the media type without regard to ASCII case; a `charset` parameter equal
+    to `utf-8`, in any case, is ignored where the expected value has none; for `multipart`
+    a `boundary` must be present and is used to parse the body; any other parameter must
+    match.
+  - Body, once de-chunked: JSON (`application/json` or a `+json` type) is compared as the
+    parsed value: objects as sets of members (a duplicate key in the received body fails),
+    arrays in order, numbers by value, strings by code point after JSON escapes are decoded,
+    so a character written as itself and as a `\u` escape are equal. No normalization. A
+    form body is compared as its `&`-separated pairs, in order, by the URL rule. Multipart
+    is compared part by part, in order: name, filename and content byte for byte, and a
+    part's `Content-Type` only where the expected entry gives one. Any other body: byte for
+    byte.
 - **It never calls a real API.** It listens on `127.0.0.1` only and makes no outbound request.
   Before running any sample the harness checks that the sample's base URL is the mock's, and
   fails otherwise, so a sample that still points at a real server is never run.

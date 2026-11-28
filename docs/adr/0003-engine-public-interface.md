@@ -55,6 +55,10 @@ the guides module, whose isolation is ADR 0007's and not the publish worker's. "
 destination policy" says who builds `Cookie` (F4), and "Live calls and example-response mode"
 gains three rules for the console (F6). None of it is built in M1. The review read this ADR's
 worker text only.
+Revised again that day for criterion 33 (text in any script): "Twins and `llms.txt`" says what
+page files, twins and `llms.txt` do with bidi control characters (accepted as written by the
+security review of 2026-11-28, ruling D), and
+"Libraries" says what the Markdown parser's "module of its own" is (ADR 0001, rule 3).
 
 ## Context
 
@@ -405,6 +409,25 @@ Rules, each one sentence a builder would otherwise have to guess:
   `--public-report` puts them in the export.
 - Links are relative to the file that holds them: `operations/get-pet.md` from `llms.txt`,
   `../schemas/pet.md` from an operation's twin.
+- **Text in any script, and bidi controls** (decided 2026-11-28; accepted as written by the
+  security review of that day, `docs/reviews/2026-11-28-security-review-text-outside-ascii.md`,
+  ruling D). Page files, twins and `llms.txt` are UTF-8 with no byte order mark and
+  hold every code point of tenant text as authored, with no normalization (ADR 0002, "Text
+  is kept as authored"). That includes the bidi control characters U+061C, U+200E, U+200F,
+  U+202A to U+202E and U+2066 to U+2069: a page file is data the renderer treats as
+  untrusted, and an agent reads a twin as code points, not as a picture. Two exceptions
+  follow from other rules: no sample, and so no twin's `## Example request`, holds one (ADR
+  0005, "Text outside ASCII", rule 3), and no slug, derived id, page path or fragment does
+  (ADR 0002). What an HTML page does with them is ADR 0006, "Direction of tenant text".
+  Known limit: a person who opens a twin as plain text sees the line that holds an override
+  reordered as the override says, to the end of that line. Considered and not adopted:
+  `escapeMarkdownText` writing each control as a character reference (`&#x202E;`). It
+  would cover text but not a code span or a fenced block, where Markdown has no escape, so
+  it is half a rule, and the review agreed. Also not adopted: the review's optional
+  recommendation to write rule 3(b)'s code points as `\u` escapes in JSON examples that a
+  twin serializes. It would keep the parsed value but make the twin's text differ from the
+  page file's for those strings, which criterion 33(a) compares, and the risk it addresses,
+  copied code, is closed by the samples rule.
 
 **Declared examples stay apart from synthesized values. This binds M1.** An operation's page
 file carries each response as the model has it: by status, then by media type, each with its
@@ -778,7 +801,10 @@ Libraries:
   It is the engine's second runtime dependency; the licence line and the reason are in ADR
   0001, rule 5, and the use is "Tenant Markdown". It is in a module of its own and the package
   is marked free of side effects, so a browser bundle that imports only the request code does
-  not carry it.
+  not carry it. "A module" is a source file under `src/` that only the Markdown functions
+  import; it is re-exported through the package's one `"."` entry, not a second subpath (ADR
+  0001, rule 3). Not verified: that every parser package is itself free of side effects, so
+  that a bundler drops it; M2's "Try it" bundle is where that is measured.
 - **`$ref` resolution is our own code**: JSON Pointer lookup across the supplied documents, by own
   properties only, a few hundred lines. See the alternative below.
 - **No schema validator dependency.** Values are checked against a schema by `validateValue`,
