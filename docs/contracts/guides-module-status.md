@@ -18,10 +18,10 @@ of what it emits.
 The brief asks the module to say what it offers.
 
 - **Both a library and a command.** The library is one pure function,
-  `generate(specBytes, { manifestSchema, reportSchema, existing? })`, which returns the bundle's
+  `generate(specBytes, { manifestSchema, reportSchema, existing?, settings? })`, which returns the bundle's
   files in memory, the manifest, the run report and a validation report. It touches no file,
   network, clock or environment. The command, `node src/cli.ts generate <spec> --out <dir>
-  [--existing <bundle-dir>]`, is the only code that reads or writes files.
+  [--existing <bundle-dir>] [--settings <file>]`, is the only code that reads or writes files.
 - **Inputs:** the bytes of the published spec, optionally the existing bundle, and optionally a
   **settings** object (below). Nothing else.
 - **Pinning.** There is no published package yet. Pin by Git commit. It needs Node 22.18 or later
@@ -139,16 +139,19 @@ A spec's `x-` fields have no declared meaning, so the module assumes none.
   it is used, the kinds of value, one example, and a role its name suggests. A suggestion changes
   no page.
 - **A settings object gives an extension a role**, and only then does it reach a page. The roles:
-  `permission`, `requires`, `note`, `errors`, `ignore`. The settings are the module's own input,
-  which the brief allows ("your own settings"); the same spec and settings give the same bytes.
-  By hand they are a JSON file passed with `--settings`.
+  `permission`, `requires`, `note`, `errors`, `ignore`. By hand they are a JSON file passed with
+  `--settings`. The contract counts the module's settings among its inputs for determinism (4.7),
+  but section 6 gives the portal's step two inputs. Passing settings per tenant is a third, which
+  the portal side must decide and add to section 6. Without settings the output is as before.
+- **Shape:** `{ "extensions": { "x-name": { "role": "...", "label": "1 to 80 characters, optional" } } }`.
+  The label is text someone chose and appears on pages, sanitized. Any other key fails the run.
 - **What a role writes.** `permission`, `requires` and `note` add one line to each step that calls
   the operation, after its description: a bold label, then the value. A permission label is a
   `guide:permissions` link. `permission` also writes a concept page with the fixed slug
   `permissions`. `errors` writes the `errors` page from the extension's text when the spec declares
   no error responses.
 - **Text only.** An extension is shown only if it is written on an operation and its value is a
-  string, a number, true or false, or a list of those. Its words are sanitized like a description.
+  string, a number, `true` (the label alone), or a list of strings and numbers. Its words are sanitized like a description.
 - **For the portal to decide:** who chooses the roles for a tenant's spec, and where. The module
   cannot ask; it is run unattended. A screen that lists `report.json`'s `extensions` with their
   suggested roles, and stores the choices as the settings for the next run, would be one way.
