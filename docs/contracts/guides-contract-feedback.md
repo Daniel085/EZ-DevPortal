@@ -79,3 +79,63 @@ Errors: `missing-manifest`, `invalid-manifest`, `unsupported-contract-version`, 
 `invalid-code-info`, `api-request-code`, `unsupported-syntax`.
 
 Warnings: `spec-hash-mismatch`, `deprecated-operation`, `image-missing-alt`, `page-unreferenced`.
+
+## On v0.2
+
+Added 2026-11-27, after the module moved to v0.2. Sections 10 and 11 of the contract decided
+everything above. These are new.
+
+**A gap in 4.3.**
+
+- A required parameter with no value is `invalid-sample`, and a header the portal controls or a
+  name that carries a credential is `invalid-sample` when a sample sets it. A spec can declare such
+  a header as a required parameter (for example `Authorization`, or the API key header). Both rules
+  then apply to the same sample and it cannot be valid. The module assumes the portal supplies
+  these values itself: it never sends them, and its validator does not count them as missing.
+
+**Proposals.**
+
+1. **Withhold an invalid page instead of blocking the bundle, when a person wrote it.** Under 4.7
+   the module must keep an edited page that no longer fits the spec, for example one that names a
+   removed operation. Its finding is an `error`, so under section 5 no page of the bundle is
+   published until a person fixes or deletes that one page.
+2. **A place in `specProblems` for severity and a fix.** The module's spec audit gives each problem
+   a severity, a count and a one-line fix. They are extra members today and the portal ignores them.
+
+**Questions.**
+
+1. **Should a page a person deleted stay deleted?** 4.7 speaks of changes "to a page". The module
+   has no record of a deletion, so it generates the page again and the pull request shows it as new.
+2. **The module recognises an edit by a hash it records in `report.json`.** If that file is deleted
+   in the tenant's repository, every existing page is kept as it is from then on. Should the
+   description of the repository say that `report.json` is to be left in place?
+
+**Added 2026-11-28, after the guides were first run against a real API.**
+
+3. **Proposal: a variable for a value that must be new each time.** A spec's examples are fixed.
+   Where a field must be unique (a phone number, a code, a name), a guide that creates the record
+   works once per account and then gets "already exists", for every later reader and on every
+   other page that creates the same kind of record. On Retavon, 77 of the 84 pages that work at
+   all work only when such a value is changed. `{{idempotency_key}}` is the one generated value
+   0.2 has, and it is a UUID, which fits few fields. Something like `{{unique}}`, a short random
+   token generated in the reader's browser per `<Sample>`, like `{{idempotency_key}}`, and
+   interpolated inside a longer string as 4.6 already allows
+   (`"branch_code": "B{{unique}}"`), would let a guide be run more than once. The module would
+   still have to learn which fields need it, from the spec's description or from a setting.
+4. **Assumption: several `<Steps>` on a page.** The module now writes a `Before you start` block and
+   a task block, each a `<Steps>` under its own `h2`. 4.2 does not say a page holds one `<Steps>`;
+   the module assumes any number.
+
+**Added 2026-11-28, with vendor extensions.**
+
+5. **Proposal: settings as an input of the portal's step.** The module can now show a spec's vendor
+   extensions (`x-` fields) on pages, but only when a settings object says what each one is: a
+   permission, a requirement, a note, the source of the errors page, or nothing. Section 6 gives
+   the step two inputs, the published spec and the existing bundle. Per-tenant settings would be a
+   third. Without them the module's output is unchanged.
+6. **Proposal: define `extensions` in the report schema.** The module lists every extension in
+   `report.json` under `extensions`, with a count, where it is used, an example value and a
+   suggested role. A portal screen that lets a tenant choose roles would read that list, so it
+   would need a defined shape and a limit on its size; today it is an extra member, uncapped, and
+   counts toward the report's 2 MB. The example values and labels are text from a spec or a
+   person, so such a screen needs the security reviewer.
