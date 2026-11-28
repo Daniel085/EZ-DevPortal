@@ -22,7 +22,8 @@ The brief asks the module to say what it offers.
   files in memory, the manifest, the run report and a validation report. It touches no file,
   network, clock or environment. The command, `node src/cli.ts generate <spec> --out <dir>
   [--existing <bundle-dir>]`, is the only code that reads or writes files.
-- **Inputs:** the bytes of the published spec, and optionally the existing bundle. Nothing else.
+- **Inputs:** the bytes of the published spec, optionally the existing bundle, and optionally a
+  **settings** object (below). Nothing else.
 - **Pinning.** There is no published package yet. Pin by Git commit. It needs Node 22.18 or later
   and has no build step.
 - **Dependencies at run time:** `ajv` (MIT), `ajv-formats` (MIT), `yaml` (ISC). The module itself
@@ -53,7 +54,7 @@ pages/user/manage.md
   `Guides` and `Tutorials`. Depth is 1. The module writes no `label` or `hidden`; it keeps ones a
   person added (below).
 - **Slugs:** fixed names for concept pages (`authentication`, `errors`, `pagination`, `idempotency`,
-  `rate-limits`, `webhooks`); `<resource>/manage` or `<resource>/browse` for how-to guides;
+  `rate-limits`, `webhooks`, and `permissions` when the settings name one); `<resource>/manage` or `<resource>/browse` for how-to guides;
   `<resource>/<action>` for a how-to about one operation on a record, where `<action>` is the slugified
   path segment after the identifier (`sales-orders/payments`); `tutorials/<parent>-<child>` for tutorials. Resource slugs come from the collection path, so they
   change only if the path does.
@@ -129,6 +130,28 @@ titled with its operation's summary where there is one.
 
 A guide that starts from a list reads the first record and stops: it never updates or deletes a
 record it did not create.
+
+### Vendor extensions and settings
+
+A spec's `x-` fields have no declared meaning, so the module assumes none.
+
+- **Every run lists them** in `report.json` under `extensions` (an extra member): name, count, where
+  it is used, the kinds of value, one example, and a role its name suggests. A suggestion changes
+  no page.
+- **A settings object gives an extension a role**, and only then does it reach a page. The roles:
+  `permission`, `requires`, `note`, `errors`, `ignore`. The settings are the module's own input,
+  which the brief allows ("your own settings"); the same spec and settings give the same bytes.
+  By hand they are a JSON file passed with `--settings`.
+- **What a role writes.** `permission`, `requires` and `note` add one line to each step that calls
+  the operation, after its description: a bold label, then the value. A permission label is a
+  `guide:permissions` link. `permission` also writes a concept page with the fixed slug
+  `permissions`. `errors` writes the `errors` page from the extension's text when the spec declares
+  no error responses.
+- **Text only.** An extension is shown only if it is written on an operation and its value is a
+  string, a number, true or false, or a list of those. Its words are sanitized like a description.
+- **For the portal to decide:** who chooses the roles for a tenant's spec, and where. The module
+  cannot ask; it is run unattended. A screen that lists `report.json`'s `extensions` with their
+  suggested roles, and stores the choices as the settings for the next run, would be one way.
 
 ### Operation ids
 
