@@ -11,7 +11,12 @@ time that day for three more: M4 is split into four parts; "Try it" in a private
 example-response mode and the MCP is off there; an incomplete guide page withholds only itself.
 Updated a fourth time that day for the last two questions open with the user: what happens to an
 API host that cannot be verified by DNS, and live "Try it" calls in a private preview for a
-verified server. Statuses, counts, conflicts and questions below reflect all thirteen.
+verified server. Updated on 2026-11-28 for four more decisions by the user: the doctor report is
+private by default (M1 criterion 32, new, so `m1.md` has 32 criteria); `example-missing` offers
+no fix; the fetch cap per document is 16 MiB; and one rule for the console, which is in
+example-response mode wherever live calls are not allowed, on a public portal as in a private
+preview, and is never absent. Statuses, counts, conflicts and questions below reflect all
+seventeen.
 
 Sources read: `docs/product-brief.md`, `CLAUDE.md`, `docs/milestones/m1.md`,
 `docs/milestones/m1-build-kickoff.md`, `docs/contracts/guides-contract.md` (sections 1.2, 4.7, 5,
@@ -21,11 +26,11 @@ Sources read: `docs/product-brief.md`, `CLAUDE.md`, `docs/milestones/m1.md`,
 ## Do we have all the user stories?
 
 **No.** Before this file there were none written as stories, and the plan covered two kinds of
-user. This pass finds 13 actors and 153 stories:
+user. This pass finds 13 actors and 154 stories:
 
 | Status | Count | Meaning |
 |---|---|---|
-| **C** covered | 22 | An M1 acceptance criterion already checks it. |
+| **C** covered | 23 | An M1 acceptance criterion already checks it. |
 | **P** planned | 86 | Named in a decision, ADR, contract section or milestone title, but with no acceptance criteria yet. It would probably get built; what "done" means is not written. |
 | **N** new | 43 | Nothing in the current plan would have caused it to be built. |
 | **X** cut | 2 | Decided not to be built. The row says why. |
@@ -51,7 +56,14 @@ What moved with the fourth two: six stories added, five planned (EV-10, SU-23, S
 OP-15) and one cut (OP-16, manual approval of a host by us). EV-9 rewritten: its prompt to verify
 moved to M4b (EV-10), because verification does not exist in M4a. EV-1, EV-8, SU-19, SM-8, RD-8,
 RD-30, SC-13 and OP-4 had their pointers updated and did not change status. No story changed
-status. That gives 153: 22, 86, 43 and 2 cut.
+status. That gave 153: 22, 86, 43 and 2 cut.
+
+What moved with the four decisions of 2026-11-28: one story added, covered (SM-16, the private
+doctor report, M1 criterion 32). RD-8 rewritten: it said that on a public portal "Try it" stays
+withheld with a reason, and the console is now in example-response mode there and never absent.
+SM-1, SM-7, SM-8, SU-1, SU-23, SU-24, SC-8 and RD-30 had their wording or pointers updated and
+did not change status. No story was added for the `example-missing` fix or for the fetch cap:
+neither had a story of its own. That gives 154: 23, 86, 43 and 2 cut.
 
 What the existing documents cover well: the reader's first call from the reference (M1), the spec
 doctor's findings, agents reading Markdown, the guides contract, and the security rules for the
@@ -66,7 +78,7 @@ What they do not cover, by the kinds of gap that were asked about:
 | Trust and safety | **Yes, the most serious, and partly closed on 2026-11-27.** Decided: proof of domain control before a portal is public and before the proxy calls a server (OP-3, OP-4), and a separate MCP tool for writes (AH-4). Also decided that day: suspend and abuse intake are built in M4b with going public (OP-1, OP-2), and a private preview is readable by no one who is not signed in (SC-13). Also decided that day: live "Try it" calls in a private preview, without a plan, for a verified server (EV-10), which lets an account that has paid nothing send requests through the proxy; the bounds are OP-15. Still open: the agent's human cannot see beforehand what the agent may call or keep it read-only on the server side; there is no call limit and no audit log. | AH-2, AH-3, SC-3 to SC-5 |
 | The buyer's reasons to pay and stay | **Yes.** Analytics is a word in M6 with no content. Team members and roles, and SSO are absent. | EV-4, AD-1, SC-10 |
 | End developer account features | **Decided 2026-11-27.** A "get a key" link supplied by the customer, in M2 (RD-6, SU-22). A sign-in handoff later, on a paid tier, in no milestone (RD-26). Us issuing or managing developer accounts and keys is cut (RD-29). | RD-6, RD-26, RD-29, SU-22 |
-| Accessibility and non-English readers | **Partly.** M1 criterion 22 sets WCAG 2.2 AA for four M1 pages. Nothing carries that bar to "Try it", search, guides or the dashboard. Non-English spec text is untested; translation is out of scope by contract. | RD-12, RD-13, RD-24, RD-25, SU-17 |
+| Accessibility and non-English readers | **Partly.** M1 criterion 22 sets WCAG 2.2 AA for a sample of five M1 pages. Nothing carries that bar to "Try it", search, guides or the dashboard. Non-English spec text is untested; translation is out of scope by contract. | RD-12, RD-13, RD-24, RD-25, SU-17 |
 | Our own operation of the service | **Yes, mostly.** Seven of sixteen operator stories are planned (no credentials in logs, the two that domain verification answers, suspend, abuse intake, setting a plan by hand, and the bounds on live calls in a preview). One is cut (OP-16). | OP-1 to OP-16 |
 
 **How to read "new".** A story marked new is not automatically something to build. Nearly all of the
@@ -131,7 +143,7 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 
 | Id | Story | M | Pri | St | Basis and pointer |
 |---|---|---|---|---|---|
-| SU-1 | As a portal owner, I want to create a project from a spec URL or an uploaded file and be led to a first published portal, so that setup takes minutes. | M4a | must | P | Brief, "Product" and control plane; ADR 0003, "Spec fetch policy". M4a ends at a private preview; the step to a public portal is M4b (EV-8, SU-19). |
+| SU-1 | As a portal owner, I want to create a project from a spec URL or an uploaded file and be led to a first published portal, so that setup takes minutes. | M4a | must | P | Brief, "Product" and control plane; ADR 0003, "Spec fetch policy". D: "Spec fetch cap", 2026-11-28: a fetched document is capped at 16 MiB (16,777,216 bytes), the same as a local file; the security reviewer confirms the figure when M4 is designed. M4a ends at a private preview; the step to a public portal is M4b (EV-8, SU-19). |
 | SU-2 | As a portal owner, I want to connect the spec from a Git repository and have the portal republish when it changes, so that the portal stays correct without effort. | M4c | must | P | TS (Git sync). E: docs out of sync, SmartBear 52%. ADR 0003 says tokens need a reviewed path first. From 2026-11-27 the connection is our GitHub App (SU-20). |
 | SU-3 | As a portal owner, I want to use a spec URL that needs a token, so that a private spec can be the source. | M4c | should | P | ADR 0003: not covered by the fetch policy, "need their own reviewed path". Undesigned. |
 | SU-4 | As a portal owner, I want an unsupported or unparseable spec rejected with what is wrong and where, so that I can fix it. | M1 | must | C | c5. D: Swagger 2.0 rejected. |
@@ -153,8 +165,8 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 | SU-20 | As a portal owner, I want to connect a Git repository by installing your GitHub App on the repositories I choose, to see what it can read and write there, and to disconnect it, so that I control what you can touch. | M4c | must | P | D: "Guide bundles reach the customer's repository by pull request", 2026-11-27. Needs a security review before design. That it also carries spec sync (SU-2) and the patched-spec pull request (SM-6) is J. |
 | SU-21 | As a portal owner, I want more than one version of an API in one portal, each version with its own spec and guides, so that readers on an older version are served. | later | should | P | D: "Multiple and versioned APIs", 2026-11-27: later, no milestone. `m1.md` still lists versioned docs as "not planned in any milestone". Contract 8: one bundle per spec version. |
 | SU-22 | As a portal owner, I want to give the URL where developers get a key for my API, so that the portal can send readers there. | M2 | must | P | D: "Reader keys", 2026-11-27. The dashboard is M4a, so M2 needs a stand-in such as a configuration file (conflict 6). What is accepted as a URL (`https` only, no script) is for the security reviewer. |
-| SU-23 | As a portal owner whose API is served from a host I cannot put a DNS record on, such as a cloud provider's gateway or app-hosting host name, I want the verification step and the documentation to say that this host cannot be verified, what that withholds (live "Try it" and the MCP for that server; samples still render), and that the answer is to serve the API from a domain I control and verify that, so that I do not spend time trying to verify a host that never will. | M4b | must | P | D: "API hosts that cannot be verified by DNS", 2026-11-27 (conflict 9, resolved). How we recognise such a host (the Public Suffix List is one input) is the architect's and security reviewer's. How many customers are affected is not known. |
-| SU-24 | As a portal owner about to make my portal public, I want to be told before I confirm which of my servers will have no live "Try it" and no MCP because their host is not verified or cannot be, why, and the one thing to do about each, and to be able to go public anyway, so that I am not surprised by a dead console on a portal my developers can see. | M4b | must | P | D: same decision: the tenant is told clearly at the moment of going public. That an unverifiable server does not block going public is inference from "samples render": rule 1 asks for the website's domain only. What the reader then sees is RD-8. |
+| SU-23 | As a portal owner whose API is served from a host I cannot put a DNS record on, such as a cloud provider's gateway or app-hosting host name, I want the verification step and the documentation to say that this host cannot be verified, what that withholds (live "Try it" calls and the MCP for that server; samples still render and the console shows example responses), and that the answer is to serve the API from a domain I control and verify that, so that I do not spend time trying to verify a host that never will. | M4b | must | P | D: "API hosts that cannot be verified by DNS", 2026-11-27 (conflict 9, resolved). How we recognise such a host (the Public Suffix List is one input) is the architect's and security reviewer's. How many customers are affected is not known. |
+| SU-24 | As a portal owner about to make my portal public, I want to be told before I confirm which of my servers will have no live "Try it" calls and no MCP because their host is not verified or cannot be, why, and the one thing to do about each, and to be able to go public anyway, so that I am not surprised by a console that returns only examples on a portal my developers can see. | M4b | must | P | D: same decision: the tenant is told clearly at the moment of going public. That an unverifiable server does not block going public is inference from "samples render": rule 1 asks for the website's domain only. What the reader then sees is RD-8: by the decision of 2026-11-28 the console is in example-response mode with the reason shown, not absent. |
 | SU-25 | As a portal owner whose API must stay on a provider's host name, I want to prove control of that one exact host by serving a file you name from it, so that it gets live "Try it" and the MCP without my moving the API. | later | could | P | D: same decision: deferred, built only if customers ask. It verifies one exact host and never a suffix, and needs its own security review. Trigger: customer demand, which nobody has measured. |
 
 ### IN: Web or infrastructure engineer
@@ -169,14 +181,14 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 
 | Id | Story | M | Pri | St | Basis and pointer |
 |---|---|---|---|---|---|
-| SM-1 | As a spec maintainer, I want every defect that makes calls fail reported with severity, location, consequence and a fix, so that I know what to change. | M1 | must | C | c8, c9, c10. E: arXiv 2507.16044. |
-| SM-2 | As a spec maintainer, I want to accept or dismiss each fix on its own and have that remembered across spec updates, so that I decide once. | M4a | must | P | `m1.md` out-of-scope table; ADR 0004 (overlay, fingerprint). |
+| SM-1 | As a spec maintainer, I want every defect that makes calls fail reported with severity, location, consequence and either a fix or what I must supply or change, so that I know what to change. | M1 | must | C | c8, c9, c10. E: arXiv 2507.16044. D: "No fix writes an example", 2026-11-28: a missing example is reported with no fix, and its message says to declare one. The report is private by default (SM-16). |
+| SM-2 | As a spec maintainer, I want to accept or dismiss each fix on its own and have that remembered across spec updates, so that I decide once. | M4a | must | P | `m1.md` out-of-scope table; ADR 0004 (overlay, fingerprint). The hosted doctor report is shown here, in the dashboard, to signed-in members only (ADR 0003, "The doctor report is private"; see SM-16). |
 | SM-3 | As a spec maintainer, I want to supply the one fact a fix needs (a token URL, a host), so that a fix that cannot be inferred can still be applied. | M1 | must | C | c10 as amended 2026-11-27 (with the input the finding goes, without it the finding stays and names the input); c31 for refused values. ADR 0004 (`inputs`, `bindFix`). |
 | SM-4 | As a spec maintainer, I want to undo an accepted fix, so that a wrong fix from the doctor is not permanent. | M1 | must | P | Contract 1.2 and ADR 0004 anticipate removal. In M1 this is editing the overlay file. No criterion. |
 | SM-5 | As a spec maintainer, I want to be told when an accepted fix no longer applies because my spec changed, with every other fix still applied, so that a stale fix is neither misapplied nor silent. | M1 | must | C | c28, added 2026-11-27. ADR 0004, step 3. |
 | SM-6 | As a spec maintainer, I want the patched spec as a file or a pull request, so that I can fix the source and stop depending on the overlay. | M1 | should | P | c26 writes the file. ADR 0004, step 4 mentions the pull request (M4c). The pull request is opened by the GitHub App (SU-20). |
-| SM-7 | As a spec maintainer, I want to see which operations use synthesized sample values, so that I know where to add real examples. | M1 | must | C | c7. E: 87% of specs lack examples. |
-| SM-8 | As a spec maintainer, I want to see which servers and operations have "Try it" and MCP withheld and why, so that I can make them callable. | M1 | must | C | c8 as amended 2026-11-27 names both findings; c29 checks the host rule row by row. Effect is visible in M2. From M4b a server can also be withheld because its domain is not verified, or cannot be verified by DNS; how that is shown is undesigned (SU-19, SU-23, SU-24). |
+| SM-7 | As a spec maintainer, I want to see which operations use synthesized sample values, so that I know where to add real examples. | M1 | must | C | c7. E: 87% of specs lack examples. From 2026-11-28 the list is in the private doctor report (SM-16), and adding the examples is the maintainer's work: no fix writes one (c9, c10). |
+| SM-8 | As a spec maintainer, I want to see which servers and operations have live "Try it" calls and the MCP withheld and why, so that I can make them callable. | M1 | must | C | c8 as amended 2026-11-27 names both findings; c29 checks the host rule row by row. Effect is visible in M2, where the console for such a server is in example-response mode with the reason shown and the MCP's call tools are withheld (decision of 2026-11-28; RD-8). From M4b live calls can also be withheld because a server's domain is not verified, or cannot be verified by DNS; how that is shown to the tenant is undesigned (SU-19, SU-23, SU-24). |
 | SM-9 | As a spec maintainer, I want to list the allowed hosts for a server with an open host variable by accepting a fix, so that "Try it" and MCP work for it. | M1 | must | C | c10, c29, c31. D: brief, "Open host variables", option B. The fix and the CLI are M1; the proxy honouring the list is M2 (AC-3), and from M4b each listed host must also be under a verified domain. |
 | SM-10 | As a spec maintainer, I want to prove control of a domain once and have every host under it allowed, so that I do not list each host. | M4b | should | P | D: option C, moved from M6 to M4 on 2026-11-27 because the verification it depends on is now M4b. Last in M4b, after verification and its own security review, and the first thing cut from M4b. Demand is J. |
 | SM-11 | As a spec maintainer, I want to be notified when a spec update brings new findings, so that a regression is caught without my checking. | M4c | should | N | J. |
@@ -184,6 +196,7 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 | SM-13 | As a maintainer of a multi-file spec, I want a fix accepted in a referenced file to reach the guides too, so that the reference and guides agree. | none | could | P | Brief, open decision "Multi-file specs". In M1 a `$ref` to another document is not followed at all (`m1.md`, out-of-scope table); resolving one is M4. |
 | SM-14 | As a spec maintainer, I want to keep operations I mark as internal out of the portal, twins, search and MCP, so that one spec serves internal and public use. | none | should | N | J. No research in the brief. |
 | SM-15 | As a spec maintainer, I want webhooks and callbacks listed as "not rendered", so that I know they are missing by design. | M1 | should | P | `m1.md` out-of-scope table promises it. ADR 0004 now names the findings, `webhook-not-rendered` and `callback-not-rendered`. No criterion. |
+| SM-16 | As a spec maintainer, I want the list of my spec's defects kept out of the public portal unless I choose to include it, and the build to tell me where it wrote the report, so that my API's faults are not advertised to readers and I can always find the report. | M1 | must | C | c32, added 2026-11-28. D: "The doctor report is private by default". ADR 0003, "The doctor report is private". Not covered: the default report directory sits beside the export, so deploying both publishes it. The hosted half (the portal and asset origins never serve the report; the dashboard shows it to members) is M4 and has no criteria yet; see SM-2 and SC-8. |
 
 ### DW: Docs owner or technical writer
 
@@ -214,7 +227,7 @@ export (EV-5). "Non-English reader" is an attribute of RD, not an actor.
 | SC-5 | As a security reviewer, I want a record of who accepted a fix, published, or enabled a write operation, so that changes are attributable. | M4d | should | N | J. |
 | SC-6 | As a security reviewer, I want hostile text in a spec to be shown as inert text, so that our docs cannot attack our developers. | M1 | must | C | c19. Standing constraint. |
 | SC-7 | As a security reviewer, I want files from guides that can carry script to be unable to run in my site's origin, so that a docs author cannot take over site sessions. | M5 | must | P | D: "Risky assets use a separate origin". Review finding M5. |
-| SC-8 | As a security reviewer, I want to know that the published spec file includes comments and vendor extensions, and to control who can fetch it, so that nothing internal leaks. | M4b | must | P | ADR 0003: "who may fetch it" is M4 and M5 design. This story is the public portal; in a private preview the file is not readable without sign-in at all (SC-13, M4a). Kickoff, security gate on the published spec. The M1 part (the CLI's notice and `--no-published-spec`) is checked by c27. |
+| SC-8 | As a security reviewer, I want to know that the published spec file includes comments and vendor extensions, and to control who can fetch it, so that nothing internal leaks. | M4b | must | P | ADR 0003: "who may fetch it" is M4 and M5 design. This story is the public portal; in a private preview the file is not readable without sign-in at all (SC-13, M4a). Kickoff, security gate on the published spec. The M1 part (the CLI's notice and `--no-published-spec`) is checked by c27. The doctor report is a second file that must not leak: on a public portal neither the portal origin nor the asset origin serves it (ADR 0003, "The doctor report is private"; SM-16). |
 | SC-9 | As a security reviewer, I want portal pages served under my origin to set no cookies and load no third-party scripts, so that subpath hosting adds no risk to my site. | M4b | should | N | J. Follows from the subpath decision; nowhere stated. |
 | SC-10 | As a security reviewer, I want the dashboard to accept single sign-on from our identity provider, so that access follows our joiner and leaver process. | none | could | N | J. No evidence of demand. |
 | SC-11 | As a compliance reviewer, I want to know where data is stored, who the subprocessors are, and that data is deleted on termination, so that I can sign the contract. | none | should | N | J. Mostly documents, not software. |
@@ -243,13 +256,13 @@ First visit.
 | RD-5 | As a developer, I want `oneOf`, `anyOf`, `allOf` and recursive schemas shown readably, so that I can build a valid body. | M1 | must | C | c1, c2. |
 | RD-6 | As a developer, I want to be told how to get a key (a link or instructions the provider supplies), so that I can start. | M2 | must | P | D: "Reader keys", 2026-11-27: the quickstart and authentication pages link to the customer's "get a key" URL. E: guides module status, "the spec does not describe how credentials are issued". The quickstart is M5 and no authentication page is defined yet (conflict 13). |
 | RD-7 | As a developer, I want to call an operation from the page with my own credential, which is not stored, so that I see a real response before writing code. | M2 | must | P | D: "MCP and proxy credentials"; "Reader keys", 2026-11-27: the pasted key is held in the browser only. TS ("Try it"). |
-| RD-8 | As a developer, I want to be told why "Try it" is unavailable for an operation and what to do instead, so that I am not left with a dead button. | M2 | must | P | ADR 0004 withholds it; what the reader sees is unspecified. On a public portal this stays "withheld, with a reason"; example-response mode (RD-30) is for private previews only unless decided otherwise. From M4b the reasons include a server whose host is not verified or cannot be (SU-24); the reader is told what to do instead, not about our verification. Whether such a server shows example responses on a public portal is conflict 23. |
-| RD-30 | As a developer using the console where it sends no live call, I want the example response the spec declares for the operation, clearly labelled as an example, and to be told plainly when the spec declares none, so that I never take an example or an invented value for a real response. | M2 | must | P | D: "Try it in a private preview: example-response mode", 2026-11-27. M2 owns the mode: no request leaves the browser, the label, the no-example message, nothing synthesized. M4a owns where it is switched on: every preview (EV-9). From M4b it is the preview's state per server, for any server not both callable and verified, and a verified server is live (EV-10); the console must make clear which of the two a response is. In M2 it is reached through a stand-in setting, as in conflict 6. Which example is shown when there are several is undesigned (conflict 18). |
+| RD-8 | As a developer, I want the console, wherever it cannot make a live call for an operation, to still be there, to show the spec's example response, and to tell me why live calls are unavailable and what to do instead, so that I am never left with a dead or missing console. | M2 | must | P | D: "One rule for the console", 2026-11-28. Rewritten: it said the console is withheld with a reason on a public portal. On a public portal as in a private preview, wherever live calls are not allowed, "Try it" is in example-response mode (RD-30) with the reason shown, and is never absent. This applies to an `http://` or localhost server, any server that is not callable (ADR 0004, `server-not-callable`), and, from M4b, a server whose host is not verified or cannot be (SU-24). The reader is told what to do instead, not about our verification (J). The MCP's call tools are still withheld for such a server. The wording of each reason is undesigned: UX. Conflict 23, resolved. |
+| RD-30 | As a developer using the console where it sends no live call, I want the example response the spec declares for the operation, clearly labelled as an example, and to be told plainly when the spec declares none, so that I never take an example or an invented value for a real response. | M2 | must | P | D: "Try it in a private preview: example-response mode", 2026-11-27, and "One rule for the console", 2026-11-28: the mode is used on public portals too, wherever live calls are not allowed, with the reason shown (RD-8). M2 owns the mode: no request leaves the browser, the label, the no-example message, nothing synthesized. M4a owns where it is switched on for previews: every preview (EV-9). From M4b it is the preview's state per server, for any server not both callable and verified, and a verified server is live (EV-10); the console must make clear which of the two a response is. In M2 it is reached through a stand-in setting, as in conflict 6. Which example is shown when there are several is undesigned (conflict 18). |
 | RD-9 | As a developer, I want a quickstart and guides whose samples appear in my chosen language, so that I learn the flow, not only the endpoints. | M5 | must | P | D: "Guides never contain API request code". Contract 1. |
 | RD-31 | As a developer reading a guide, I want a reference to a page that is not published yet to appear as plain text and not as a link, so that I never follow a link to a missing page. | M5 | must | P | D: "An incomplete guide page withholds only itself", 2026-11-27. What happens to the page's navigation entry is the architect's and UX's. |
 | RD-10 | As a developer, I want to search the reference and the guides, so that I find an operation without knowing its name. | M5 | must | P | TS. Brief M5. Postman 34% is about finding APIs, so applying it here is inference. |
 | RD-11 | As a developer using a keyboard or screen reader, I want reference pages that meet WCAG 2.2 AA, so that I can use the docs. | M1 | must | C | c22. |
-| RD-12 | As a developer using a keyboard or screen reader, I want "Try it", search and guide pages to meet the same bar, so that later features do not lock me out. | M2 to M5 | must | N | J. c22 names four M1 pages; nothing carries it forward. |
+| RD-12 | As a developer using a keyboard or screen reader, I want "Try it", search and guide pages to meet the same bar, so that later features do not lock me out. | M2 to M5 | must | N | J. c22 names five M1 pages; nothing carries it forward. |
 | RD-13 | As a developer on a small screen, I want an operation page to be readable without sideways scrolling outside code blocks, so that I can read docs on a phone. | M1 | should | N | J. Reflow is part of WCAG 2.2 AA, which c22 claims, but an automated audit does not test it. |
 
 Returning.
@@ -460,12 +473,13 @@ Raised by the fourth two decisions of 2026-11-27.
     live "Try it" calls and does not mention the MCP. Kept: the MCP is off in every private
     preview. The cost is that an evaluator cannot try the headline feature against their own
     API before paying. The user accepted that cost.
-23. **"Withheld" against "stays in example-response mode" for an unverifiable host.** The
-    decision uses both for the same server. Read here as: example-response mode in a private
-    preview, withheld with a reason on a public portal (RD-8), which keeps the default that the
-    mode is not used outside a preview. **Decided by the user on 2026-11-28: example-response
-    mode on public portals too.** Wherever live calls are not allowed the console is in the
-    mode with the reason shown, and is never absent. This is M2 scope and changes RD-8.
+23. **"Withheld" against "stays in example-response mode" for an unverifiable host. Resolved
+    by the user 2026-11-28: example-response mode on public portals too.** The decision of
+    2026-11-27 used both phrases for the same server, and was first read as: example-response
+    mode in a private preview, withheld with a reason on a public portal. That reading is
+    replaced. Wherever live calls are not allowed, on a public portal as in a private preview,
+    the console is in the mode with the reason shown, and is never absent; the MCP's call tools
+    are still withheld for that server. This is M2 scope, and RD-8 is rewritten for it.
 24. **Live calls without a plan against the proxy as a relay (OP-4).** Until now a plan stood
     between an account and any request leaving our proxy. An account that has paid nothing can
     now send requests, bounded by three rules: signed-in members of that tenant only, verified
@@ -502,7 +516,7 @@ Raised by the fourth two decisions of 2026-11-27.
 
 Decided by the user on 2026-11-27: M4 is split. The parts below are the product manager's redraw
 of the earlier three-part proposal, which had no part for multiple APIs and put the GitHub App
-behind work that M5 does not need. M4 holds 45 of the 153 stories, 26 of them "must": the 38 it
+behind work that M5 does not need. M4 holds 45 of the 154 stories, 26 of them "must": the 38 it
 held before, plus EV-9, SC-13 and OP-14, plus EV-10, SU-23, SU-24 and OP-15 from the last two
 decisions, all four in M4b. Every one is in exactly one part. The parts are built in
 the order a, b, c, d. The split is by what a tenant can do at the end of each part, so each part
@@ -527,8 +541,9 @@ unbuilt. M6 is unchanged apart from replacing plans set by hand.
 
 ## M1 stories the criteria did not cover
 
-Proposals A to C were adopted by the user on 2026-11-27 and are in `m1.md`, which now has 31
-criteria. D to G are still proposals.
+Proposals A to C were adopted by the user on 2026-11-27 and are in `m1.md`, which had 31
+criteria then and has 32 from 2026-11-28, when criterion 32 (the doctor report is private by
+default; SM-16) was added by the user's decision. D to G are still proposals.
 
 | # | Proposed addition | Story | Basis | Timing |
 |---|---|---|---|---|
@@ -593,10 +608,18 @@ Raised by the third three decisions of 2026-11-27; each has a default in the bri
 18. **Decided 2026-11-28.** Example-response mode is used outside a private preview: on a
     public portal, wherever live calls are not allowed. (RD-8, RD-30)
 
-Raised by the fourth two decisions of 2026-11-27. Both are to confirm with the user; each has a
-default in the brief:
+Raised by the fourth two decisions of 2026-11-27. Both are decided by the user and are in the
+brief's decisions table:
 
 19. **Decided 2026-11-27.** The MCP stays off in a private preview whose server host is
     verified: off in every private preview. (EV-10, SC-13, conflict 22)
 20. **Decided 2026-11-28.** On a public portal, "Try it" for a server on an unverifiable host
     is shown in example-response mode with the reason. (RD-8, SU-24, conflict 23)
+
+Decided by the user on 2026-11-28, not raised as questions here:
+
+21. The doctor report is private by default, and the build says where it wrote it. (SM-16, c32)
+22. `example-missing` offers no fix in M1; no fix writes a synthesized value into the spec as a
+    declared example. (SM-1, SM-7; `m1.md`, question 7, closed)
+23. The fetch cap per document is 16 MiB, the same as the local cap; the security reviewer
+    confirms it when M4 is designed. (SU-1)

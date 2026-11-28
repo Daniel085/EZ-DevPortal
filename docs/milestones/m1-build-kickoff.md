@@ -7,7 +7,7 @@ read and in what order to work.
 
 1. `CLAUDE.md`: the feature team, who decides what, and the four standing constraints.
 2. `docs/product-brief.md`: the product and the decisions made.
-3. `docs/milestones/m1.md`: scope and the 31 acceptance criteria. This defines "done".
+3. `docs/milestones/m1.md`: scope and the 32 acceptance criteria. This defines "done".
 4. `docs/adr/0001` to `0006`: the M1 architecture. All are accepted. ADR 0007 (guides generation
    and delivery) is M4 and M5 work and is not needed for M1. ADR 0002 (the API model) and
    ADR 0003 (the engine's interface) are what the engine and renderer developers code against.
@@ -76,7 +76,7 @@ The engine's own build order is ADR 0003, "Build order in M1"; the steps below f
    `renderer-developer` builds the static portal and its `export` script (ADR 0006).
 7. **Close the milestone** as `m1.md` defines: `qa-engineer` runs the suite on all fixtures,
    `dx-reviewer` uses the built Petstore, Museum and GitHub portals, and `product-manager` marks
-   each of the 31 criteria.
+   each of the 32 criteria.
 
 The renderer consumes page files, which include samples, so it needs steps 3.4 and 3.5. Once step
 3.1 is done, `ux` and `designer` can specify the pages and the tokens, and `renderer-developer`
