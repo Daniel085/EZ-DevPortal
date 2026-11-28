@@ -109,3 +109,18 @@ everything above. These are new.
 2. **The module recognises an edit by a hash it records in `report.json`.** If that file is deleted
    in the tenant's repository, every existing page is kept as it is from then on. Should the
    description of the repository say that `report.json` is to be left in place?
+
+**Added 2026-11-28, after the guides were first run against a real API.**
+
+3. **Proposal: a variable for a value that must be new each time.** A spec's examples are fixed.
+   Where a field must be unique (a phone number, a code, a name), a guide that creates the record
+   works once per account and then gets "already exists", for every later reader and on every
+   other page that creates the same kind of record. On Retavon, 77 of the 84 pages that work at
+   all work only when such a value is changed. `{{idempotency_key}}` is the one generated value
+   0.2 has, and it is a UUID, which fits few fields. Something like `{{unique}}`, a short random
+   token the portal generates per `<Sample>`, usable inside a longer string
+   (`"branch_code": "B{{unique}}"`), would let a guide be run more than once. The module would
+   still have to learn which fields need it, from the spec's description or from a setting.
+4. **Question: several `<Steps>` on a page.** The module now writes a `Before you start` block and
+   a task block, each a `<Steps>` under its own `h2`. 4.2 does not say a page holds one `<Steps>`;
+   the module assumes any number.
