@@ -54,8 +54,8 @@ pages/user/manage.md
   person added (below).
 - **Slugs:** fixed names for concept pages (`authentication`, `errors`, `pagination`, `idempotency`,
   `rate-limits`, `webhooks`); `<resource>/manage` or `<resource>/browse` for how-to guides;
-  `<resource>/<action>` for a how-to about one operation on a record, where `<action>` is the path
-  segment after the identifier (`sales-orders/payments`); `tutorials/<parent>-<child>` for tutorials. Resource slugs come from the collection path, so they
+  `<resource>/<action>` for a how-to about one operation on a record, where `<action>` is the slugified
+  path segment after the identifier (`sales-orders/payments`); `tutorials/<parent>-<child>` for tutorials. Resource slugs come from the collection path, so they
   change only if the path does.
 - **Page types used:** `quickstart`, `concept`, `how-to`, `tutorial`. Never `reference`.
 - **Components used:** `Steps`, `Step`, `Callout`, `CardGroup`, `Card`, `Operation`, `Schema`,
@@ -208,7 +208,7 @@ somewhere; the first real ingestion should be treated as a test of both.
 
 On 2026-11-28 the Retavon bundle was run against a real Retavon account with a development tool
 in the module's repository (`scripts/run-guides.ts`), which sends each `<Sample>` in order and
-carries captured values forward as section 4.6 describes. The tool is not part of the module,
+carries captured values forward as 4.3 and 4.6 describe. The tool is not part of the module,
 which still uses no network. 236 pages were run.
 
 | Outcome | Pages |
@@ -220,8 +220,9 @@ which still uses no network. 236 pages were run.
 
 What this tells the portal side:
 
-- **Capture and substitution work as designed.** The 84 passing pages chain up to eleven calls on
-  captured identifiers, including inside request bodies and arrays.
+- **The module's captures and variables chain correctly in the module's own runner.** The 84
+  passing pages chain up to eleven calls on captured identifiers, including inside request bodies
+  and arrays. This did not test the portal's encoders.
 - **A guide's example values can be used once per account.** Fixed examples collide with records
   that already exist (a phone number, a code that must be unique). "Try it" will meet the same
   refusals. See the proposal in the feedback file.
@@ -264,7 +265,9 @@ What this tells the portal side:
 
 1 and 3 are answered by 0.2 as written (4.7 and 5; 5.2) and are proposals for a later version.
 2 and 4 are open. All four, and one gap in 4.3, are recorded in
-[`guides-contract-feedback.md`](./guides-contract-feedback.md) under "On v0.2".
+[`guides-contract-feedback.md`](./guides-contract-feedback.md) under "On v0.2". Two items added on
+2026-11-28 (a `{{unique}}` variable; several `<Steps>` on a page) are in the same file, as items 3
+and 4, and are not listed here.
 
 1. **An edited page that no longer fits the spec blocks the whole bundle**, because its finding is
    an `error`. The module keeps the person's text, as 4.7 requires, and cannot make the page valid.

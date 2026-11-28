@@ -118,9 +118,10 @@ everything above. These are new.
    other page that creates the same kind of record. On Retavon, 77 of the 84 pages that work at
    all work only when such a value is changed. `{{idempotency_key}}` is the one generated value
    0.2 has, and it is a UUID, which fits few fields. Something like `{{unique}}`, a short random
-   token the portal generates per `<Sample>`, usable inside a longer string
+   token generated in the reader's browser per `<Sample>`, like `{{idempotency_key}}`, and
+   interpolated inside a longer string as 4.6 already allows
    (`"branch_code": "B{{unique}}"`), would let a guide be run more than once. The module would
    still have to learn which fields need it, from the spec's description or from a setting.
-4. **Question: several `<Steps>` on a page.** The module now writes a `Before you start` block and
+4. **Assumption: several `<Steps>` on a page.** The module now writes a `Before you start` block and
    a task block, each a `<Steps>` under its own `h2`. 4.2 does not say a page holds one `<Steps>`;
    the module assumes any number.
