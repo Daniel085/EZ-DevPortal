@@ -152,8 +152,8 @@ doctor step. It changed three things the M1 code must follow:
 ADR 0004 also lists details the architect added to make the host rule decidable. The security
 reviewer has not confirmed them, so include them when the doctor's server checks go to review.
 
-The acceptance criteria for all of this are in `m1.md`: criteria 8 and 10 as amended, and 27 to 31.
-Security sign-off is required on 29 and 31.
+The acceptance criteria for all of this are in `m1.md`: criteria 8 and 10 as amended, and 27 to 32.
+Security sign-off is required on criteria 15, 19, 29, 31 and 32.
 
 ## One spec is one unit (decided 2026-11-27)
 
