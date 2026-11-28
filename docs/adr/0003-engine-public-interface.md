@@ -41,6 +41,13 @@ description is written so that no twin or page holds live HTML, and the engine g
 parser; "The M1 command line" defines `ezdp`; `selectResponseExample` and `checkFixInputs` are
 named; `parseDocument` takes the file's size; "Build order in M1" is added. "Tenant Markdown",
 its two fixed bounds and the new dependency go to the security reviewer.
+Revised 2026-11-28 for three decisions by the user. The doctor report is private by default: it
+is built into a report directory outside the export, `ezdp build` prints where, and
+`--public-report` includes it deliberately ("The doctor report is private", "The portal bundle",
+"The M1 command line"). `example-missing` offers no fix (ADR 0004), so `diagnose` no longer
+synthesizes values. The fetch cap per document is 16 MiB, the same as the local cap ("Spec fetch
+policy"); that changes a figure the security reviewer set and is to be confirmed when M4 is
+designed. The first and the third go to the security reviewer.
 
 ## Context
 
@@ -153,7 +160,7 @@ measured on `fixtures/specs/` on 2026-11-27.
 | `outputNodes` | 10,000 | Per value: JSON values in one synthesized example; schema nodes in one view or one `toJsonSchema` result; keyword evaluations in one `validateValue` call | Estimate |
 | `outputBytes` | 1,048,576 (1 MiB) | The serialized JSON of that one value or view | Estimate: the largest inline schema, `GET /emojis` in the GitHub fixtures, is 166 KB as written |
 | `pageSchemas` | 32 | Named schemas inlined in one page file ("The portal bundle") | Not a truncation; see below |
-| `pageBytes` | 2,097,152 (2 MiB) | One file under `pages/` or one twin | Estimate |
+| `pageBytes` | 2,097,152 (2 MiB) | One file under `pages/`, one twin, or `report/doctor.json` | Estimate |
 | `bundleBytes` | 536,870,912 (512 MiB) | The sum of all files' `content` | Estimate |
 
 - `synthesizeExample` and `validateValue` also nest no deeper than `depth`.
@@ -193,10 +200,15 @@ interface BundleFile { path: string; mediaType: string; content: string }
 |---|---|---|
 | `manifest.json` | `Manifest` | Versions, navigation, the index of pages |
 | `model.json` | `ApiModel` | The full model, for the proxy and MCP in M2. The M1 renderer does not read or export it. |
-| `pages/<page path>.json` | `PageData` | One page. Everything that page shows is in this one file. |
+| `pages/<page path>.json` | `PageData` | One public page. Everything that page shows is in this one file. |
 | `static/<page path>.md` | Markdown | The twin of an operation, tag or schema page |
 | `static/llms.txt` | Markdown | The index of twins for this unit |
-| `static/doctor-report.json` | `DoctorReport` | The machine-readable doctor report, complete |
+| `report/doctor.json` | `DoctorPage` | The doctor page. Private. |
+| `report/doctor-report.json` | `DoctorReport` | The machine-readable doctor report, complete. Private. |
+
+The first path segment says who may read a file. `pages/` and `static/` are public: they become
+the export. `report/` is private and never reaches the export unless the person running the
+build asks ("The doctor report is private"). `manifest.json` and `model.json` are build inputs.
 
 `search.json` is not a bundle file in M1: m1.md puts search of any kind in M5. Its shape is
 fixed now so M5 adds a file and changes none: `SearchRecord[]`, flat records, not a
@@ -204,7 +216,9 @@ library-specific index.
 
 **Pages and paths.** A page path is relative to the unit's base and is built from slugs (ADR
 0002), never from ids. These are all the pages M1 has. Webhooks and callbacks get none (ADR 0004,
-`webhook-not-rendered`).
+`webhook-not-rendered`). The first four are the public pages. The doctor page is private: its
+page file is `report/doctor.json`, it is in neither `Manifest.pages` nor `Manifest.nav`, and
+its page path is used only where the report is built or included.
 
 | Kind | Page path | One per | Twin |
 |---|---|---|---|
@@ -212,7 +226,7 @@ library-specific index.
 | `tag` | `tags/<Tag.slug>` | `model.tags` entry | Yes |
 | `operation` | `operations/<Operation.slug>` | `model.operations` entry | Yes |
 | `schema` | `schemas/<NamedSchema.slug>` | `model.schemas` entry | Yes |
-| `doctor` | `doctor` | unit | No |
+| `doctor` | `doctor` | unit | No. Private; not in `llms.txt`. |
 
 **Fragments.** Each is fixed text of ours plus a status or a slug, so none is raw tenant text.
 
@@ -243,13 +257,13 @@ interface Manifest {
   title: string; version: string;      // info.title and info.version, for display
   languages: SampleLanguage[];         // as passed to buildPortalBundle; the first is the default
   nav: NavGroup[];                     // one per Tag in model order, then one of kind 'schemas' if any
-  pages: PageRef[];                    // every page, sorted by path
+  pages: PageRef[];                    // every public page, sorted by path; never the doctor page
 }
 interface NavGroup { kind: 'tag' | 'schemas'; title: string; page?: string; items: NavItem[] }
 interface NavItem { title: string; page: string; method?: Operation['method']; deprecated: boolean }
 interface PageRef { path: string; kind: PageKind; title: string; description: string }
 
-type PageData = HomePage | TagPage | OperationPage | SchemaPage | DoctorPage;
+type PageData = HomePage | TagPage | OperationPage | SchemaPage;   // the files under `pages/`
 interface PageBase { path: string; title: string; truncated: boolean }
 
 interface HomePage extends PageBase { kind: 'home';
@@ -298,7 +312,7 @@ interface SampleValue {                       // criterion 7
   unchecked: string[] }                       // for a synthesized value: keywords of its schema that
                                               // were not checked, such as 'pattern'
 
-interface DoctorPage extends PageBase { kind: 'doctor';
+interface DoctorPage extends PageBase { kind: 'doctor';      // `report/doctor.json`; path 'doctor'
   counts: { warning: number; info: number };  // of the whole report, also when `truncated`
   findings: Finding[]; notApplied: NotAppliedFix[];
   synthesized: { operationId: string; page: string; values: SampleValue[] }[] }
@@ -308,6 +322,8 @@ interface NotAppliedFix { fixId: string; path: string; reason: PatchConflict['re
 
 interface SearchRecord { id: string; kind: PageKind; title: string; path: string; text: string }   // M5
 ```
+
+No `PageRef`, `NavItem` or `SearchRecord` is ever of kind `doctor` or names the doctor page.
 
 Rules, each one sentence a builder would otherwise have to guess:
 
@@ -350,7 +366,9 @@ Rules, each one sentence a builder would otherwise have to guess:
   call adds, sorted by severity (warning before info), then `location.uri`, `location.pointer`,
   `code` and `fingerprint`, by code point. `synthesized` lists each operation that has a
   `synthesized` sample value, with those values only. The report file is complete; the page
-  holds the findings that fit in `pageBytes`, in that order.
+  holds the findings that fit in `pageBytes`, in that order. Both are under `report/` and are
+  private ("The doctor report is private"). No file under `pages/` or `static/` holds a
+  `Finding`, a fix or a link to either of them.
 - **Over `pageBytes`.** The page is reduced in this order until it fits, `truncated` is set and
   `budget-exceeded` is reported: drop `schemas` entries from the end (they become links); drop
   the `value` of declared examples from the last to the first; drop `samples` code. Reaching
@@ -376,7 +394,8 @@ Rules, each one sentence a builder would otherwise have to guess:
 - `llms.txt`: `# ` and `info.title`; `> ` and `info.summary` if there is one; `## Tags`, a list
   of the tag twins; then one `## ` per tag listing its operations, each operation under its
   first tag only; then `## Schemas`. Each entry is `- [title](link): description`, so every twin
-  is listed exactly once.
+  is listed exactly once. The doctor page and `doctor-report.json` are never listed, also when
+  `--public-report` puts them in the export.
 - Links are relative to the file that holds them: `operations/get-pet.md` from `llms.txt`,
   `../schemas/pet.md` from an operation's twin.
 
@@ -585,6 +604,61 @@ To check at M4, before the hosted portal serves either file:
   are exposed whatever is decided for the published spec.
 - External `$ref` URLs stay as written in the published file and may reveal internal hostnames.
 
+### The doctor report is private
+
+Decided by the user on 2026-11-28. The doctor report lists a spec's defects. It is for the
+buyer, not the reader, so it is not part of the public output unless the person running the
+build asks for it. This replaces the earlier position that the doctor report and page are in
+the public static export. It goes to the security reviewer in that item's place.
+
+- **What is private.** The two files under the bundle's `report/`: the doctor page and
+  `doctor-report.json`. Nothing else holds a `Finding` or a fix.
+- **The report directory.** Every build that succeeds writes both to a report directory outside
+  the export directory: the page as HTML, built by the renderer, and the JSON file. Its place
+  is fixed: the `--out` path with any trailing separator removed, plus `.ezdp-report`
+  (`--out site` gives `site.ezdp-report`). `--report-dir <dir>` names another place. Its
+  layout is the export's, so a file server that serves it at the base path shows the page.
+  `U` is the unit prefix, and is nothing when the prefix is empty:
+
+  | File in the report directory | Content |
+  |---|---|
+  | `U/doctor-report.json` | The `DoctorReport`, complete |
+  | `U/doctor/index.html`, and whatever else the Next.js build writes for that page | The doctor page |
+  | `_next/…` | A copy of the app's build assets, so the page has its styles and scripts |
+
+- **The command says where it is.** `ezdp build` prints the report line on every build that
+  succeeds ("The M1 command line", "The report line"). `ezdp doctor` remains the way to see
+  findings without building; it writes nothing.
+- **Including it on purpose.** `--public-report` also puts `U/doctor/` and
+  `U/doctor-report.json` in the export, at the URLs of ADR 0006, "Where each file is". The
+  report directory is still written, and the command prints to standard error that the
+  export now holds the list of the spec's defects.
+- **No public page links to it**, with or without `--public-report`: no navigation entry, no
+  link on the home page or any other page, no line in `llms.txt`, no twin. With
+  `--public-report` the page is reached by its URL. Without the option nothing in the export
+  shows that a report exists. A link from the portal when the report is included is not
+  designed; it would make the public pages depend on the option.
+- **The doctor page's own links.** It links to `doctor-report.json` and to the operation pages
+  in `synthesized`. The second kind resolves only where the report is served together with
+  the export, which is what `--public-report` gives.
+- **Reader-facing facts stay on the public pages they concern.** An operation page still says
+  plainly that the spec declares no credential (`SecurityStatement` with no alternatives,
+  criterion 4), shows a response with no declared example as having none, and carries
+  `sampleValues`. These are page content that `buildPortalBundle` derives from the model.
+  They are not findings, they are not taken from the doctor report, and they do not depend on
+  whether the report is included.
+- **A test.** A fixture with findings is built with and without `--public-report`. Without
+  it, no file in `--out` contains the `fingerprint` of any finding in the report, `--out` has
+  neither `U/doctor/` nor `U/doctor-report.json`, and both exist in the report directory.
+  With it, both are in `--out` too, and no other file in `--out` links to them or contains a
+  fingerprint.
+- **Hosted, recorded now and built in M4.** The portal origin and the asset origin never serve
+  a file from `report/`. The dashboard shows the report to signed-in members of the tenant's
+  account. Publishing it is not offered until it has been designed and reviewed.
+- **What the default does not protect.** The report directory is a sibling of `--out`. A person
+  who deploys the directory that holds both publishes the report. The CLI cannot see that;
+  `--report-dir` is how the report is put elsewhere.
+
 ### The M1 command line
 
 `ezdp` is the publisher's binary (ADR 0001). `<spec>` is one local file. M1 has these commands
@@ -592,8 +666,8 @@ and no others.
 
 | Command | What it does |
 |---|---|
-| `ezdp build <spec> --out <dir>` | The full build of criterion 23: the engine pass, the bundle, the static export and the published spec |
-| `ezdp doctor <spec>` | The engine pass up to `diagnose`. Prints each finding with its fix ids and their inputs; `--json` prints the `Finding[]`. Writes nothing. |
+| `ezdp build <spec> --out <dir>` | The full build of criterion 23: the engine pass, the bundle, the static export, the published spec and the report directory. Prints the report line. |
+| `ezdp doctor <spec>` | The engine pass up to `diagnose`. Prints each finding with its fix ids and their inputs; `--json` prints the `Finding[]`. Writes nothing. It shows the findings of `buildModel` and `diagnose`; those only `buildPortalBundle` adds (ADR 0004, "By" B) are in a build's report. |
 | `ezdp fix accept <spec> <fix-id>` | Stores one accepted fix in the overlay file (ADR 0004, "The overlay file") |
 | `ezdp fix accept <spec> --all` | Stores the first fix of every finding that has one |
 | `ezdp fix remove <spec> <fix-id>` | Removes that entry from the overlay file |
@@ -605,7 +679,9 @@ and no others.
 | `--base-path <path>` | `build` | Where the portal is mounted. Default: empty (ADR 0006, "Units"). |
 | `--unit-prefix <path>` | `build` | Where this unit sits below the base path. Default: empty. |
 | `--no-published-spec` | `build` | Omits `spec/` from the export ("Who can read it") |
-| `--bundle-dir <dir>` | `build` | Also keeps the bundle files there, `model.json` included. Without it they are in a temporary directory that is removed. |
+| `--report-dir <dir>` | `build` | The report directory ("The doctor report is private"). Default: the `--out` path plus `.ezdp-report`. Replaced as a whole when the build succeeds; untouched when it fails. |
+| `--public-report` | `build` | Also puts the doctor page and `doctor-report.json` in the export. Without it the export holds neither. |
+| `--bundle-dir <dir>` | `build` | Also keeps the bundle files there, `model.json` and `report/` included, so it is private too. Without it they are in a temporary directory that is removed. |
 | `--portal-dir <dir>` | `build` | The portal app. Default: `apps/portal` under the workspace root, found by walking up from the CLI's own file to `pnpm-workspace.yaml`. |
 | `--input <name>=<value>` | `fix accept <fix-id>` | One input. Repeating a name joins the values with LF in the order given, which is how a `list` input is written. |
 | `--inputs <file>` | `fix accept` | JSON: `{ "<fix-id>": { "<name>": "<value>" } }`. The way to supply inputs with `--all`. |
@@ -613,6 +689,10 @@ and no others.
 `ezdp build`, in order. The dependency rule of ADR 0001 holds: the publisher imports only the
 engine and starts the portal as a process.
 
+0. Check the options. The report directory, `--out` and `--bundle-dir` are compared as
+   absolute paths: if the report directory is `--out`, is inside it or contains it, if `--bundle-dir`
+   is `--out` or inside it, or if a path holds a control character, the command exits 2 and
+   writes nothing.
 1. Check the file's size, read it, read the overlay. The root document's `uri` is the file's
    base name (`petstore.yaml`), never a path, so reports, `model.json` and overlay files are
    the same on every machine (criterion 20). `fetchedHash` is the SHA-256 of the file's bytes.
@@ -622,18 +702,41 @@ engine and starts the portal as a process.
    `siteUrl`. On a fatal finding: print the findings, write nothing, exit 1.
 3. Write the bundle files to a temporary directory outside `--out`, or to `--bundle-dir`.
 4. Run the portal's export command as a child process (ADR 0006, "The export command"), giving
-   it the bundle directory, an empty export directory beside the bundle, the base path and the
-   unit prefix. It writes the pages, the build assets and everything under `static/`.
+   it the bundle directory, an empty export directory and an empty report directory, both
+   temporary and beside the bundle, the base path and the unit prefix. It writes the public
+   pages, the build assets and everything under `static/` to the first, and the doctor page
+   and `doctor-report.json` to the second. The export directory it returns holds no doctor
+   file.
 5. Unless `--no-published-spec`, write the published spec into that export directory at
    `<unit prefix>/spec/openapi.json` or `.yaml`. The publisher does this, not the portal: the
    file is not a bundle file and the portal never reads it.
-6. Replace `--out` with the export directory, print the published-spec notice, exit 0.
+6. With `--public-report`, copy `<unit prefix>/doctor/` and
+   `<unit prefix>/doctor-report.json` from the temporary report directory into the export
+   directory at the same paths.
+7. Replace `--out` with the export directory and the report directory with the temporary one,
+   print the notices and the report line, exit 0.
 
 - **Exit codes.** 0: built. 1: a fatal finding in the spec (criterion 5). 2: anything else,
   such as a bad option, an unreadable file, a malformed overlay, a refused input or a failed
-  export. Nothing in `--out` changes unless the exit code is 0.
+  export. Nothing in `--out` or in the report directory changes unless the exit code is 0.
 - **Findings are printed** one per line to standard error: severity, code, `uri:line:column`,
-  the JSON pointer, the message.
+  the JSON pointer, the message. The published-spec notice and the `--public-report` notice
+  go to standard error too.
+- **The report line.** On exit code 0, `ezdp build` writes exactly one line to standard output
+  and nothing else there:
+
+  ```
+  ezdp: report <visibility> warnings=<n> info=<n> path=<file>
+  ```
+
+  `<visibility>` is `private`, or `public` with `--public-report`. The two counts are
+  `DoctorPage.counts`, in decimal. `<file>` is the absolute path of `doctor-report.json` in
+  the report directory; it is the last field and runs to the end of the line, so it may hold
+  spaces. The doctor page is `doctor/index.html` beside that file. Fields are separated by one
+  space and the line ends with LF. For example:
+  `ezdp: report private warnings=3 info=12 path=/work/site.ezdp-report/doctor-report.json`.
+  On any other exit code no report is written and the line is not printed; the findings are
+  on standard error.
 - **`fix accept`.** Run the engine pass with the current overlay; look the fix up by id in its
   findings; call `checkFixInputs` and, on any issue, print it, store nothing and exit 2; call
   `bindFix`; for each input whose `format` is `host-name` or `host-suffix`, make the URL check
@@ -752,9 +855,9 @@ follows this table.
 |---|---|---|
 | 1 | `parseDocument` with limits and the source map, `$ref` resolution, `buildModel` and the operation-id algorithm, `getOperation`, `getSchema`, `applyFixes`, `serializeDocument` | Nothing |
 | 2 | `resolveSchemaView`, `validateValue`, `synthesizeExample`, `selectResponseExample` | 1 |
-| 3 | The spec doctor: `diagnose` and the rule table, `parsePublicSuffixList`, `checkFixInputs`, `bindFix` | 1 and 2: `example-invalid` needs `validateValue`, and the `example-missing` fix needs `synthesizeExample` |
+| 3 | The spec doctor: `diagnose` and the rule table, `parsePublicSuffixList`, `checkFixInputs`, `bindFix` | 1 and 2: `example-invalid` needs `validateValue`. `diagnose` does not call `synthesizeExample`: `example-missing` is decided from what the declaration holds, and it has no fix (ADR 0004). |
 | 4 | `buildRequest`, `renderSample` and the eight emitters | 1 and 2 |
-| 5 | `buildPortalBundle`: page files, twins, `llms.txt`, the doctor report | 1 to 4, and the Markdown functions |
+| 5 | `buildPortalBundle`: page files, twins, `llms.txt`, and the doctor page and report under `report/` | 1 to 4, and the Markdown functions |
 | Any time | `parseMarkdown`, `sanitizeMarkdown`, `escapeMarkdownText`, `linkDestinationAllowed` | Nothing. The renderer needs `parseMarkdown` from the start of its work. |
 
 - Steps 3 and 4 do not depend on each other.
@@ -802,24 +905,28 @@ Covers the root spec URL and every `$ref`.
   the GitHub App that proposes guides as pull requests (decided 2026-11-27; ADR 0007): it holds
   write access to tenants' repositories, and its design goes to the security reviewer before it
   starts.
-- Caps when fetching: 100 documents, 10 MB each (10,000,000 bytes), 50 MB total (50,000,000),
+- Caps when fetching: 100 documents, 16 MiB each (16,777,216 bytes), 50 MB total (50,000,000),
   10 s each, 60 s total. Bytes are counted after
   content decoding, so a compressed response is measured as the document it decodes to, and
-  decoding stops at the cap. These are the security review's figures, unchanged. A publisher
-  that fetches passes `inputBytes: 10_000_000` to the engine.
-- **Local files in the CLI have a higher per-document cap: `defaultLimits.inputBytes`, 16 MiB.**
-  This raises the review's 10 MB figure, for a file read from the disk of the person running
-  the build and for nothing fetched. The evidence: two fixtures that criteria 3, 13 and 23 must
-  build are over 10 MB, `large/github-ghes.json` at 10,037,279 bytes and
-  `large/github-api-3.1.json` at 14,401,584, and 16 MiB is the next round figure above the
-  larger. The other caps are as above where they apply: 100 documents and 50 MB in total. The
-  time caps do not apply, since nothing is fetched.
+  decoding stops at the cap. The per-document cap is `defaultLimits.inputBytes`, so a publisher
+  that fetches passes the default and no lower figure.
+- **The per-document cap was raised from 10 MB (10,000,000 bytes) on 2026-11-28, by the user's
+  decision**, so that the hosted and the local cap are one figure and anything that builds
+  locally also builds hosted. The other four caps are the security review's figures,
+  unchanged. This changes a figure the security reviewer set. What bounds the cost of a
+  larger document is not its byte count: it is the `nodes`, `depth` and `aliasExpansions`
+  limits while parsing ("Budgets") and the killable per-tenant worker with its time limit.
+  The reviewer is to confirm the figure when M4 is designed; until then no code fetches. A
+  cap per plan is a later option and is not designed.
+- **Local files in the CLI have the same per-document cap, `defaultLimits.inputBytes`.** The
+  evidence for 16 MiB: two fixtures that criteria 3, 13 and 23 must build are over 10 MB,
+  `large/github-ghes.json` at 10,037,279 bytes and `large/github-api-3.1.json` at 14,401,584,
+  and 16 MiB is the next round figure above the larger. Of the other caps, 100 documents and
+  50 MB in total apply to local files. The time caps do not, since nothing is fetched.
 - In M1 the CLI reads exactly one file, because m1.md's input is one document already bundled.
   It follows no `$ref` to another document, local or remote: the document is missing from the
   set and the reference is `ref-unresolved`. Reading sibling files and fetching arrive with
   ingestion in M4.
-- To decide before M4: under the 10 MB fetch cap the hosted product cannot publish either
-  GitHub description. Raising it is the security reviewer's and the product manager's call.
 - Uploaded specs get a synthetic URI. A relative `$ref` in an uploaded spec resolves only against
   other files of the same upload, by lookup; it is never fetched. The lookup is by the synthetic
   URI in the set of uploaded files; a target that is not in the set is a missing document. An
@@ -1013,8 +1120,9 @@ example stands in for it.
   endpoint does not answer for a private preview.
 - **Only declared examples.** The response shown comes from the published model's declared
   examples and from nowhere else: `Response.content[].examples`, and the `examples` of that
-  media type's schema (ADR 0002). An example that an accepted spec-doctor fix wrote is in the
-  published spec and counts as declared.
+  media type's schema (ADR 0002). No fix writes an example into the spec: `example-missing` has
+  none and no fix has ever written a response example (ADR 0004), so a declared example is
+  always one the spec's owner wrote.
 - **Nothing synthesized is shown as a response.** `synthesizeExample` output, a value assembled
   from the examples, defaults or enums of a schema's properties, and an `externalValue` are
   never shown in the response's place, under any label. Where the spec declares no example for

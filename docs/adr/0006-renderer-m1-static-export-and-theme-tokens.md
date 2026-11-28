@@ -14,6 +14,10 @@ Revised again that day to close gaps a second audit found: the base path and the
 are settings of the M1 build ("Units"); "The export command" says how the export is produced
 and who puts each file in it; and tenant text is rendered from the engine's safe form with the
 engine's parser ("Tenant text"). The last goes to the security reviewer.
+Revised 2026-11-28 for the user's decision that the doctor report is private by default (ADR
+0003, "The doctor report is private"): the export command writes the doctor page and
+`doctor-report.json` to a report directory and never to the export; `ContentSource` gains
+`doctor()`. This goes to the security reviewer.
 
 ## Context
 
@@ -30,16 +34,19 @@ reads a portal bundle (ADR 0003) through one interface:
 interface ContentSource {
   manifest(): Promise<Manifest>;
   page(path: string): Promise<PageData>;
+  doctor(): Promise<DoctorPage>;         // `report/doctor.json`. Private; M1 export only.
   theme(): Promise<ThemeTokens>;
 }
 ```
 
 M1 has one implementation, which reads the bundle directory named by the environment variable
 `EZDP_BUNDLE_DIR` at build time ("The export command"). Routes come from `generateStaticParams` over the manifest. Page components are
-presentational: they take `PageData` and nothing else, and do not know where it came from. M4 adds
+presentational: they take `PageData`, or `DoctorPage` for the doctor page, and nothing else, and do not know where it came from. M4 adds
 a second `ContentSource` keyed by tenant in front of the same components. `Manifest`, `PageData`
 and the page paths are the engine's (ADR 0003, "The portal bundle"); `page(path)` takes a page
-path from the manifest.
+path from the manifest. The doctor page is not in the manifest. It is one fixed route,
+`doctor`, whose only source is `doctor()`, and no other component calls `doctor()` or links to
+that route. A `ContentSource` that serves readers in M4 does not implement it.
 
 **Units.** A portal bundle is one unit: one version of one API (ADR 0002, ADR 0003). A
 `ContentSource` therefore serves one unit, and from M4 a portal has one per (project, API,
@@ -65,8 +72,8 @@ root, under `/docs` and under `/docs/payments/v2`.
   `/docs/payments/v2/operations/get-pet/`. No component joins a bundle path to a prefix itself
   or assumes that a bundle path starts at the portal root. Next adds its `basePath` to router
   links by itself, so the one wrapper around `<Link>` calls `unitUrl` with an empty base path;
-  a link to a file Next does not route (a twin, `llms.txt`, `doctor-report.json`, the published
-  spec) is a plain anchor with the full `unitUrl`.
+  a link to a file Next does not route (a twin, `llms.txt`, the published spec, and
+  `doctor-report.json` from the doctor page alone) is a plain anchor with the full `unitUrl`.
 
 `theme()` is on `ContentSource` for M1 only; a theme belongs to the portal, not to a unit, and
 M4 moves it. In M1 it returns `defaultTheme`.
@@ -78,13 +85,26 @@ not import the portal (ADR 0001, rule 2).
 
 - **In**, as environment variables: `EZDP_BUNDLE_DIR`, an absolute path to a directory holding
   the `PortalBundle` files at their paths; `EZDP_OUT_DIR`, an absolute path to an empty or
-  missing directory; `EZDP_BASE_PATH` and `EZDP_UNIT_PREFIX`, as above.
-- **It does two things.** It runs the Next.js build with `output: 'export'`,
+  missing directory; `EZDP_REPORT_DIR`, the same for the report directory, and not inside
+  `EZDP_OUT_DIR`; `EZDP_BASE_PATH` and `EZDP_UNIT_PREFIX`, as above.
+- **It does three things.** It runs the Next.js build with `output: 'export'`,
   `trailingSlash: true` and `basePath` set to the base path, which writes the pages and the
   app's build assets. Then it copies everything under the bundle's `static/` to
-  `<EZDP_OUT_DIR>/<unit prefix>/`.
-- **Out**: `EZDP_OUT_DIR` is the complete export except `spec/`, which the publisher adds. It
-  exits non-zero on any failure.
+  `<EZDP_OUT_DIR>/<unit prefix>/`. Then it takes the doctor page out: it moves
+  `<unit prefix>/doctor/` whole, with every file the Next.js build wrote for that page, to
+  the same path under `EZDP_REPORT_DIR`, copies `_next/` there, and copies the bundle's
+  `report/doctor-report.json` to `<EZDP_REPORT_DIR>/<unit prefix>/doctor-report.json`.
+- **Out**: `EZDP_OUT_DIR` is the complete public export except `spec/`, which the publisher
+  adds. It never holds the doctor page or `doctor-report.json`, and the export command has no
+  setting that leaves them in: including them is the publisher's copy under `--public-report`
+  (ADR 0003, "The M1 command line"). `EZDP_REPORT_DIR` holds the doctor page, its assets and
+  the JSON report, laid out as the export is, so it can be served at the base path and audited
+  (criteria 20 and 22). It exits non-zero on any failure.
+- **Why one build and a move, not a second export.** A second Next.js build for one page would
+  add a build's fixed time to every `ezdp build`, and would need a second mode of the app and
+  a bundle split in two. The move is one directory, and the page under test is the same HTML
+  either way. The cost is that privacy rests on the move being complete; the test in ADR
+  0003, "The doctor report is private", checks that on every CI run.
 - One export runs at a time in a portal directory. Tests that build exports run one at a time.
 
 **Where each file is.** The export directory is what is served at the base path. `U` is the
@@ -95,8 +115,12 @@ unit prefix, and is nothing when the prefix is empty.
 | `_next/…`, the app's build assets | `<base path>/_next/…` | The Next.js build. Not under the unit prefix. |
 | `U/index.html` | `<base path>/U/`, the unit's base | The Next.js build |
 | `U/<page path>/index.html` | `<base path>/U/<page path>/` | The Next.js build |
-| `U/<page path>.md`, `U/llms.txt`, `U/doctor-report.json` | The same path below the base path | The export command, from `static/` |
+| `U/<page path>.md`, `U/llms.txt` | The same path below the base path | The export command, from `static/` |
 | `U/spec/openapi.json` or `.yaml` | The same path below the base path | The publisher (`ezdp build`), unless `--no-published-spec` |
+| `U/doctor/index.html`, `U/doctor-report.json` | `<base path>/U/doctor/` and the same path below the base path | The publisher, from the report directory, with `--public-report` only. Absent by default. |
+
+`<page path>` in this table is a public page's path, so never `doctor`. The report directory
+has the last row's two paths and a copy of `_next/`, and nothing else.
 
 The theme is a `<style>` block in each page, so it has no file. With a unit prefix the
 directory above it has no page in M1; M4d's product switcher is what goes there.
@@ -113,8 +137,9 @@ Rules that keep pages exportable:
    pages, reloads and tabs with no server state. With JavaScript off, every page shows the
    manifest's first language, every variant and every schema section (criterion 16).
 3. Everything under the bundle's `static/` is copied into the export as files, by the export
-   command: the Markdown twins, `llms.txt` and `doctor-report.json`. `manifest.json`,
-   `model.json` and the page files are build inputs and are not exported. The published spec
+   command: the Markdown twins and `llms.txt`. `manifest.json`, `model.json` and the page
+   files are build inputs and are not exported. Nothing under the bundle's `report/` is
+   copied into the export by the export command. The published spec
    is not in the bundle; the publisher writes it into the export ("The export command").
 4. All links go through `unitUrl`, and the URLs of the app's own build assets through the
    configured base path, so the same source builds for `/`, for `/docs` and for
@@ -126,9 +151,11 @@ Rules that keep pages exportable:
    `trailingSlash: true`: the page with path `P` is the file `P/index.html` and is linked as
    `P/`; the home page, path `index`, is the unit's base itself. Its twin is the file `P.md`
    beside that directory, which is what criterion 17 means by the page URL plus `.md`.
-   `llms.txt`, `doctor-report.json` and `spec/` sit at the unit's base, which is the base path
-   and the unit prefix ("Where each file is"). The first path segments
-   the engine uses are a closed list: `operations`, `schemas`, `tags`, `doctor` and `spec`. The
+   `llms.txt` and `spec/` sit at the unit's base, which is the base path
+   and the unit prefix ("Where each file is"), and so do `doctor/` and `doctor-report.json`
+   when `--public-report` includes them. The first path segments
+   the engine uses are a closed list: `operations`, `schemas`, `tags`, `doctor` and `spec`.
+   `doctor` stays reserved whether or not the report is included. The
    prefix reserved for guides in M5 (contract 3) must not be one of them.
 7. The HTML of a page is linear in its page file. A reference to a named schema is rendered as
    a link or an expander that points at that schema's one section on the page
@@ -138,6 +165,11 @@ Rules that keep pages exportable:
 8. Fragments are the ones ADR 0003 lists, and no other `id` is promised. An element that
    carries one is in the HTML as exported and is not inside content that starts collapsed, so
    the URL loads directly to it with JavaScript off (criterion 11).
+
+9. No exported page links to the doctor page or to `doctor-report.json`, and neither is in the
+   navigation, with or without `--public-report` (ADR 0003, "The doctor report is private").
+   What a public page says about the spec, such as "the spec declares no credential", comes
+   from its own page file.
 
 "Try it" in M2 is a client component that calls the proxy, a separate service. Pages stay static.
 

@@ -25,11 +25,16 @@ code, its severity and its fix; `SpecPatch` gains the `absent` op, which the "ad
 missing" fixes need; `bindFix` returns `null` for a missing input and `checkFixInputs` says why;
 "The overlay file" defines the CLI's file. The `absent` op and the new fixes go to the security
 reviewer with the patch code.
+Revised 2026-11-28 for the user's decision that `example-missing` offers no fix in M1: its fix
+is removed from "The M1 rule table" and the patch table, and `diagnose` no longer synthesizes
+values. The `absent` op stays, because three other fixes use it. The same day the doctor report
+became private by default (ADR 0003, "The doctor report is private"); no finding or fix changes
+for that.
 
 ## Context
 
-The spec doctor lints the spec and proposes fixes for auth schemes, servers and examples before
-publishing. The customer's spec is usually fetched from a URL or a Git repository we do not own, and
+The spec doctor lints the spec, its examples included, and proposes fixes for auth schemes,
+servers and operation ids before publishing. The customer's spec is usually fetched from a URL or a Git repository we do not own, and
 it is fetched again on every publish. A fix therefore has to survive re-fetching, and has to fail
 visibly when the spec has changed underneath it.
 
@@ -336,7 +341,7 @@ manager may cut one: the cell becomes "None" and the message states what to chan
 | `server-url-placeholder` | warning | A server whose literal host is `example.com`, `example.org` or `example.net`, a name under one of them, or a name whose last label is `example`, `test` or `invalid` | None | D |
 | `server-variable-no-default` | warning | A declared server variable with no `default` | Patch, when it has a non-empty `enum` | D |
 | `server-not-callable` | warning | Below | Patch with input, for an open host variable only | D |
-| `example-missing` | info | A parameter declaration, or the sample media type of a request body declaration, with no named example, no schema `examples`, no `default` and no `enum`, so that a sample value for it is synthesized. One per declaration, by `loc`, however many operations share it through a `$ref` | Patch, when the synthesized value is clean | D |
+| `example-missing` | info | A parameter declaration, or the sample media type of a request body declaration, with no named example, no schema `examples`, no `default` and no `enum`, so that a sample value for it is synthesized. One per declaration, by `loc`, however many operations share it through a `$ref` | None | D |
 | `example-invalid` | warning | A declared example with `errors` under `validateValue` | None | D |
 | `webhook-not-rendered`, `callback-not-rendered` | info | One per webhook and per callback | None | D |
 | `request-invalid` | warning | `buildRequest` could not place a value as the spec describes it: a header name or value RFC 9110 forbids, or two credentials for one header (ADR 0005) | None | B |
@@ -345,8 +350,8 @@ manager may cut one: the cell becomes "None" and the message states what to chan
 | `schema-allof-conflict` | info | `allOf` members give different values for a keyword (ADR 0003) | None | B |
 | `markdown-not-rendered` | info | A description shown as a code block (ADR 0003, "Tenant Markdown") | None | B |
 
-What each patch writes. `O` is the operation's pointer, `V` the variable's and `S` the
-declaration's. `safe` and `review` are `Fix.confidence`.
+What each patch writes. `O` is the operation's pointer and `V` the variable's. `safe` and
+`review` are `Fix.confidence`.
 
 | Code | Confidence | Patch |
 |---|---|---|
@@ -356,7 +361,6 @@ declaration's. `safe` and `review` are `Fix.confidence`.
 | `servers-missing` | review | `absent` `/servers`, or `test` it against `[]`; `add` `/servers`: `[{ "url": "https://{host}", "variables": { "host": { "enum": [], "default": "" } } }]`. One input, `values`: `list` with `maxItems: 32`, `format: 'host-name'`, placed at that `enum` and its first value at that `default`. Its input rules, its label and the caller's URL check are those of "The fix for an open host variable". Title: "Add a server. The hosts are published in the spec, and the first one becomes the default." |
 | `server-variable-no-default` | review | `test` `V` against the object seen; `add` `V/default`: the first `enum` value |
 | `server-not-callable` | review | "The fix for an open host variable" |
-| `example-missing` | review | `absent` `S/example`; `absent` `S/examples`; `add` `S/example`: the value `synthesizeExample` gives. Offered only when that value has no `errors`, no unchecked keyword and was not cut, and, for a parameter, when it has a `schema`. Request side only: no fix ever writes a response example. |
 
 Rules for the table:
 
@@ -369,10 +373,17 @@ Rules for the table:
     operation declares no `operationId`.
   - A variable for which `server-not-callable` offers the allowed-hosts fix is not also
     reported as `server-variable-no-default`: that fix writes its `default`.
-  - `diagnose` synthesizes values only to build `example-missing` fixes. It does not report
-    `synthesis-failed` or `budget-exceeded` for them; it offers no fix.
   - The doctor report holds one finding per `fingerprint`. `buildPortalBundle` drops a finding
     whose fingerprint is in `report.findings` or that it has already added.
+- **No fix writes an example.** Decided by the user on 2026-11-28. `example-missing` stays a
+  finding and offers no fix: the buyer writes real examples in their spec, and the message
+  says to declare an example at that parameter or media type. No fix, for this or any other
+  code, writes a value synthesized from a schema into the spec as a declared example, on the
+  request side or the response side. So `diagnose` never calls `synthesizeExample`; it decides
+  `example-missing` from what the declaration holds. `synthesis-failed` and `budget-exceeded`
+  for sample values are reported by `buildPortalBundle` alone. A possible later option, not
+  designed: a fix that writes examples marked as generated, so that the portal still labels
+  them as generated and never shows them as the owner's.
 - **A fix adds no finding** when its input is valid. The `servers-missing` fix writes a host
   variable with an `enum`, which is callable, and `server-url-placeholder` reads literal hosts
   only.
