@@ -1,12 +1,12 @@
 # Guides Module: Status and Context for the Portal Side
 
-As of 2026-11-27. Written by the guides module session for whoever picks up the contract or guides
+As of 2026-11-28. Written by the guides module session for whoever picks up the contract or guides
 ingestion (M5) here. Portal sessions cannot read the module's repository, so this is the account
 of what it emits.
 
 ## Where it is
 
-- Repository: `daniel085/ez-devdocs`, branch `main`. Generator version `0.2.0`.
+- Repository: `daniel085/ez-devdocs`, branch `main`. Generator version `0.3.0`.
 - **It targets contract v0.2** as written in this directory, synced at commit `f26100d`. Its
   bundles carry `contractVersion` `"0.2"`. It holds copies of the contract, the manifest schema and
   the report schema under `contract/`, which must be re-synced when any of them changes.
@@ -47,15 +47,25 @@ pages/store-order/manage.md
 pages/user/manage.md
 ```
 
-- **Nav:** `quickstart` first, then groups `Concepts`, `Guides`, `Tutorials`. Depth is 1. The module
-  writes no `label` or `hidden`; it keeps ones a person added (below).
+- **Nav:** `quickstart` first, then `Concepts`. Where the spec tags its operations, guides and
+  tutorials follow in one group per tag, named by the tag, in the order the spec lists its tags,
+  with each tutorial beside the resource it starts from. A spec without tags gets the groups
+  `Guides` and `Tutorials`. Depth is 1. The module writes no `label` or `hidden`; it keeps ones a
+  person added (below).
 - **Slugs:** fixed names for concept pages (`authentication`, `errors`, `pagination`, `idempotency`,
   `rate-limits`, `webhooks`); `<resource>/manage` or `<resource>/browse` for how-to guides;
-  `tutorials/<parent>-<child>` for tutorials. Resource slugs come from the collection path, so they
+  `<resource>/<action>` for a how-to about one operation on a record, where `<action>` is the slugified
+  path segment after the identifier (`sales-orders/payments`); `tutorials/<parent>-<child>` for tutorials. Resource slugs come from the collection path, so they
   change only if the path does.
 - **Page types used:** `quickstart`, `concept`, `how-to`, `tutorial`. Never `reference`.
-- **Components used:** `Steps`, `Step`, `CardGroup`, `Card`, `Operation`, `Schema`, `Sample`,
-  `Response`. `Tabs`, `Callout` and `Todo` are not written. No assets are produced.
+- **Components used:** `Steps`, `Step`, `Callout`, `CardGroup`, `Card`, `Operation`, `Schema`,
+  `Sample`, `Response`. `Tabs` and `Todo` are not written. No assets are produced.
+- **Headings.** A page with prerequisites has two `h2` headings, `Before you start` and one that
+  names the task, each over its own `<Steps>`. So a page can hold more than one `<Steps>`.
+- **Placeholder values are announced on the page.** A page whose sample values were built from
+  types alone opens with `<Callout type="warning" title="Placeholder values">` naming the calls.
+  `report.json` marks the same pages with `placeholderValues: true`. 149 of Stripe's 186 pages
+  carry it; none of Retavon's do.
 - **Never withheld by its own doing.** The module writes no `<Todo>` and no `status`, so every page
   it generates is `ready`. What the spec did not say is left out of the page and listed under
   `gaps` in `report.json`. The quickstart says nothing about how credentials are issued; the gap is
@@ -101,12 +111,24 @@ pages/user/manage.md
 A request body often refers to another record by identifier, such as `customer_id` on a site. When
 that field has the name of the path parameter of a resource the spec can create, the guide creates
 that record first, captures its identifier and sends it in place of the spec's example value. Up to
-five such steps are added to a page, in the order the calls must be made.
+eight such steps are added to a page, in the order the calls must be made, under the heading
+`Before you start`. Two different example identifiers in one body are two records, captured as
+`item_id` and `item_id_2`.
 
 - **A page's `operations` includes operations of other resources.** `sites/manage` lists
   `createCustomer`. Anything that maps a page to "its" resource from that list should not assume one.
 - A prerequisite step links the other resource's guide with `guide:<resource>/manage` when that
   page is in the bundle.
+
+### Action guides
+
+An operation on `/things/{id}/verb`, such as taking a payment on an order, gets a how-to of its
+own. Its title is the operation's summary ("Take a payment"). It creates a fresh record, with any
+prerequisites, then calls the operation on it. Retavon has 136 such pages. A step in any guide is
+titled with its operation's summary where there is one.
+
+A guide that starts from a list reads the first record and stops: it never updates or deletes a
+record it did not create.
 
 ### Operation ids
 
@@ -174,13 +196,41 @@ keeps every existing page as it is.
 | Swagger Petstore (3.0) | 19 | 7 | passed |
 | Redocly Museum (3.1) | 8 | 6 | passed |
 | Clubhouse, APIs.guru (3.0, no `operationId`s) | 41 | 3 | passed |
-| Stripe (3.0) | 612 | 120 | passed |
-| GitHub Enterprise Server 3.9 (3.0) | 908 | 25 | passed |
-| Retavon 0.1.0 (3.1, assembled from its per-operation reads) | 565 | 89 | passed |
+| Stripe (3.0) | 612 | 186 | passed |
+| GitHub Enterprise Server 3.9 (3.0) | 908 | 20 | passed |
+| Retavon 0.1.0 (3.1, assembled from its per-operation reads, every feature on) | 795 | 257 | passed |
 
 "Passed" means no errors, no blockers and no warnings from the module's validator against v0.2.
 **No bundle has been through a portal validator, because none exists yet.** The two will disagree
 somewhere; the first real ingestion should be treated as a test of both.
+
+## The guides have now been run
+
+On 2026-11-28 the Retavon bundle was run against a real Retavon account with a development tool
+in the module's repository (`scripts/run-guides.ts`), which sends each `<Sample>` in order and
+carries captured values forward as 4.3 and 4.6 describe. The tool is not part of the module,
+which still uses no network. 236 pages were run.
+
+| Outcome | Pages |
+|---|---|
+| Every call succeeded as written | 7 |
+| Every call succeeded once an example value was changed | 77 |
+| The first list was empty | 16 |
+| A call failed | 136 |
+
+What this tells the portal side:
+
+- **The module's captures and variables chain correctly in the module's own runner.** The 84
+  passing pages chain up to eleven calls on captured identifiers, including inside request bodies
+  and arrays. This did not test the portal's encoders.
+- **A guide's example values can be used once per account.** Fixed examples collide with records
+  that already exist (a phone number, a code that must be unique). "Try it" will meet the same
+  refusals. See the proposal in the feedback file.
+- **About a third of the failures are an example identifier that no step creates**, and another
+  third are calls made in a state the API refuses, such as a refund with no payment. Both are the
+  module's to improve.
+- **32 failed because of who the key was** (an agent key, where the API wants a person). A reader's
+  own key may behave differently from the one a guide was tested with.
 
 ## Things the portal side should know
 
@@ -204,16 +254,20 @@ somewhere; the first real ingestion should be treated as a test of both.
   and plain. Guides cover resource lifecycles, parent/child flows and the records a request body
   refers to by identifier.
 - **Information architecture.** A review of the generated bundles on 2026-11-27 found that at scale
-  the navigation is too flat (Stripe has 102 entries in one group), page titles drop the qualifier
-  that tells similar resources apart, and steps use generic verbs where the spec has its own. None
-  of that is fixed yet. Fixing it will change titles, step titles and navigation grouping, and may
-  change slugs; a bundle regenerated after that will differ widely from one generated now.
+  the navigation is too flat, titles drop the qualifier that tells similar resources apart, and
+  steps use generic verbs where the spec has its own. Version 0.3.0 fixes the titles and the step
+  names, groups navigation by tag, and adds the action guides. Still open after a third review:
+  a spec with no tags (Stripe) is one group of about 170 entries; Retavon has 52 top-level groups;
+  prerequisites outnumber the task's own steps on about 100 Retavon pages; pages rarely link to
+  each other. Fixing those will change navigation again and may add a second level.
 
 ## Questions and proposals for the portal side
 
 1 and 3 are answered by 0.2 as written (4.7 and 5; 5.2) and are proposals for a later version.
 2 and 4 are open. All four, and one gap in 4.3, are recorded in
-[`guides-contract-feedback.md`](./guides-contract-feedback.md) under "On v0.2".
+[`guides-contract-feedback.md`](./guides-contract-feedback.md) under "On v0.2". Two items added on
+2026-11-28 (a `{{unique}}` variable; several `<Steps>` on a page) are in the same file, as items 3
+and 4, and are not listed here.
 
 1. **An edited page that no longer fits the spec blocks the whole bundle**, because its finding is
    an `error`. The module keeps the person's text, as 4.7 requires, and cannot make the page valid.
