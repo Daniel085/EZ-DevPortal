@@ -107,7 +107,9 @@ The security reviewer has a veto. Send it the code, before the work is called do
 - The Basic authentication handling in each emitter.
 - The patch operations and the fixes that write into a spec, including the `absent` operation.
 - The command line starting the portal's export as a child process.
-- The doctor report being part of the public static output.
+- The doctor report staying out of the public output by default: after a default build the
+  export holds no doctor page, no report file and no link to either (ADR 0003, "The M1 command
+  line"; ADR 0006, "The export command").
 - The budgets and limits in ADR 0003, with a test using a small spec that expands to an enormous
   example.
 
