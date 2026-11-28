@@ -23,6 +23,9 @@ Revised again that day to close gaps a second audit found: `HttpRequest.basicAut
 authentication" say how a Basic credential is carried and emitted; the local mock has a fixed
 port and names `selectResponseExample`. "Basic authentication" goes to the security reviewer
 with the emitters.
+Revised 2026-11-28 for guides contract 0.3: the closed list of built-in variable names, the
+generated values `unique` and `unique_1` to `unique_9`, and portal-supplied parameters. No type
+is changed. All three go to the security reviewer and are not yet reviewed (contract section 12).
 
 ## Context
 
@@ -61,7 +64,7 @@ type CallValues = Omit<RequestValues, 'templates'>; // the proxy and MCP input s
                                                     // for both MCP call tools; it has no method
 
 interface Var {
-  var: string;                                      // 'base_url', 'payment_id', 'api_key'
+  var: string;                                      // 'base_url', 'unique_1', 'payment_id', 'api_key'
   scope: 'builtin' | 'captured' | 'credential';     // three namespaces; a name never crosses them
   scheme?: string;                                  // credential scope only: the security scheme id
   encode: Encoder[];                                // applied in order when a value is filled in
@@ -135,6 +138,41 @@ Rules:
   the confusion by name as well as by scope.
   The engine never sees a real credential in M1. In M2 the real value is supplied per request to
   `resolveRequest`, a pure function, and is not stored anywhere.
+- **Built-in names are a closed list**, exported as `builtinVariableNames`: `base_url`,
+  `idempotency_key`, `api_name`, `unique`, and `unique_1` to `unique_9` (contract 4.6). Each is
+  a `Var` with `scope: 'builtin'`. A captured name must not be one of them and must not match
+  the reserved pattern `unique(_[0-9]+)?`, which the engine also exports, so a later built-in
+  of that family cannot collide with a name a bundle already captures.
+- **Generated values** (contract 4.6, "Generated values"; M5). `unique` and `unique_1` to
+  `unique_9` stand for eight decimal digits, `^[0-9]{8}$`, new for each reader and visit.
+  - The engine never produces one. It has no source of randomness, at publish time or in the
+    browser, and stays pure. The renderer's client code draws the value from the browser's
+    cryptographic random source and hands it to the `Var`'s encoders, as it does a captured
+    value. Published output holds the `Var` and its display text, so it is the same for the
+    same input.
+  - Which value a `Var` takes follows from its name alone. `unique` and `idempotency_key` take
+    the value of the sample whose segment list holds them; `unique_1` to `unique_9` take the
+    page's value for that name. `Var` has no field for it.
+  - The value is always a string. A `{ string: [Var] }` leaf that holds one is serialized as a
+    JSON string, never as a number.
+  - It is exempt from no rule: the encoders, the header check after substitution and the
+    code-block allowlist of contract 4.6 apply to it as to any runtime value. By construction
+    it passes them.
+  - The guides validator accepts `unique` and `idempotency_key` in `templates` only for a
+    sample's inline block. In prose and in an ordinary code block they are `unknown-variable`.
+- **Portal-supplied parameters** (contract 4.3). A declared parameter that is a controlled
+  header, that carries a credential, or that is a cookie is never taken from a bundle and
+  never counted as missing by the guides validator. `buildRequest` handles each kind once,
+  for every caller:
+  - A header, query or cookie name that a security scheme carries its credential in is
+    filled only with that scheme's credential `Var`, and only when the scheme is applied.
+    The parameter's own `example`, `default` and schema are never used for it, required or
+    not, and the name appears in the request once. Where the scheme is not applied, nothing
+    is placed under that name.
+  - A header parameter on the controlled list is never filled from the spec. `Accept`,
+    `Content-Type` and `Authorization` are not in the model at all (ADR 0002, "Dropped header
+    parameters").
+  - A cookie parameter that carries no credential is filled like any other parameter.
 - **Server variables.** A value comes from the variable's `enum`. An empty `enum` allows no
   value. With no `enum`: a variable in the port is `[0-9]{1,5}`; in the path, `[A-Za-z0-9._~-]+`
   segments joined by `/`, none `.` or `..`. With no `enum`, a variable in the host is callable
@@ -243,6 +281,15 @@ encoded credential in literal text would be marker text by another name.
   requirement's order is placed and the other is reported in `issues` as `request-invalid`
   (ADR 0004).
 
+### Display text for generated values
+
+For M5. A `unique` variable is shown as `UNIQUE`, and `unique_1` to `unique_9` as `UNIQUE_1`
+to `UNIQUE_9`: in the published page before any script runs, in code copied without
+JavaScript, in the Markdown twin, `llms.txt`, the search index and the docs MCP. The text is
+visibly a placeholder and passes the code-block allowlist. A sample sent with it behaves as a
+fixed example does. Not yet defined, and needed by M5: the display text of `idempotency_key`
+and of a captured name.
+
 ### What an M1 sample shows
 
 A static M1 sample is `renderSample` of `buildRequest(model, id, undefined, { limits })`. No server is
@@ -306,7 +353,7 @@ server.
 ## Consequences
 
 - Guides `<Sample>` (M5) is `buildRequest` with the block's values. Captured variables are `Var`
-  parts with `scope: 'captured'`. Validation of supplied values against the schema is added to
+  parts with `scope: 'captured'`, and generated values are `Var` parts with `scope: 'builtin'`. Validation of supplied values against the schema is added to
   `issues` then, with the `validateValue` that M1 builds (ADR 0003).
 - "Try it" and MCP send exactly the request the sample shows, because both come from one
   `HttpRequest`. A serialization bug is fixed once.

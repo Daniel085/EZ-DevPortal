@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://ez-devportal.dev/schemas/guides-report-0.2.json",
+  "$id": "https://ez-devportal.dev/schemas/guides-report-0.3.json",
   "title": "Guides bundle run report",
-  "description": "Optional report.json at the bundle root. See section 5.2 of guides-contract.md. Members not defined here are allowed at every level and are ignored by the portal. All text is shown as plain text. Each array holds at most 1,000 items; the file is at most 2 MB (size-limit).",
+  "description": "Optional report.json at the bundle root, contract version 0.3. See section 5.2 of guides-contract.md. Information only: nothing reads it to decide anything, and the generator does not read it on its next run. Members not defined here are allowed at every level and are ignored by the portal. Every string is untrusted and is shown as plain text only. Each top-level array holds at most 1,000 items; the file is at most 2 MB (size-limit).",
   "type": "object",
   "properties": {
     "pages": {
@@ -39,7 +39,57 @@
         "required": ["message"],
         "properties": {
           "pointer": { "type": "string", "maxLength": 2000 },
-          "message": { "type": "string", "minLength": 1, "maxLength": 2000 }
+          "message": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "code": {
+            "description": "The generator's own name for the kind of problem. Not a code of the contract or of the portal's spec doctor.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,63}$"
+          },
+          "severity": {
+            "description": "The generator's own scale. Unrelated to the severities of contract section 5.",
+            "enum": ["high", "medium", "low"]
+          },
+          "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "fix": {
+            "description": "Advice in plain text. Not a patch; the portal never applies it.",
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "count": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "extensions": {
+      "description": "One item per vendor extension (x- field) name seen in the spec. name, usedIn and example are text from the spec: untrusted, plain text only.",
+      "type": "array",
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^x-", "maxLength": 200 },
+          "count": { "type": "integer", "minimum": 0 },
+          "usedIn": {
+            "type": "array",
+            "maxItems": 20,
+            "items": { "type": "string", "minLength": 1, "maxLength": 100 }
+          },
+          "valueKinds": {
+            "type": "array",
+            "maxItems": 6,
+            "items": { "enum": ["string", "number", "boolean", "null", "array", "object"] }
+          },
+          "example": {
+            "description": "One value, as text. A value that is not a string is given as its JSON text. Cut by the generator to fit.",
+            "type": "string",
+            "maxLength": 200
+          },
+          "suggestedRole": {
+            "description": "The role the name suggests, from the generator's own set of roles. A suggestion changes no page.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,31}$"
+          }
         }
       }
     }

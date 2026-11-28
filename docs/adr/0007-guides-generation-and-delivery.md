@@ -5,6 +5,10 @@ App, M5 everything specific to guides (product brief). Nothing here is built in 
 must keep. Security review: required before either is designed, and not yet held.
 Revised 2026-11-27 for the user's decision that a blocker withholds its own page and not the
 bundle (decision 3 and the consequences).
+Revised 2026-11-28 for guides contract 0.3, the answer to the guides module's feedback on 0.2:
+decisions 7 to 11, a third input in decision 1, and the facts about the module under
+"Constraints". These are the architect's decisions and are not yet reviewed by the security
+reviewer (contract section 12).
 
 ## Context
 
@@ -18,8 +22,11 @@ lose those edits (contract 4.7).
 
 1. **The control plane runs the guides module**, per tenant, as a step after the publisher has
    written the published spec (ADR 0003). The tenant does not run it.
-   - Inputs: the bytes of the published spec, and optionally the existing bundle directory.
-   - Output: a bundle directory, with the optional `report.json`.
+   - Inputs: the bytes of the published spec; optionally the existing bundle directory; and,
+     when that bundle holds one, the bytes of its `settings.json` (decision 8).
+   - Output: a bundle directory, with `guides.lock.json` and the optional `report.json`. The
+     step takes that directory and discards anything else the module writes, including the
+     module's own validation result and the file its command writes beside the bundle.
    - The step runs in the per-tenant killable worker under its time limit (ADR 0003), with no
      network access and no credential of ours or the tenant's.
    - The output is untrusted. It goes through the same extraction checks and the same validator
@@ -43,6 +50,35 @@ lose those edits (contract 4.7).
    4.7: deterministic output, stable output, and no reverting of an edited page when it is given
    the existing bundle.
 
+7. **What the module must remember between runs is in the bundle, in a file with a defined
+   shape**: `guides.lock.json`, the generation record (contract 5.3). It holds a hash of each
+   page as the module wrote it and the slugs of pages a person deleted. The module's inputs
+   are the published spec and the existing bundle, so the bundle is the only place such a
+   record can live. `report.json` is information only and is never an input.
+   - A page a person deleted stays deleted, through `deleted` in the record.
+   - A bundle with no valid record is still valid. The module then keeps every existing page,
+     and the portal says so. The validator never reads the record to decide a finding.
+8. **The tenant's settings for the module live in the bundle too**, as `settings.json`
+   (contract 5.4), at most 64 KB. The control plane passes the bytes unchanged and interprets
+   nothing in them. It keeps no other copy and has no screen that sets them. A bundle held
+   before a repository is connected has no settings.
+9. **An invalid page withholds only itself.** A fault in one page's content has the severity
+   `page-error`; a fault in the bundle's structure is still an `error` (contract 4.7, 5).
+   Severity never depends on who wrote a page. The body of an invalid page is never rendered,
+   in preview either.
+10. **A failed run changes nothing.** If the module fails, exceeds the worker's limits, or
+    writes a bundle with an `error`, no pull request is opened, the bundle in place stays, and
+    the tenant is told. What the module says about the failure is untrusted plain text.
+11. **The pull request's description is fixed text, slugs, finding codes and counts.** It
+    says what each file in the bundle is, that the record is to be left in place, which pages
+    were kept as edited or would be withheld, and, when settings changed, that values of the
+    spec's `x-` fields may become public (contract 6). No text from a report, a page or a spec
+    is copied into it, because the Git host renders it.
+
+The step runs for a first bundle, when the published spec's hash differs from the bundle's,
+when the hash of `settings.json` differs from the record's `settingsSha256`, and when we move
+to a new version of the module.
+
 ## Constraints on the design to come
 
 - **The GitHub App holds write access to tenants' repositories.** It is a credential of ours
@@ -56,7 +92,27 @@ lose those edits (contract 4.7).
 - Reading a repository is tenant input like any other: the section 2 limits are enforced on
   actual bytes, and links, absolute paths and `..` are rejected (contract 6).
 - The guides module becomes something our pipeline executes. How it is packaged and pinned, and
-  the licences of what it brings with it, are checked under ADR 0001 rule 5 before M5.
+  the licences of what it brings with it, are checked under ADR 0001 rule 5 before M5. As of
+  2026-11-28 (its status file): one pure library function and a command; Node 22.18 or later,
+  no build step, no published package, pinned by Git commit; run-time dependencies `ajv` and
+  `ajv-formats` (MIT) and `yaml` (ISC). **The module declares no licence**, so the check cannot
+  pass until its owner chooses one. We call the library function, not the command, so that
+  nothing but the returned files exists to collect.
+- **The module depends on `ajv`, which compiles a JSON Schema to JavaScript.** The engine
+  ruled Ajv out for that reason: a tenant's schema compiled to code is tenant content compiled
+  to code (ADR 0003, "No schema validator dependency"), which a standing constraint forbids.
+  Not known, because portal sessions cannot read the module: whether it gives Ajv only the
+  contract's own schemas, which are ours, or also schemas taken from the tenant's spec, for
+  example to check sample values. **The second is not acceptable in a step we run.** The
+  module's owner must say which it is before M5; if it compiles a tenant's schema, it must
+  stop before we run it. Either way a tenant's `pattern` regexes may run with no bound of
+  their own, so the bound is the killable worker and its time limit, and a run that hits it is
+  a failed run (decision 10). This goes to the security reviewer with the step.
+- Settings are tenant-supplied data handed to code we run. The module must treat them as
+  data, and what they cause to be written is validated like any page. A setting can put the
+  values of a spec's `x-` fields on public pages; those may be internal notes. Nothing is
+  shown without a setting, and a setting takes effect only through a pull request a person
+  merges (contract 5.4).
 
 ## Consequences
 
@@ -73,7 +129,15 @@ lose those edits (contract 4.7).
   again, so the page list, navigation, search and `llms.txt` cannot disagree about it.
 - GitHub is the only host decided. Others are not ruled out and not designed.
 
-## Alternative rejected
+## Alternatives rejected
+
+Settings held by the control plane, set from a dashboard screen. They would not be versioned or
+reviewed beside the pages they change, a bundle could not be regenerated from the repository
+and the published spec alone, and once a repository is connected there would be two sources.
+A screen may come later; it would change `settings.json` only by proposing a pull request.
+
+Deciding by authorship which invalid pages are withheld. Validation would then depend on the
+generation record, which the tenant can edit.
 
 The tenant runs the guides module and pushes the bundle, and the portal only reads the
 repository. It keeps us from holding write access to anyone's repository, but it makes a tenant

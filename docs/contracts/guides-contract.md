@@ -1226,8 +1226,8 @@ names for the same conditions.
 | `size-limit` | A size or count limit in section 2 is exceeded, including the limits on `guides.json`, `guides.lock.json`, `settings.json` and frontmatter. |
 | `asset-type` | An asset's extension is not allowed, or its content does not match it. |
 
-**Page errors.** Each withholds the page it is reported on, and only that page (4.7). In 0.3
-these were errors.
+**Page errors.** Each withholds the page it is reported on, and only that page (4.7). Up to
+0.2 these were errors.
 
 | Code | Condition |
 |---|---|
@@ -1456,8 +1456,8 @@ What the contract fixes is where the settings live and how they are handled.
   branch the portal ingests from. The portal keeps no other copy and has no screen that sets
   them. They are in the tenant's repository so that a change to them is versioned and reviewed
   in the same place as the pages it changes.
-- **Without the file the generator runs with no settings**, and its output is what it was in
-  0.3: no vendor extension reaches a page. A bundle the portal holds before a repository is
+- **Without the file the generator runs with no settings**, and its output is what it was under
+  0.2: no vendor extension reaches a page. A bundle the portal holds before a repository is
   connected has no settings, because there is nowhere to write them.
 - **It is tenant-supplied data.** The portal checks three things: the file is at most 64 KB
   (`size-limit`), it is JSON nested at most 64 deep, and its top level is an object
@@ -1669,7 +1669,9 @@ engine and renderer. They are here so they are written down on the portal side.
   literal, whatever it contains.
 - Inline blocks contain only the keys that have values. A block with only `path` is normal.
 - Captured values arrive as quoted strings even where the parameter is an integer. Apply the typed
-  substitution rule in 4.6. A captured value is a scalar within the limits in 4.6.
+  substitution rule in 4.6. A captured value is a scalar within the limits in 4.6. The module
+  writes captured names inside `body` at any depth, inside arrays included, and chains up to
+  eleven calls on one page.
 - Every value that reaches generated code, from a bundle, a spec or a captured response, is data.
   The sample generator must encode it for the target language, including shell quoting, so that a
   value cannot change the meaning of the code a reader copies. This holds for a value filled in at
@@ -1739,8 +1741,8 @@ engine and renderer. They are here so they are written down on the portal side.
   version (section 3; ADR 0003). An `op:`, `schema:`, `guide:` or `asset:` target resolves within
   the bundle's own API version.
 - Guide slugs are chosen by the generator and include fixed names such as `authentication`, `errors`,
-  `pagination`, `idempotency`, `rate-limits` and `webhooks`. That is why section 3 reserves a prefix
-  for guides.
+  `pagination`, `idempotency`, `rate-limits`, `webhooks` and, where settings name a permission,
+  `permissions`. That is why section 3 reserves a prefix for guides.
 - Prefix every `id` derived from a heading (4.5), and render external links with the `rel` value
   in 4.5.
 - Build every `asset:` URL from the asset's type (section 2). For svg, pdf, json and zip, and for
@@ -1786,9 +1788,12 @@ engine and renderer. They are here so they are written down on the portal side.
 - Facts about the module as it is today (its status file, 2026-11-28). It is a library with one
   pure function and a command; the command also writes a file for a person beside the bundle
   directory. It needs Node 22.18 or later, has no build step and no published package, and is
-  pinned by Git commit. At run time it uses `ajv`, `ajv-formats` (MIT) and `yaml` (ISC), and
-  runs them on the tenant's spec inside our worker. **It declares no licence yet**, so the check
-  under ADR 0001 rule 5 cannot pass until its owner chooses one (ADR 0007).
+  pinned by Git commit. At run time it uses `ajv`, `ajv-formats` (MIT) and `yaml` (ISC), inside
+  our worker. **It declares no licence yet**, so the check under ADR 0001 rule 5 cannot pass
+  until its owner chooses one. **Ajv compiles a schema to JavaScript**, which the engine ruled
+  out for a tenant's schemas (ADR 0003). Whether the module gives Ajv a schema from the
+  tenant's spec, or only the contract's own schemas, is not known on the portal side; the
+  first is not acceptable in a step we run, and has to be settled before M5 (ADR 0007).
 - Its bundles do not all work when run. In its first run against a real API, 7 of 236 pages
   succeeded as written, 77 once a fixed example value was changed (the reason for `{{unique}}`),
   16 found an empty list, and on 136 a call failed; 32 of those failed because of the kind of
@@ -2098,3 +2103,141 @@ means it says something different, and a generator built on the assumption needs
 | 16 | OpenAPI 3.2 | Confirmed | The contract covers 3.0 and 3.1. A 3.2 document is read as 3.1; 3.2-only constructs are ignored and cannot be referenced. (1.1) |
 | 17 | Bare URLs in prose | Confirmed, and tightened | GFM autolink literals are off: a bare URL is text. Angle-bracket autolinks are `disallowed-syntax`. The module does not need to break URLs up. (4.1) |
 | 18 | Entities | Confirmed, and extended, as a requirement on the portal | A variable exists only where its braces are literal characters in the source. Braces from character references, backslash escapes or JSON `\u` escapes are text. Substitution is a single pass and its output is never parsed again. Published output carries variables as structure, never as marker text; client-side substitution fills only those placeholders and never searches text or code for `{{`; text taken from the spec never contains a variable. The feedback's example, `{{api_key}}`, is no longer a variable at all. (4.6) |
+
+## 12. Changes in 0.3
+
+0.3 answers the guides module's feedback on 0.2. 0.2 had been released and implemented, so
+these changes carry a new version. Section 13 gives the decision on each item.
+
+Added:
+
+- The severity `page-error`. A fault in one page's content withholds that page and no longer
+  stops the bundle (4.7, 5, 5.1).
+- The generated values `{{unique}}` and `{{unique_1}}` to `{{unique_9}}` (4.6).
+- `guides.lock.json`, the generation record, with its schema
+  [`guides-lock.schema.json`](./guides-lock.schema.json) (2, 5.3).
+- `settings.json`, the tenant's settings for the generator, as a third input of the step that
+  runs it (2, 5.4, 6).
+- In `report.json`: `code`, `severity`, `title`, `fix` and `count` on a `specProblems` item, and
+  the `extensions` list (5.2).
+- The definition of a portal-supplied parameter and of a name that carries a credential (4.3).
+- What the pull request's description says, when the step runs, and what a failed run does (6).
+- New codes, all warnings: `missing-lock`, `invalid-lock`, `invalid-settings` (5.1).
+
+Changed. **Each of these binds a generator built on 0.2:**
+
+- `contractVersion` is `"0.3"`. A portal on 0.3 rejects `"0.2"` (3, 7).
+- Twenty-two codes move from `error` to `page-error`: `nesting-limit`, `invalid-frontmatter`,
+  `heading-h1`, `disallowed-syntax`, `unknown-component`, `unknown-attribute`,
+  `invalid-attribute`, `invalid-nesting`, `unbalanced-component`, `invalid-tag-placement`,
+  `unknown-variable`, `unknown-operation`, `unknown-schema`, `unknown-guide`, `unknown-anchor`,
+  `unknown-asset`, `unknown-response`, `unknown-example`, `link-not-allowed`, `invalid-sample`,
+  `invalid-capture` and `invalid-code-info`. A generator's validator reports them with the new
+  severity and lists their pages in `withheld`. Twelve codes stay errors (5.1).
+- `withheld` lists pages with a blocker or a page error. `unknown-anchor` is not checked
+  against a page that carries another page error (4.7, 5).
+- A page a person edited is recognised from `guides.lock.json`, not from `report.json`. The
+  record holds a hash for every page, not the first 1,000. The generator reads nothing from
+  the existing bundle's `report.json` (4.7, 5.2, 5.3).
+- A page a person deleted is not written again (4.7, 5.3). Under 0.2 the module wrote it again.
+- With no valid record the generator keeps every existing page and the navigation as they are.
+  That was the module's behaviour; it is now a rule (5.3).
+- Settings reach the generator only as the existing bundle's `settings.json`, and the
+  generator emits that file unchanged (5.4, 6).
+- A required parameter that is portal-supplied is not counted as missing. A cookie parameter
+  is portal-supplied (4.3). 0.2 made a sample for such an operation impossible to write.
+- `{{idempotency_key}}` is recognised only in a `<Sample>` inline block. In prose or an
+  ordinary code block it is `unknown-variable` (4.6). The module never wrote it there.
+- A captured name cannot match `unique(_[0-9]+)?` (4.3).
+- The `extensions` list in `report.json` now has a shape and limits; a report that breaks them
+  is `invalid-report` and is ignored (5.2).
+- The schema `$id`s end in `-0.3.json`.
+
+Confirmed, with no change to the rules:
+
+- A page may hold any number of `<Steps>`, each under its own heading (4.2).
+- A sample cannot set a controlled header or a name that carries a credential, declared or
+  not (4.3).
+- `report.json` stays optional (5.2).
+- Every rule applies to the bundle as ingested, whoever wrote each line (4.7).
+
+For the security reviewer. None of these has been reviewed. Each is written in its
+conservative form, and none loosens a ruling in `docs/reviews/`:
+
+1. **`page-error`.** A bundle with invalid pages now publishes without them. The invalid
+   page is never rendered, in preview either. To confirm: that each of the twenty-two codes
+   is safe to confine to its page, the parser limits `nesting-limit` and `invalid-frontmatter`
+   in particular, and that nothing of an invalid page reaches published output.
+2. **`{{unique}}` and `{{unique_1}}` to `{{unique_9}}`.** New variable surface: eight decimal
+   digits from the browser's cryptographic random source, filled through the same encoders,
+   with fixed display text and no value generated on a server. The names are reserved against
+   capture. `{{idempotency_key}}` and `{{unique}}` are confined to samples.
+3. **Portal-supplied parameters.** The definition of a name that carries a credential; that a
+   declared parameter's example or default is never used where a credential goes; and that a
+   cookie parameter with no credential is filled from the spec.
+4. **`settings.json`.** Tenant-supplied data that becomes an input of a module we run, and
+   that can put the values of `x-` fields, which may be internal notes, on public pages.
+5. **`extensions` and `specProblems` in `report.json`.** Text from a spec, copied into a file
+   in the tenant's repository and shown in the dashboard. `example` may hold something not
+   meant to be shown. A screen that lets a tenant choose roles is not designed.
+6. **`guides.lock.json`.** A file the tenant can edit that steers which pages the generator
+   rewrites, keeps or leaves deleted. It never affects validation.
+7. **The pull request's description.** It is made of fixed text, slugs, codes and counts only,
+   so that no text from a spec or a report is rendered by the Git host, where it could carry
+   mentions, links or markup.
+8. **The module in our worker.** It depends on `ajv`, which compiles a schema to JavaScript.
+   The engine ruled that out for a tenant's schemas. Whether the module compiles a schema from
+   the tenant's spec is not known and must be settled before M5 (ADR 0007). The module declares
+   no licence yet.
+
+## 13. Decisions on the v0.2 feedback
+
+Items are those under "On v0.2" in
+[`guides-contract-feedback.md`](./guides-contract-feedback.md), in its order and with its
+numbers. **Confirmed**, **Changed** and **Rejected** mean what they mean in section 11.
+
+### The gap
+
+| Topic | Decision | The contract now says |
+|---|---|---|
+| A required parameter that a sample may not set | Confirmed, and made exact | A declared parameter that is a controlled header, carries a credential, or is a cookie is **portal-supplied**. A sample never sets it, and it is never counted as missing, so the two rules no longer meet. The portal decides what is sent: a credential is placed by the sample generator when the operation's security requirement names the scheme, and the parameter's own example is never used. An API key header declared both as a scheme and as a parameter is sent once, holding the credential. `Authorization`, `Content-Type` and `Accept` parameters are not in the portal's model at all, as OpenAPI says. (4.3) |
+
+### Proposals
+
+| # | Proposal | Decision | The contract now says |
+|---|---|---|---|
+| 1 | Withhold an invalid page instead of blocking the bundle, when a person wrote it | Changed: confirmed for every page, whoever wrote it | A fault in one page's content has the new severity `page-error` and withholds that page; the other pages are published. Twenty-two codes have it. A fault in the bundle's structure stays an `error` and stops the bundle: the manifest, the version, `nav` against the files, the layout, paths, encodings, size limits and asset types. **Authorship plays no part**: severity is a function of the bundle's content and the spec, and the validator does not read the generation record. An invalid page is never rendered, in preview either. (4.7, 5, 5.1) |
+| 2 | Severity and a fix in `specProblems` | Confirmed, with limits | A `specProblems` item may carry `code`, `severity` (`high`, `medium`, `low`), `title` (200 characters), `fix` (1,000 characters) and `count`. `fix` is advice in plain text, never a patch, and is shown apart from the spec doctor's findings. Other members stay extra and are ignored. (5.2) |
+| 3 | A variable for a value that must be new each time | Confirmed, and extended | `{{unique}}`: eight decimal digits generated in the reader's browser, one value per `<Sample>`, recognised in a sample's inline block only. `{{unique_1}}` to `{{unique_9}}`: the same kind of value, one each per page, so a later step can send the value an earlier step sent. Always a string. Published pages, twins and a page without JavaScript show `UNIQUE` or `UNIQUE_1` to `UNIQUE_9`. Nothing is generated at publish time. Which fields need one is the module's to work out. (4.6) |
+| 5 | Settings as an input of the portal's step | Confirmed, with the place fixed | Settings are the third input. They live in the bundle as `settings.json`, in the tenant's repository, at most 64 KB, and have no other source. The portal passes the bytes unchanged and interprets nothing in them; the generator emits the file unchanged. Their contents are the module's. A bundle the portal holds before a repository is connected has none. A setting that shows an `x-` field publishes its values; the change arrives as a pull request and the portal says so there. (5.4, 6) |
+| 6 | Define `extensions` in the report schema | Confirmed, with limits | At most 1,000 items, each with `name`, and optionally `count`, `usedIn`, `valueKinds`, `example` (200 characters, as text) and `suggestedRole`. Every string is untrusted and shown as plain text, to signed-in members of the tenant's account only. The screen that would use it is not designed and needs a security review. (5.2) |
+
+### Questions and assumptions
+
+| # | Topic | Decision | The contract now says |
+|---|---|---|---|
+| 1 | Should a page a person deleted stay deleted? | Yes | A generator does not write again a page it wrote and a person deleted. The deletion is carried from run to run in `deleted` in the generation record, which is in the bundle. A person brings the page back by taking its slug out of that list. With no valid record a deletion cannot be recognised. (4.7, 5.3) |
+| 2 | Edits are recognised by a hash in `report.json`, which may be deleted | Changed | The record moves out of `report.json` into `guides.lock.json`, with a defined shape and a hash for every page. `report.json` stays optional and is information only: deleting it changes nothing. A bundle with no record is still valid and gets the warning `missing-lock`; the generator then keeps every existing page as it is. The portal's pull request description says what each file is, that the record is to be left in place, and what happens without it. (5.2, 5.3, 6) |
+| 4 | Several `<Steps>` on a page | Confirmed | Any number of `<Steps>` may appear on a page, each under its own `h2` or not. A `<Steps>` cannot be inside a `<Step>` at any depth. (4.2) |
+
+### Rejected alternatives
+
+- **Withholding by authorship** (proposal 1 as written). Validation would depend on the
+  generation record, a file the tenant can edit, and two pages with the same fault would be
+  treated differently. The rule is by the kind of fault instead.
+- **Making `report.json` required.** A bundle would stop publishing because a file of
+  information was deleted.
+- **Making the generation record required.** Published pages do not depend on it, and a
+  missing record loses nothing a person wrote, so a warning and a plain statement in the pull
+  request are enough.
+- **Keeping settings in the portal.** They would not be versioned or reviewed beside the pages
+  they change, a bundle could not be regenerated from the repository and the spec alone, and
+  there would be two sources once a repository is connected.
+- **One `{{unique}}` value per page, or per sample only.** Per page, two records created on
+  one page would collide. Per sample only, a later step could not send the same value unless
+  the API returned it. A name chosen by the author, by a new attribute, was also rejected: it
+  adds a second kind of name to check against captured ones, where a closed list of nine adds
+  none.
+- **Letters in a generated value.** A field that takes letters and digits takes digits, and so
+  does a field that takes digits only. A field that needs a letter gets one as literal text
+  beside the value.

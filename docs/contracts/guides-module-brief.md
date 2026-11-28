@@ -23,16 +23,22 @@ Decided on 2026-11-27. **The portal runs your module. The portal's customer does
 a step in the portal's pipeline, invoked once for one version of one API, and the portal carries
 your output to the customer's Git repository as a pull request. Build for that:
 
-- **Inputs:** the bytes of the published spec (constraint 5), and optionally the existing bundle
-  directory (constraint 8). Nothing else varies between runs except your own settings and
-  version.
-- **Output:** a bundle directory, with `report.json` in it if you write one. Nothing else: no
-  upload, archive, commit or push.
+- **Inputs:** the bytes of the published spec (constraint 5); optionally the existing bundle
+  directory (constraint 8); and the tenant's settings, which are the bytes of that bundle's
+  `settings.json` and come from nowhere else (constraint 9). Nothing else varies between runs
+  except your own version.
+- **Output:** a bundle directory, with `guides.lock.json` in it, and `report.json` if you write
+  one. Nothing else: no upload, archive, commit or push. The portal takes the bundle directory
+  and discards anything you write beside it, and it ignores your own validation result.
 - **No network access.** The step is given none, and no credential. Anything you need is in the
   inputs or shipped with you. A module that calls a service at run time cannot be run.
 - **No clock and no randomness in the output** (constraint 6).
-- You can be called as a library or as a command. The portal side has not chosen; tell us which
-  you offer, how it is pinned to a version, and the licences of what you depend on.
+- You can be called as a library or as a command. You told us you offer both; the portal will
+  call the library function. Two things are still needed from you before the portal can run
+  you: **a licence for the module itself**, and **what you give `ajv`**. Ajv compiles a schema
+  to JavaScript. Giving it the contract's schemas is fine. Giving it a schema taken from the
+  customer's spec is compiling a customer's content to code, which the portal does not allow
+  in a step it runs; if you do that, say so, and plan to stop.
 - A person may still run you by hand against a static build of a portal. The interface is the
   same.
 - A portal may hold several APIs, and later several versions of one. You are not affected: each
@@ -41,24 +47,46 @@ your output to the customer's Git repository as a pull request. Build for that:
 
 ## The contract
 
-The interface is defined in three files in the EZ-DevPortal repository:
+The interface is defined in four files in the EZ-DevPortal repository:
 
 - `docs/contracts/guides-contract.md`: the bundle format, in full
 - `docs/contracts/guides-manifest.schema.json`: JSON Schema for the manifest
 - `docs/contracts/guides-report.schema.json`: JSON Schema for the optional run report
+- `docs/contracts/guides-lock.schema.json`: JSON Schema for the generation record (new in 0.3)
 
-Read the contract before designing anything. It is a draft, now at **v0.2**. Version 0.2 is the
-portal side's answer to the guides module's feedback on v0.1: section 11 of the contract decides
-every proposal and assumption by number, and section 10 lists what changed, including the
-corrections the portal's security review and re-review required before 0.2 was released, the
-product decisions of 2026-11-27 (which spec you generate from, how incomplete pages get
-finished, that the portal runs you and delivers your output as a pull request, and that an
-unfinished page holds back only itself) and the security review of that day. A module built against v0.1 must re-sync its copy of all three
-files and set `contractVersion` to `"0.2"`; a portal on 0.2 rejects `"0.1"`. A module that
-synced 0.2 before section 6 read "Decided by the user on 2026-11-27", or before section 5
-listed `withheld` in the validation report, must sync again. If
-the contract cannot express something the guides need, say so and propose a change. Do not work
-around it.
+Read the contract before designing anything. It is a draft, now at **v0.3**.
+
+**Version 0.3 is the portal side's answer to your feedback on 0.2.** Section 13 of the contract
+decides every item under "On v0.2" in your feedback file, and section 12 lists what changed
+and marks what binds you. Re-sync your copy of all four files and set `contractVersion` to
+`"0.3"`; a portal on 0.3 rejects `"0.2"`. In short:
+
+- The gap in 4.3 is closed your way: a parameter the portal supplies is never sent by a sample
+  and never counted as missing. Cookie parameters are among them.
+- A fault in one page now withholds that page (`page-error`) and no longer stops the bundle,
+  whoever wrote the page. Twenty-two codes changed severity; your validator must follow.
+- Your edit tracking moves out of `report.json` into `guides.lock.json`, with a hash for every
+  page. You read nothing from the existing `report.json`.
+- A page a person deleted stays deleted (`deleted` in the record).
+- `{{unique}}` and `{{unique_1}}` to `{{unique_9}}` exist. `{{idempotency_key}}` and
+  `{{unique}}` are valid only inside a `<Sample>` block.
+- Settings are an input, and their only source is `settings.json` in the bundle.
+- `specProblems` and `extensions` in the report have defined members and limits. Rename yours
+  to match, or the report is `invalid-report` and ignored.
+- Several `<Steps>` on a page is confirmed.
+
+Parts of 0.3 have not been through the portal's security review yet and may be tightened.
+
+How 0.2 came about: version 0.2 was the portal side's answer to the guides module's feedback on
+v0.1. Section 11 of the contract decides every proposal and assumption of that round by number,
+and section 10 lists what changed in it, including the corrections the portal's security
+review and re-review required, the product decisions of 2026-11-27 (which spec you generate
+from, how incomplete pages get finished, that the portal runs you and delivers your output as
+a pull request, and that an unfinished page holds back only itself) and the security review
+of that day. All of it still holds in 0.3 except where section 12 says otherwise.
+
+If the contract cannot express something the guides need, say so and propose a change. Do not
+work around it.
 
 ## The constraints that shape your design
 
@@ -75,8 +103,14 @@ around it.
    into samples; the portal adds them. There is no credential variable: `{{api_key}}` is not
    available to bundles, and anywhere a variable is recognised it is `unknown-variable`. The names
    `api_key`, `access_token`, `username` and `password` belong to the portal and cannot be
-   `capture` names. A sample also cannot set the headers the portal controls; the list is in
-   section 4.3 of the contract.
+   `capture` names, and neither can a name matching `unique(_[0-9]+)?`. A sample also cannot
+   set the headers the portal controls or a name that carries a credential; the list and the
+   definition are in section 4.3 of the contract. Where a spec declares such a header as a
+   required parameter, leave it out: the portal supplies it, and it does not count as missing.
+   For a field that must be new on every run, write `{{unique}}`, or `{{unique_1}}` to
+   `{{unique_9}}` where a later step sends the same value again, inside a longer string where
+   the field needs more: `"branch_code": "B{{unique_1}}"`. The value is eight digits, always a
+   string (section 4.6).
 5. **Generate from the published spec, and record its hash.** Your input is not the customer's
    original spec. The portal's spec doctor proposes fixes (missing auth schemes, servers,
    examples, `operationId`s), the customer accepts some, and the portal publishes the patched
@@ -96,8 +130,8 @@ around it.
    4.7), because every regeneration is shown to a person as a pull request and its difference
    must show only real changes.
    - *Deterministic:* the same inputs give a byte-identical bundle directory, `report.json`
-     included. The inputs are the published spec bytes, the existing bundle if given, your
-     settings and your version. Nothing from the clock, randomness, locale, environment or
+     included. The inputs are the published spec bytes, the existing bundle if given, the
+     bytes of its `settings.json` and your version. Nothing from the clock, randomness, locale, environment or
      directory listing order. Leave `generatedAt` out when the portal runs you.
    - *Stable:* a file changes between runs only for a reason in the inputs. When the spec
      changes, a page that does not depend on what changed comes out byte for byte as before,
@@ -122,13 +156,28 @@ around it.
    - When it is not given (a first run, or before the customer has connected a repository),
      generate in full.
 
-   Still your design, and tell the portal side what you chose: how you tell a page a person
-   edited from one you wrote; and what you do with an edited page that no longer fits the new
-   spec, for example one that names a removed operation, provided you keep the person's text
-   and say so in `report.json`. The bundle root allows no file of your own; `report.json`
-   accepts extra members. If you need an input beyond these two, such as your own previous
-   output, ask for it. An edited page is held to every rule of the contract, like a generated
-   one.
+   - Recognise an edited, added or deleted page from `guides.lock.json`, the generation
+     record, exactly as the table in contract 5.3 says, and write the record on every run. It
+     holds a hash for every page you wrote. With no valid record, keep every existing page and
+     the navigation as they are.
+   - Do not write again a page a person deleted. Carry its slug under `deleted`.
+   - Read nothing from the existing bundle's `report.json`. A person may delete that file.
+
+   Still your design: whether you keep an edited page whole or merge into it; and what you do
+   with an edited page that no longer fits the new spec, for example one that names a removed
+   operation, provided you keep the person's text and say so in `report.json`. Such a page
+   now withholds only itself. The bundle root allows no other file of your own. If you need
+   an input beyond the published spec and the existing bundle, ask for it. An edited page is
+   held to every rule of the contract, like a generated one, and gets the same finding.
+9. **Settings come from the bundle, and nowhere else.** The customer's settings for you are
+   the file `settings.json` at the bundle root, at most 64 KB, kept in their repository. The
+   portal passes you its bytes unchanged and does not look inside; what it contains is yours
+   to define and to document for the customer. Emit the file byte for byte as you were given
+   it, never create or change it, and record the SHA-256 of the bytes you used as
+   `settingsSha256` in the generation record. With no file, run with no settings. Treat the
+   settings as data from the customer. Remember what they do: a setting that shows an `x-`
+   field puts its values on public pages, and those fields often hold internal notes, so show
+   nothing by default.
 
 ## What good output looks like
 
@@ -137,7 +186,7 @@ around it.
   "get credentials" you write nothing about how keys are issued: the portal shows a "get a key"
   link, from a URL its customer supplies, beside the place a reader enters a key (contract 9).
   Do not leave a `<Todo>` only because the spec does not say how keys are issued; you may still
-  list it in `report.json`. No variable or component stands for that link in 0.2.
+  list it in `report.json`. No variable or component stands for that link in 0.3.
 - **How-to guides** organized around what the reader is trying to do, not around the endpoint list.
   A guide that restates the reference adds nothing.
 - **Multi-step flows** that carry values from one call to the next, using `capture`. Only a
@@ -160,8 +209,9 @@ around it.
   unlinked card. The portal reports each such link as the warning `link-to-withheld-page`, and
   your validator should too. So a page that readers need, the quickstart above all, should not
   carry a `<Todo>` for something it could leave out, and a published page should still read
-  correctly when a page it links to is missing. A problem of severity `error` is different: it
-  stops the whole bundle.
+  correctly when a page it links to is missing. A fault in one page's content (`page-error`)
+  also withholds only that page. A problem of severity `error`, which is now a fault in the
+  bundle's structure, stops the whole bundle.
 
 ## Specs you should expect
 
@@ -197,7 +247,8 @@ and frontmatter, percent-encoded in link targets where a character is outside th
 - It reports, per run, which pages it produced and what it skipped and why. The report may be
   included in the bundle as `report.json` in the shape the contract defines.
 - It writes a bundle directory and nothing more. Transport into the portal is the portal's concern.
-- It runs with no network access, from the published spec bytes and an optional existing bundle.
+- It runs with no network access, from the published spec bytes, an optional existing bundle
+  and that bundle's `settings.json`.
 - Run twice on the same inputs, it writes byte-identical directories.
 - Run a second time with a bundle directory that a person has edited as input, it keeps those
   edits; and a page untouched by a spec change is byte-identical before and after.
@@ -205,7 +256,7 @@ and frontmatter, percent-encoded in link targets where a character is outside th
 ## Questions the portal side asked in v0.1
 
 All four are answered; see section 8 of the contract. In short: no diagrams, video or widgets in
-0.2; one bundle per spec version; localization is out of scope; `tryIt="false"` disables "Try it"
+0.3; one bundle per spec version; localization is out of scope; `tryIt="false"` disables "Try it"
 for a sample.
 
 Decided on 2026-11-27 and listed in the same section: guides are generated from the published
@@ -219,5 +270,6 @@ one bundle belongs to one version of one API.
 Still open, and listed in the same section: the design of the portal's GitHub App and of
 ingestion (milestone M5; not yours), capturing values whose keys are not plain identifiers,
 linking to webhook documentation, specs split over several files (the published spec and its
-hash cover the root document only), and whether a guide can ask for the "get a key" link at a
-particular place.
+hash cover the root document only), whether a guide can ask for the "get a key" link at a
+particular place, a generated value for a number field, a dashboard screen for choosing
+extension roles, and whether a generated page should be published before anyone has run it.
