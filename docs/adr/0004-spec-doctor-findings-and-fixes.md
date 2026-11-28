@@ -30,6 +30,14 @@ is removed from "The M1 rule table" and the patch table, and `diagnose` no longe
 values. The `absent` op stays, because three other fixes use it. The same day the doctor report
 became private by default (ADR 0003, "The doctor report is private"); no finding or fix changes
 for that.
+Revised again that day for guides contract 0.3 and its security review
+(`docs/reviews/2026-11-28-security-review-contract-0.3.md`, ruling 3 and F4): two findings for
+a declared parameter that duplicates a credential carrier, `credential-parameter-redundant`
+and `credential-parameter-unsecured`; `controlled-header-required` is stated in terms of
+portal-supplied parameters; `request-invalid` covers a cookie the cookie encoder refuses; and
+`example-missing` is not reported for a parameter the portal supplies. All are M1 work. The
+review did not read this ADR, so the two new findings go to the security reviewer with the
+doctor's code.
 
 ## Context
 
@@ -337,14 +345,16 @@ manager may cut one: the cell becomes "None" and the message states what to chan
 | `authorization-parameter-ignored` | warning | A header parameter named `Authorization`, which the model drops (ADR 0002) | None | D |
 | `header-parameter-ignored` | info | A header parameter named `Accept` or `Content-Type`, which the model drops | None | D |
 | `controlled-header-required` | warning | Below | None | D |
+| `credential-parameter-redundant` | info | Below. A declared parameter that duplicates the credential carrier of a scheme the operation applies | None | D |
+| `credential-parameter-unsecured` | warning | Below. A declared parameter that duplicates the credential carrier of a scheme no security requirement of the operation names | None | D |
 | `servers-missing` | warning | Root `servers` is absent or empty and at least one operation has no server of its own; at the root | Patch with input | D |
 | `server-url-placeholder` | warning | A server whose literal host is `example.com`, `example.org` or `example.net`, a name under one of them, or a name whose last label is `example`, `test` or `invalid` | None | D |
 | `server-variable-no-default` | warning | A declared server variable with no `default` | Patch, when it has a non-empty `enum` | D |
 | `server-not-callable` | warning | Below | Patch with input, for an open host variable only | D |
-| `example-missing` | info | A parameter declaration, or the sample media type of a request body declaration, with no named example, no schema `examples`, no `default` and no `enum`, so that a sample value for it is synthesized. One per declaration, by `loc`, however many operations share it through a `$ref` | None | D |
+| `example-missing` | info | A parameter declaration that is neither a controlled header nor a credential carrier (below), or the sample media type of a request body declaration, with no named example, no schema `examples`, no `default` and no `enum`, so that a sample value for it is synthesized. One per declaration, by `loc`, however many operations share it through a `$ref` | None | D |
 | `example-invalid` | warning | A declared example with `errors` under `validateValue` | None | D |
 | `webhook-not-rendered`, `callback-not-rendered` | info | One per webhook and per callback | None | D |
-| `request-invalid` | warning | `buildRequest` could not place a value as the spec describes it: a header name or value RFC 9110 forbids, or two credentials for one header (ADR 0005) | None | B |
+| `request-invalid` | warning | `buildRequest` could not place a value as the spec describes it: a header name or value RFC 9110 forbids, two credentials for one header, or a cookie name or value the cookie encoder refuses (ADR 0005) | None | B |
 | `synthesis-failed` | warning | A synthesized value that has `errors` (ADR 0003, "Schema validation") | None | B |
 | `budget-exceeded` | warning | Derived work cut at a budget (ADR 0003, "Budgets") | None | B |
 | `schema-allof-conflict` | info | `allOf` members give different values for a keyword (ADR 0003) | None | B |
@@ -392,8 +402,8 @@ Rules for the table:
   that page. If it fails there, the remedy is the architect's: a change to this table, not a
   raised limit.
 
-Two findings are fixed here, because the proxy, MCP and the guides contract (4.3) depend on them.
-Both are warnings: the portal still builds and every code sample still renders.
+Four findings are fixed here, because the proxy, MCP and the guides contract (4.3) depend on them.
+None stops a build: the portal still builds and every code sample still renders.
 
 - `server-not-callable`: a server the proxy will not send to under ADR 0003's proxy destination
   policy. That is a server for which any of these holds. "Host clause" means clauses (a) to (c)
@@ -414,12 +424,48 @@ Both are warnings: the portal still builds and every code sample still renders.
   Samples are not affected: they are code for the reader to run, and a sample against
   `http://localhost` renders like any other.
 - `controlled-header-required`: an operation that declares a required header parameter whose name
-  is on the controlled-header list of contract 4.3. The portal never lets a caller set those
-  headers, so it cannot make the call as the spec describes it. "Try it" is withheld for the
-  operation, and both MCP call tools with it, since all go through the same proxy. OpenAPI already says a
-  header parameter named `Accept`, `Content-Type` or `Authorization` is ignored, and the model
-  drops those three, so declaring `Authorization` as a parameter does not raise this finding; the
-  doctor's auth rules cover that case.
+  is on the controlled-header list of contract 4.3. Such a parameter is portal-supplied
+  (contract 4.3, kind 1): no bundle and no caller may set it, and `buildRequest` never fills
+  it from the spec (ADR 0005), so the samples of that operation do not carry the header and
+  the portal cannot make the call as the spec describes it. "Try it" is withheld for the
+  operation, and both MCP call tools with it, since all go through the same proxy. One per
+  operation and parameter, at the parameter.
+  - OpenAPI already says a header parameter named `Accept`, `Content-Type` or `Authorization`
+    is ignored, and the model drops those three, so declaring `Authorization` as a parameter
+    does not raise this finding; the doctor's auth rules cover that case.
+  - The other two kinds of portal-supplied parameter never raise it. A parameter that carries
+    a credential gets one of the two findings below, required or not. A cookie parameter is
+    `in: cookie` and not a header parameter; the portal builds `Cookie` from it (ADR 0005).
+    A header parameter declared under the name `Cookie` is a controlled header and does
+    raise it when required.
+  - A controlled header that is declared and not required raises nothing and is not sent.
+- `credential-parameter-redundant` and `credential-parameter-unsecured`: an operation declares
+  a parameter whose location and name are those a security scheme carries its credential in.
+  The carriers are the table "A name that carries a credential" of contract 4.3, taken from
+  every `apiKey` scheme under `components/securitySchemes` whether or not any requirement
+  uses it: a header name compared case-insensitively, a query or cookie name compared
+  exactly. `http`, `oauth2` and `openIdConnect` carry theirs in `Authorization`, which the
+  model has already dropped (`authorization-parameter-ignored`), so they raise neither.
+
+  | Code | Severity | Raised when | What the portal does | The message says |
+  |---|---|---|---|---|
+  | `credential-parameter-redundant` | info | At least one security requirement in effect for the operation (its `security`, else the document's) names the scheme | Places the credential there once, for the requirement selected, and never uses the parameter's `example`, `default` or schema | The scheme already documents this credential; the parameter declaration can be removed |
+  | `credential-parameter-unsecured` | warning | No requirement in effect names the scheme. That includes an operation with no effective `security` and one whose `security` is `[]` | Sends nothing under that name, whether or not the parameter is required | Nothing is sent under this name. Add the scheme to the operation's `security`, or rename or remove the parameter if it is not a credential |
+
+  - One finding per operation and parameter, at the parameter declaration, with the scheme
+    in `related`. The two are exclusive, so one parameter of one operation has one finding.
+  - Neither has a fix in M1. The warning's message ends with what to change (criterion 10).
+    A fix would have to choose between adding a requirement and removing a parameter that
+    other operations may share through a `$ref`; a person decides.
+  - Where several requirements are alternatives and only some name the scheme, the finding
+    is the info: the credential is placed when that alternative is selected and nothing is
+    sent under the name otherwise (ADR 0005). The published sample uses the first.
+  - Such a parameter is not reported as `example-missing`: no value of the spec's is ever
+    used for it, so none is synthesized. The same holds for a declared controlled header.
+    `example-invalid` is unchanged and still checks any example the spec declares.
+  - Why it is reported at all: a spec example for such a parameter looks like a key. Before
+    this rule nothing said whether the sample showed the example or the credential
+    placeholder, and a required one made a guide sample impossible to write (contract 4.3).
 
 ### The fix for an open host variable
 

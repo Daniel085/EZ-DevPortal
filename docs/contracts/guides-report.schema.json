@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ez-devportal.dev/schemas/guides-report-0.3.json",
   "title": "Guides bundle run report",
-  "description": "Optional report.json at the bundle root, contract version 0.3. See section 5.2 of guides-contract.md. Information only: nothing reads it to decide anything, and the generator does not read it on its next run. Members not defined here are allowed at every level and are ignored by the portal. Every string is untrusted and is shown as plain text only. Each top-level array holds at most 1,000 items; the file is at most 2 MB (size-limit).",
+  "description": "The optional run report, report.json, contract version 0.3. See section 5.2 of guides-contract.md. It is an output of a run, written beside the bundle directory and never inside it: it is not a bundle file, the portal keeps it, and it is never in the tenant's repository. Information only: nothing reads it to decide anything, and no run is given the report of an earlier one. Members not defined here are allowed at every level and are ignored by the portal. Every string is untrusted and is shown as plain text only. Each top-level array holds at most 1,000 items. Rules this schema does not express, each reported as invalid-report: the report is UTF-8 JSON of at most 2 MB, nested at most 64 deep, and no object in it has a duplicate key.",
   "type": "object",
   "properties": {
     "pages": {

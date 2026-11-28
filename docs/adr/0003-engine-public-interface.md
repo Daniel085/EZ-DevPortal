@@ -48,6 +48,13 @@ is built into a report directory outside the export, `ezdp build` prints where, 
 synthesizes values. The fetch cap per document is 16 MiB, the same as the local cap ("Spec fetch
 policy"); that changes a figure the security reviewer set and is to be confirmed when M4 is
 designed. The first and the third go to the security reviewer.
+Revised again that day for guides contract 0.3 and its security review
+(`docs/reviews/2026-11-28-security-review-contract-0.3.md`). "Guides: what M5 adds" is new: the
+engine's exports for the guides validator, the `page-error` severity, and the step that runs
+the guides module, whose isolation is ADR 0007's and not the publish worker's. "Proxy
+destination policy" says who builds `Cookie` (F4), and "Live calls and example-response mode"
+gains three rules for the console (F6). None of it is built in M1. The review read this ADR's
+worker text only.
 
 ## Context
 
@@ -448,6 +455,14 @@ Publishing runs in a killable per-tenant worker with a time limit. The engine's 
 size of what it produces; they cannot bound time, because the engine cannot read a clock. The
 worker is the control for that, and for anything a budget misses. One tenant's publish must not
 share a worker with another tenant's.
+
+That is all the worker promises: a time bound, and no sharing between tenants. It is the
+control for publishing, where the code that runs is ours. **It is not the isolation for the
+step that runs the guides module**, which is code from another project working on tenant
+content. ADR 0007 and contract 9 used to place that step "in the per-tenant worker", and the
+security review of 2026-11-28 ruled that this promises none of what the step needs. The
+step's requirements are in ADR 0007, "How the step is isolated", and nothing here stands in
+for them.
 
 Enforcement: ADR 0001 rule 4 (restricted `lib`, no Node types, lint bans), no `async` in the public
 interface, and a test that builds the same fixture twice and compares bytes.
@@ -869,6 +884,63 @@ follows this table.
 Supported input in M1: OpenAPI 3.0.x and 3.1.x. Swagger 2.0 yields a single `unsupported-version`
 error. 3.2 is read as 3.1 with a warning, `version-read-as-3.1`.
 
+### Guides: what M5 adds
+
+For guides contract 0.3 and its security review of 2026-11-28. **None of this is built in
+M1**, and it is not in "Build order in M1". It is written down now so that M5 adds to the
+interface and changes nothing in it.
+
+**Two more exported constants.** They join `credentialVariableNames`, which M1 already
+exports because `buildRequest` places credentials (ADR 0005).
+
+```ts
+const builtinVariableNames: readonly string[]   // the thirteen of contract 4.6: 'base_url',
+                                                // 'idempotency_key', 'api_name', 'unique',
+                                                // 'unique_1' ... 'unique_9'
+const reservedCaptureNamePattern: RegExp        // /^unique(_[0-9]+)?$/, a literal of ours
+```
+
+- A `capture` name is refused (`invalid-capture`) when it is in `builtinVariableNames`, is in
+  `credentialVariableNames`, or matches `reservedCaptureNamePattern`. The pattern reserves
+  the whole `unique` family, so `unique_10` is refused although it is not a built-in.
+- Both lists are closed. M1 code uses one built-in, `base_url`, and needs neither constant.
+
+**Bundle validation has four severities.** The guides validator is a pure function of the
+bundle's file contents and the model (contract 9). Its signature is designed in M5. Two
+parts of its result are fixed now, because the security review's ruling 1 depends on them:
+
+```ts
+type GuidesSeverity = 'error' | 'page-error' | 'blocker' | 'warning';   // contract 5; one per code
+interface GuidesValidation {
+  report: Json;                     // the validation report of contract 5: ok, publishable,
+                                    // withheld, findings
+  pages: { slug: string; tree: Json }[];   // one per page that has no page error, and no other
+}
+```
+
+- `error` stops the bundle. `page-error` and `blocker` each withhold the page they are on.
+  Every code has one severity (contract 5.1), and none depends on `guides.lock.json`.
+- **The renderer builds a guide page only from `pages[].tree`.** It never parses a page file
+  (ADR 0006). A page with a page error has no entry, so nothing can render it; preview shows
+  its slug and its findings' codes and line numbers, which are in `report`.
+- A finding's `message` is fixed text of ours for its code and contains no bundle text.
+- Page errors other than `unknown-anchor` are found first (contract 4.7).
+- The validator reports `generated-value-as-secret`, a warning, where a `unique` variable
+  fills a property or parameter whose schema has `format: password` (contract 4.6).
+- `Finding` (ADR 0004) is unchanged. It is the spec doctor's type and keeps its three
+  severities; a guides finding is a different type with different fields.
+
+**The guides step.** The engine takes no part in it. The control plane runs the guides module
+after the publisher has written the published spec ("The published spec"):
+
+| | |
+|---|---|
+| Inputs, and no others | The bytes of the published spec; the existing bundle directory, when there is one, without `report.json` and without `guides.lock.json` when that is `invalid-lock`; the bytes of that bundle's `settings.json`, when it holds one |
+| Outputs taken | The bundle directory, and the run report apart from it. Everything else is discarded. |
+| A failed run | The module fails, hits a cap of the step, or writes a bundle with an `error`: no pull request, the bundle in place stays, the tenant is told, and the failure text is cut at 2,000 characters and shown as text |
+| Everything else | ADR 0007: isolation, when the step runs, the record of input hashes, the rate limit, the pull request, and what blocks running the module at all |
+
+
 ## Outbound requests
 
 The engine requests nothing, so the three policies below are enforced by its callers. They are
@@ -981,6 +1053,13 @@ These are requirements on M2's design.
   is a separate design and needs its own security review.
 - The final method and path must match an operation the tenant enabled. The controlled-header
   list of contract 4.3 applies, and the proxy strips every `X-Ezdp-` header from inbound requests.
+- The portal alone builds `Cookie`, from the credential cookie and declared non-credential
+  cookies, each through a cookie encoder (name is a token; value has no `;`, `,`, space, quote
+  or control character). A name equal to a credential cookie's is never filled from the spec.
+  For the proxy this means: a caller never supplies the header's text; a cookie value a
+  caller supplies is accepted only for a declared cookie parameter that carries no
+  credential; and `resolveRequest` runs the encoder again on every final value and refuses
+  the request if one fails (ADR 0005, "Cookies").
 - Both MCP call tools reject a parameter the operation does not declare. The proxy and MCP input
   shape excludes `templates` and rejects it (ADR 0005).
 - The document caps above are about fetching specs and do not apply here. M2 sets its own limits
@@ -1174,6 +1253,24 @@ example stands in for it.
   is held in the browser is the same M2 question as under "Reader keys", with the same answer.
 - **Nothing is captured.** A guides `capture` (contract 4.3) reads a real response. An example
   is not one, so the name stays unfilled as if the sample had not been run.
+- **Three rules for a console that is live.** Required by the security review of 2026-11-28
+  (F6), after the guides module reported that a call failed on 136 of its 236 pages and that
+  about a third of them sent an example identifier no step had created. They are M2
+  requirements, on the console M2 builds:
+  - "Try it" sends nothing while a captured name in the request is unfilled. The console
+    says which earlier step fills it. The spec's example value is never sent in its place.
+    This has its effect from M5, when guides bring `capture`; M2 builds the console so that
+    a request with an unfilled placeholder of any kind cannot be sent.
+  - There is no run-all. Each request is sent by its own action of the reader, and no
+    control runs the samples of a page, or of a `<Steps>`, in sequence.
+  - A write shows the final request before it is sent: method, URL, headers and body, as
+    they will leave, and the reader confirms. A write is what "MCP tools: reads and writes"
+    classifies as one. How the credential is shown in it is for UX and the security reviewer
+    in M2.
+
+  The proxy cannot enforce the first two, since it sees one resolved request at a time. They
+  are rules of the page, and tests of the console hold them. Contract section 8, open item
+  9, is still open and must be decided before a held bundle is published unattended.
 - **Where the console is absent.** The mode replaces only the sending, and only for reasons
   that belong to the server or the caller. `tryIt="false"`, an operation the tenant has not
   enabled, and an operation that requires a controlled header (ADR 0004) belong to the sample

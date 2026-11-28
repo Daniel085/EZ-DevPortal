@@ -27,18 +27,32 @@ your output to the customer's Git repository as a pull request. Build for that:
   directory (constraint 8); and the tenant's settings, which are the bytes of that bundle's
   `settings.json` and come from nowhere else (constraint 9). Nothing else varies between runs
   except your own version.
-- **Output:** a bundle directory, with `guides.lock.json` in it, and `report.json` if you write
-  one. Nothing else: no upload, archive, commit or push. The portal takes the bundle directory
-  and discards anything you write beside it, and it ignores your own validation result.
+- **Output:** a bundle directory, with `guides.lock.json` in it; and, apart from it, the run
+  report if you write one. **The report is not in the bundle.** Return it from the library
+  function as a value of its own, and have the command write `report.json` beside the bundle
+  directory, never inside it. The portal keeps the report and shows it in its dashboard; it
+  never reaches the customer's repository, because it lists the spec's defects and the values
+  of its `x-` fields. A `report.json` inside a bundle is now `unexpected-file`, an error.
+  Nothing else: no upload, archive, commit or push. The portal takes the bundle directory and
+  the report, discards anything else you write, and ignores your own validation result.
 - **No network access.** The step is given none, and no credential. Anything you need is in the
   inputs or shipped with you. A module that calls a service at run time cannot be run.
 - **No clock and no randomness in the output** (constraint 6).
 - You can be called as a library or as a command. You told us you offer both; the portal will
-  call the library function. Two things are still needed from you before the portal can run
-  you: **a licence for the module itself**, and **what you give `ajv`**. Ajv compiles a schema
-  to JavaScript. Giving it the contract's schemas is fine. Giving it a schema taken from the
-  customer's spec is compiling a customer's content to code, which the portal does not allow
-  in a step it runs; if you do that, say so, and plan to stop.
+  call the library function, inside a process of its own with no network, an empty
+  environment and a read-only file system apart from scratch space.
+- **Running you on a customer's spec is blocked until you answer two things.** This is the
+  ruling of the portal's security review of 2026-11-28.
+  1. **What you give `ajv`.** Ajv compiles a schema to JavaScript. Giving it the contract's
+     schemas is fine. Giving it a schema taken from the customer's spec, for example to check
+     sample values against it, is compiling a customer's content to code, which the portal
+     does not allow in a step it runs. Until you confirm which it is, the portal runs you on
+     no customer's spec. If you compile customer schemas, you must change that before you can
+     be run.
+  2. **A licence for the module itself.** You declare none, and the portal cannot take a
+     dependency whose licence is unknown.
+
+  Neither stops you from moving to 0.3.
 - A person may still run you by hand against a static build of a portal. The interface is the
   same.
 - A portal may hold several APIs, and later several versions of one. You are not affected: each
@@ -51,7 +65,8 @@ The interface is defined in four files in the EZ-DevPortal repository:
 
 - `docs/contracts/guides-contract.md`: the bundle format, in full
 - `docs/contracts/guides-manifest.schema.json`: JSON Schema for the manifest
-- `docs/contracts/guides-report.schema.json`: JSON Schema for the optional run report
+- `docs/contracts/guides-report.schema.json`: JSON Schema for the optional run report, which is
+  an output beside the bundle and not a bundle file
 - `docs/contracts/guides-lock.schema.json`: JSON Schema for the generation record (new in 0.3)
 
 Read the contract before designing anything. It is a draft, now at **v0.3**.
@@ -66,7 +81,7 @@ and marks what binds you. Re-sync your copy of all four files and set `contractV
 - A fault in one page now withholds that page (`page-error`) and no longer stops the bundle,
   whoever wrote the page. Twenty-two codes changed severity; your validator must follow.
 - Your edit tracking moves out of `report.json` into `guides.lock.json`, with a hash for every
-  page. You read nothing from the existing `report.json`.
+  page. You are given no report from an earlier run.
 - A page a person deleted stays deleted (`deleted` in the record).
 - `{{unique}}` and `{{unique_1}}` to `{{unique_9}}` exist. `{{idempotency_key}}` and
   `{{unique}}` are valid only inside a `<Sample>` block.
@@ -75,7 +90,20 @@ and marks what binds you. Re-sync your copy of all four files and set `contractV
   to match, or the report is `invalid-report` and ignored.
 - Several `<Steps>` on a page is confirmed.
 
-Parts of 0.3 have not been through the portal's security review yet and may be tightened.
+**0.3 has been through the portal's security review** (2026-11-28), which passed it subject to
+fixes that are now in the contract; the end of its section 12 lists them. The version is still
+0.3. Four of them change what you write or report:
+
+- `report.json` moves out of the bundle (see "How you are run" above).
+- No object in `settings.json`, `guides.lock.json` or the report may have a duplicate key.
+- A new warning, `generated-value-as-secret`: do not put `{{unique}}` or `{{unique_1}}` to
+  `{{unique_9}}` in a field whose schema has `format: password`. The value has about 26 bits
+  and is not a secret.
+- The block on running you, above.
+
+The rest bind the portal: an invalid page shows nothing but its slug and finding codes in
+preview; the portal alone builds the `Cookie` header; a credential is placed only for the
+security requirement in effect; and the portal, not `settingsSha256`, decides when to run you.
 
 How 0.2 came about: version 0.2 was the portal side's answer to the guides module's feedback on
 v0.1. Section 11 of the contract decides every proposal and assumption of that round by number,
@@ -129,8 +157,8 @@ work around it.
 6. **Be deterministic and stable.** This was "where you can"; it is now a requirement (contract
    4.7), because every regeneration is shown to a person as a pull request and its difference
    must show only real changes.
-   - *Deterministic:* the same inputs give a byte-identical bundle directory, `report.json`
-     included. The inputs are the published spec bytes, the existing bundle if given, the
+   - *Deterministic:* the same inputs give a byte-identical bundle directory and a
+     byte-identical report. The inputs are the published spec bytes, the existing bundle if given, the
      bytes of its `settings.json` and your version. Nothing from the clock, randomness, locale, environment or
      directory listing order. Leave `generatedAt` out when the portal runs you.
    - *Stable:* a file changes between runs only for a reason in the inputs. When the spec
@@ -161,11 +189,12 @@ work around it.
      holds a hash for every page you wrote. With no valid record, keep every existing page and
      the navigation as they are.
    - Do not write again a page a person deleted. Carry its slug under `deleted`.
-   - Read nothing from the existing bundle's `report.json`. A person may delete that file.
+   - You are never given the report of an earlier run: the existing bundle holds none. Keep
+     nothing in the report that a later run needs.
 
    Still your design: whether you keep an edited page whole or merge into it; and what you do
    with an edited page that no longer fits the new spec, for example one that names a removed
-   operation, provided you keep the person's text and say so in `report.json`. Such a page
+   operation, provided you keep the person's text and say so in the run report. Such a page
    now withholds only itself. The bundle root allows no other file of your own. If you need
    an input beyond the published spec and the existing bundle, ask for it. An edited page is
    held to every rule of the contract, like a generated one, and gets the same finding.
@@ -245,7 +274,8 @@ and frontmatter, percent-encoded in link targets where a character is outside th
 - It includes its own validator for the contract rules, so a bundle is checked before it leaves.
 - It is tested against at least three public specs of different size and quality.
 - It reports, per run, which pages it produced and what it skipped and why. The report may be
-  included in the bundle as `report.json` in the shape the contract defines.
+  written as `report.json` beside the bundle directory, never in it, in the shape the contract
+  defines.
 - It writes a bundle directory and nothing more. Transport into the portal is the portal's concern.
 - It runs with no network access, from the published spec bytes, an optional existing bundle
   and that bundle's `settings.json`.

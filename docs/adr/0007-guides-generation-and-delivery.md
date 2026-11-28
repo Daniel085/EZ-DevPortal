@@ -7,8 +7,12 @@ Revised 2026-11-27 for the user's decision that a blocker withholds its own page
 bundle (decision 3 and the consequences).
 Revised 2026-11-28 for guides contract 0.3, the answer to the guides module's feedback on 0.2:
 decisions 7 to 11, a third input in decision 1, and the facts about the module under
-"Constraints". These are the architect's decisions and are not yet reviewed by the security
-reviewer (contract section 12).
+"Constraints".
+Revised again that day to apply the security review of contract 0.3
+(`docs/reviews/2026-11-28-security-review-contract-0.3.md`), which passed it subject to
+required fixes: ruling 8 ("How the step is isolated", and the block under "Constraints"),
+rulings 6 and 7, and F1, F2 and F3 (decisions 1, 7, 10, 11 and 12). The review did not read
+the module's code. The GitHub App's own review is still to be held.
 
 ## Context
 
@@ -24,11 +28,16 @@ lose those edits (contract 4.7).
    written the published spec (ADR 0003). The tenant does not run it.
    - Inputs: the bytes of the published spec; optionally the existing bundle directory; and,
      when that bundle holds one, the bytes of its `settings.json` (decision 8).
-   - Output: a bundle directory, with `guides.lock.json` and the optional `report.json`. The
-     step takes that directory and discards anything else the module writes, including the
-     module's own validation result and the file its command writes beside the bundle.
-   - The step runs in the per-tenant killable worker under its time limit (ADR 0003), with no
-     network access and no credential of ours or the tenant's.
+   - Output: a bundle directory, with `guides.lock.json` in it, and, apart from it, the
+     optional run report, `report.json` (contract 5.2). The step takes those two and
+     discards anything else the module writes, including the module's own validation result
+     and the file its command writes beside the bundle.
+   - The step's existing-bundle input omits `report.json`, and omits `guides.lock.json` when
+     it is `invalid-lock`. Slugs from the record are lookup keys and are never joined into
+     paths.
+   - The step has no network access and no credential of ours or the tenant's. Its isolation
+     is "How the step is isolated" below. The per-tenant publish worker of ADR 0003 is not
+     that isolation.
    - The output is untrusted. It goes through the same extraction checks and the same validator
      as any bundle (contract 5 and 6). That we ran the module earns it nothing.
    - The engine is not involved. It still takes no bundle and does no I/O; bundle validation
@@ -54,7 +63,9 @@ lose those edits (contract 4.7).
    shape**: `guides.lock.json`, the generation record (contract 5.3). It holds a hash of each
    page as the module wrote it and the slugs of pages a person deleted. The module's inputs
    are the published spec and the existing bundle, so the bundle is the only place such a
-   record can live. `report.json` is information only and is never an input.
+   record can live. The run report is information only, is not in the bundle, and is never
+   an input. The record is a file the tenant can edit: it steers which pages the module
+   rewrites, and it is trusted for nothing else.
    - A page a person deleted stays deleted, through `deleted` in the record.
    - A bundle with no valid record is still valid. The module then keeps every existing page,
      and the portal says so. The validator never reads the record to decide a finding.
@@ -64,20 +75,57 @@ lose those edits (contract 4.7).
    before a repository is connected has no settings.
 9. **An invalid page withholds only itself.** A fault in one page's content has the severity
    `page-error`; a fault in the bundle's structure is still an `error` (contract 4.7, 5).
-   Severity never depends on who wrote a page. The body of an invalid page is never rendered,
-   in preview either.
-10. **A failed run changes nothing.** If the module fails, exceeds the worker's limits, or
+   Severity never depends on who wrote a page. Nothing of an invalid page is rendered, in
+   preview either: preview shows its slug, finding codes and line numbers, and the renderer
+   builds a page only from the validator's tree (contract 4.7; ADR 0006).
+10. **A failed run changes nothing.** If the module fails, exceeds the step's limits, or
     writes a bundle with an `error`, no pull request is opened, the bundle in place stays, and
-    the tenant is told. What the module says about the failure is untrusted plain text.
-11. **The pull request's description is fixed text, slugs, finding codes and counts.** It
-    says what each file in the bundle is, that the record is to be left in place, which pages
-    were kept as edited or would be withheld, and, when settings changed, that values of the
-    spec's `x-` fields may become public (contract 6). No text from a report, a page or a spec
-    is copied into it, because the Git host renders it.
+    the tenant is told. What the module says about the failure is untrusted text: it is cut
+    at 2,000 characters and shown under the display rule of contract 5.2.
+11. **The pull request is fixed text, slugs, finding codes and counts.** The description
+    says what each file in the bundle is, that the record is to be left in place, and which
+    pages were kept as edited or would be withheld (contract 6). No text from a report, a
+    page or a spec is copied into it, because the Git host renders it. The title, branch name
+    and commit message follow the same rule as the description. Slugs appear in code spans.
+    Each list is cut at 50 slugs, with a count of the rest. Every pull request from a run
+    that had a `settings.json` carries the warning that values of the spec's `x-` fields may
+    become public, whatever started the run.
+12. **The run report stays with us.** The portal keeps `report.json` for the dashboard and
+    does not include it in a pull request. The control plane stores it with the run and shows
+    it only to signed-in members of the tenant's account, as text (contract 5.2). It is not
+    a bundle file, and a `report.json` inside a bundle is `unexpected-file`. In a public
+    repository its `extensions[].example` values and its list of the spec's defects would be
+    public.
 
-The step runs for a first bundle, when the published spec's hash differs from the bundle's,
-when the hash of `settings.json` differs from the record's `settingsSha256`, and when we move
-to a new version of the module.
+**When the step runs.** For a first bundle, when the published spec's hash differs from the
+bundle's, when the bytes of `settings.json` on the ingested branch have changed, and when we
+move to a new version of the module. The control plane decides this from its own records. The
+portal records the input hashes (spec, settings, existing bundle, module version) of each run
+and does not repeat one; runs are rate-limited per tenant; one open pull request per API
+version. The record's `settingsSha256` is in a file the tenant edits and starts nothing: a
+wrong or missing value would otherwise make every ingest start a run, which is free compute
+on our workers. The values of the limit, and whether a newer run updates the open pull
+request or replaces it, are M5 design and go to the security reviewer with the step.
+
+### How the step is isolated
+
+Required by the security review of 2026-11-28, ruling 8, whatever the module turns out to do
+with Ajv:
+
+> The step is its own OS process or container, separate from the one that fetches specs and the
+> one that holds the App token: no network, empty environment, read-only root, throwaway scratch,
+> caps on memory, CPU, wall clock and output bytes, destroyed after each run. Returned files pass
+> the section 2 limits at the boundary. Dependencies are installed from a lockfile with integrity
+> hashes and install scripts off.
+
+- ADR 0003's "killable per-tenant worker with a time limit" promises a time bound and that
+  tenants do not share a worker. It promises none of the above, and earlier text of this ADR
+  and of contract 9 relied on it for this step. That reliance is withdrawn.
+- We call the module's library function, not its command. Calling it in-process makes that
+  process the sandbox, so the call is made inside the step's own process or container and
+  never in the publisher's, the fetcher's or the one that holds the App token.
+- A run that hits a cap is a failed run (decision 10).
+- The caps' values are set in M5 and reviewed with the step.
 
 ## Constraints on the design to come
 
@@ -95,19 +143,26 @@ to a new version of the module.
   the licences of what it brings with it, are checked under ADR 0001 rule 5 before M5. As of
   2026-11-28 (its status file): one pure library function and a command; Node 22.18 or later,
   no build step, no published package, pinned by Git commit; run-time dependencies `ajv` and
-  `ajv-formats` (MIT) and `yaml` (ISC). **The module declares no licence**, so the check cannot
-  pass until its owner chooses one. We call the library function, not the command, so that
-  nothing but the returned files exists to collect.
-- **The module depends on `ajv`, which compiles a JSON Schema to JavaScript.** The engine
-  ruled Ajv out for that reason: a tenant's schema compiled to code is tenant content compiled
-  to code (ADR 0003, "No schema validator dependency"), which a standing constraint forbids.
-  Not known, because portal sessions cannot read the module: whether it gives Ajv only the
-  contract's own schemas, which are ours, or also schemas taken from the tenant's spec, for
-  example to check sample values. **The second is not acceptable in a step we run.** The
-  module's owner must say which it is before M5; if it compiles a tenant's schema, it must
-  stop before we run it. Either way a tenant's `pattern` regexes may run with no bound of
-  their own, so the bound is the killable worker and its time limit, and a run that hits it is
-  a failed run (decision 10). This goes to the security reviewer with the step.
+  `ajv-formats` (MIT) and `yaml` (ISC).
+- **Blocked: the module declares no licence.** ADR 0001 rule 5 requires a new runtime
+  dependency to name its licence, and permits MIT, ISC, BSD and Apache-2.0. With none
+  declared the check cannot pass, so the module is not taken into our pipeline until its
+  owner chooses a permitted one. This is not a security matter and is independent of the
+  next item.
+- **Blocked: running the module on tenant specs, until its owner confirms what Ajv is
+  given.** The module depends on `ajv`, which compiles a JSON Schema to JavaScript. The
+  engine ruled Ajv out for that reason: a tenant's schema compiled to code is tenant content
+  compiled to code (ADR 0003, "No schema validator dependency"), which a standing constraint
+  forbids. Portal sessions cannot read the module, and the security review of 2026-11-28 did
+  not read it either. That review suspects the worse case: the module's validator checks
+  sample values against spec schemas. The ruling:
+  - Until the module's owner confirms that Ajv compiles only the contract's own schemas, we
+    run the module on no tenant's spec. Running it on our own fixtures, inside the isolation
+    above, is not blocked.
+  - **If it compiles tenant schemas, the module must change before it can be run.** The
+    isolation above does not make that acceptable; it is required either way.
+  - Either way a tenant's `pattern` regexes may run with no bound of their own. The bound is
+    the step's caps on CPU and wall clock, and a run that hits one is a failed run.
 - Settings are tenant-supplied data handed to code we run. The module must treat them as
   data, and what they cause to be written is validated like any page. A setting can put the
   values of a spec's `x-` fields on public pages; those may be internal notes. Nothing is

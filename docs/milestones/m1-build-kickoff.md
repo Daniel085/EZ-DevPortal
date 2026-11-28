@@ -14,8 +14,9 @@ read and in what order to work.
 5. `docs/contracts/guides-contract.md`, for M1 only these sections: 1.1, the operation id
    algorithm, which is normative and which the guides module also implements; 1.2, the published
    spec, which the guides module generates from; and, where the ADRs point to them, 4.3 (the
-   controlled-header list and the sample media type) and 4.5 (the external link rule).
-6. `docs/reviews/`: three security design reviews. Their rulings are already in the ADRs; read them
+   controlled-header list, portal-supplied parameters, the cookie rule and the sample media
+   type) and 4.5 (the external link rule). The contract is at draft 0.3.
+6. `docs/reviews/`: four security design reviews. Their rulings are already in the ADRs; read them
    to understand why a rule exists before changing it.
 
 ## Before writing code
@@ -94,7 +95,10 @@ it. A guess that turns out right still leaves the next reader guessing.
 
 The security reviewer has a veto. Send it the code, before the work is called done, for:
 
-- Each sample emitter's encoder (eight sets of escaping rules), under ADR 0005.
+- Each sample emitter's encoder (eight sets of escaping rules), under ADR 0005, including the
+  cookie encoder and the handling of portal-supplied parameters: a credential declared as both
+  a security scheme and a parameter appears once, and only for the security requirement in
+  effect.
 - The `$ref` resolver and the JSON Patch application, for the own-property and `__proto__` rules in
   ADRs 0003 and 0004. The required test resolves and patches through `__proto__`, `constructor` and
   `prototype` and asserts `Object.prototype` is unchanged.

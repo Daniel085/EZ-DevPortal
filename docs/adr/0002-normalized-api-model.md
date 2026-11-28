@@ -12,6 +12,8 @@ Revised again that day to make the slug rule exact. The shape is unchanged.
 Revised again that day after the second audit. One change of shape: a server variable's
 `default` is optional. `Tag.id` is defined, and "Fields OpenAPI requires and real specs omit"
 says what the model holds for each.
+Checked 2026-11-28 against guides contract 0.3 and its security review: portal-supplied
+parameters need no change of shape ("Dropped header parameters" says why).
 Milestone: M1. Longer than other ADRs because two developers code against it in parallel.
 
 ## Context
@@ -233,6 +235,17 @@ compared case-insensitively, is not in the model: OpenAPI says such a definition
 appears in no `Operation.parameters`, whether declared on the operation or on its path item, so
 no sample, request or MCP input carries it. The spec doctor still sees the declaration in the
 parsed documents and reports it under its auth rules (ADR 0004).
+
+These three are the only parameters the model drops. Every other parameter the guides contract
+calls portal-supplied (4.3) stays in `Operation.parameters` exactly as declared: a header on
+the controlled list, a header, query or cookie parameter whose name a security scheme carries
+its credential in, and any cookie parameter. The reference page lists them, because the spec
+declares them. The model has no field that marks one. Whether a parameter is portal-supplied
+follows from data the model already holds: its `in` and `name`, `securitySchemes`, and the
+controlled-header list, which is a constant. Whether a credential is placed for it follows
+from which entry of `Operation.security` is in effect, which is a choice made per request
+and not a fact about the spec. `buildRequest` and the doctor derive both (ADR 0005, ADR
+0004). So contract 0.3 changes nothing in this ADR's shape.
 
 ### Schemas
 

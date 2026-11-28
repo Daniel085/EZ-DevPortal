@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ez-devportal.dev/schemas/guides-lock-0.3.json",
   "title": "Guides bundle generation record",
-  "description": "guides.lock.json at the bundle root, contract version 0.3. See section 5.3 of guides-contract.md. Records what the generator last wrote and which of its pages a person deleted. Members not defined here are allowed and are ignored by the portal. Rules this schema does not express: each slug appears once in pages and once in deleted, and never in both (invalid-lock); both lists are sorted by slug, by Unicode code point; the file is at most 2 MB (size-limit) and nested at most 64 deep.",
+  "description": "guides.lock.json at the bundle root, contract version 0.3. See section 5.3 of guides-contract.md. Records what the generator last wrote and which of its pages a person deleted. Members not defined here are allowed and are ignored by the portal. Rules this schema does not express: each slug appears once in pages and once in deleted, and never in both (invalid-lock); no object has a duplicate key (invalid-lock); both lists are sorted by slug, by Unicode code point; the file is at most 2 MB (size-limit) and nested at most 64 deep. A slug is a lookup key and is never joined into a path. settingsSha256 is the generator's own note: the portal does not decide from it whether to run.",
   "type": "object",
   "required": [
     "pages"
