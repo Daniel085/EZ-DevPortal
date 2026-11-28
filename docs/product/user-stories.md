@@ -12,11 +12,12 @@ example-response mode and the MCP is off there; an incomplete guide page withhol
 Updated a fourth time that day for the last two questions open with the user: what happens to an
 API host that cannot be verified by DNS, and live "Try it" calls in a private preview for a
 verified server. Updated on 2026-11-28 for four more decisions by the user: the doctor report is
-private by default (M1 criterion 32, new, so `m1.md` has 32 criteria); `example-missing` offers
+private by default (M1 criterion 32, new, so `m1.md` then had 32 criteria); `example-missing` offers
 no fix; the fetch cap per document is 16 MiB; and one rule for the console, which is in
 example-response mode wherever live calls are not allowed, on a public portal as in a private
-preview, and is never absent. Statuses, counts, conflicts and questions below reflect all
-seventeen.
+preview, and is never absent. Updated again on 2026-11-28 because the user adopted proposals F
+and G (below, "M1 stories the criteria did not cover"): M1 criteria 33 and 34, so `m1.md` has
+34 criteria. Statuses, counts, conflicts and questions below reflect all eighteen.
 
 Sources read: `docs/product-brief.md`, `CLAUDE.md`, `docs/milestones/m1.md`,
 `docs/milestones/m1-build-kickoff.md`, `docs/contracts/guides-contract.md` (sections 1.2, 4.7, 5,
@@ -30,9 +31,9 @@ user. This pass finds 13 actors and 154 stories:
 
 | Status | Count | Meaning |
 |---|---|---|
-| **C** covered | 23 | An M1 acceptance criterion already checks it. |
+| **C** covered | 25 | An M1 acceptance criterion already checks it. |
 | **P** planned | 86 | Named in a decision, ADR, contract section or milestone title, but with no acceptance criteria yet. It would probably get built; what "done" means is not written. |
-| **N** new | 43 | Nothing in the current plan would have caused it to be built. |
+| **N** new | 41 | Nothing in the current plan would have caused it to be built. |
 | **X** cut | 2 | Decided not to be built. The row says why. |
 
 Before the decisions of 2026-11-27 the counts were 129 stories: 18, 55 and 56. What moved with the
@@ -63,7 +64,11 @@ doctor report, M1 criterion 32). RD-8 rewritten: it said that on a public portal
 withheld with a reason, and the console is now in example-response mode there and never absent.
 SM-1, SM-7, SM-8, SU-1, SU-23, SU-24, SC-8 and RD-30 had their wording or pointers updated and
 did not change status. No story was added for the `example-missing` fix or for the fetch cap:
-neither had a story of its own. That gives 154: 23, 86, 43 and 2 cut.
+neither had a story of its own. That gave 154: 23, 86, 43 and 2 cut.
+
+What moved with the adoption of proposals F and G on 2026-11-28: RD-24 (text in any script, M1
+criterion 33) and RD-13 (an operation page at 320 CSS pixels, criterion 34) from new to
+covered. No story was added. That gives 154: 25, 86, 41 and 2 cut.
 
 What the existing documents cover well: the reader's first call from the reference (M1), the spec
 doctor's findings, agents reading Markdown, the guides contract, and the security rules for the
@@ -78,11 +83,11 @@ What they do not cover, by the kinds of gap that were asked about:
 | Trust and safety | **Yes, the most serious, and partly closed on 2026-11-27.** Decided: proof of domain control before a portal is public and before the proxy calls a server (OP-3, OP-4), and a separate MCP tool for writes (AH-4). Also decided that day: suspend and abuse intake are built in M4b with going public (OP-1, OP-2), and a private preview is readable by no one who is not signed in (SC-13). Also decided that day: live "Try it" calls in a private preview, without a plan, for a verified server (EV-10), which lets an account that has paid nothing send requests through the proxy; the bounds are OP-15. Still open: the agent's human cannot see beforehand what the agent may call or keep it read-only on the server side; there is no call limit and no audit log. | AH-2, AH-3, SC-3 to SC-5 |
 | The buyer's reasons to pay and stay | **Yes.** Analytics is a word in M6 with no content. Team members and roles, and SSO are absent. | EV-4, AD-1, SC-10 |
 | End developer account features | **Decided 2026-11-27.** A "get a key" link supplied by the customer, in M2 (RD-6, SU-22). A sign-in handoff later, on a paid tier, in no milestone (RD-26). Us issuing or managing developer accounts and keys is cut (RD-29). | RD-6, RD-26, RD-29, SU-22 |
-| Accessibility and non-English readers | **Partly.** M1 criterion 22 sets WCAG 2.2 AA for a sample of five M1 pages. Nothing carries that bar to "Try it", search, guides or the dashboard. Non-English spec text is untested; translation is out of scope by contract. | RD-12, RD-13, RD-24, RD-25, SU-17 |
+| Accessibility and non-English readers | **Partly.** M1 criterion 22 sets WCAG 2.2 AA for a sample of five M1 pages, and criterion 34 (2026-11-28) checks reflow at 320 CSS pixels on operation pages. Nothing carries that bar to "Try it", search, guides or the dashboard. Non-English spec text is tested from 2026-11-28 by criterion 33; translation is out of scope by contract. | RD-12, RD-13, RD-24, RD-25, SU-17 |
 | Our own operation of the service | **Yes, mostly.** Seven of sixteen operator stories are planned (no credentials in logs, the two that domain verification answers, suspend, abuse intake, setting a plan by hand, and the bounds on live calls in a preview). One is cut (OP-16). | OP-1 to OP-16 |
 
 **How to read "new".** A story marked new is not automatically something to build. Nearly all of the
-43 new stories rest on the product manager's judgment, not on research in the brief; SC-3, SC-4 and
+41 new stories rest on the product manager's judgment, not on research in the brief; SC-3, SC-4 and
 AH-2 are prompted by one survey figure. The basis column says which. The brief's research is about readers and specs; it has no evidence about what buyers
 need to adopt, pay or stay, and none about operating the service.
 
@@ -263,7 +268,7 @@ First visit.
 | RD-10 | As a developer, I want to search the reference and the guides, so that I find an operation without knowing its name. | M5 | must | P | TS. Brief M5. Postman 34% is about finding APIs, so applying it here is inference. |
 | RD-11 | As a developer using a keyboard or screen reader, I want reference pages that meet WCAG 2.2 AA, so that I can use the docs. | M1 | must | C | c22. |
 | RD-12 | As a developer using a keyboard or screen reader, I want "Try it", search and guide pages to meet the same bar, so that later features do not lock me out. | M2 to M5 | must | N | J. c22 names five M1 pages; nothing carries it forward. |
-| RD-13 | As a developer on a small screen, I want an operation page to be readable without sideways scrolling outside code blocks, so that I can read docs on a phone. | M1 | should | N | J. Reflow is part of WCAG 2.2 AA, which c22 claims, but an automated audit does not test it. |
+| RD-13 | As a developer on a small screen, I want an operation page to be readable without sideways scrolling outside code blocks, so that I can read docs on a phone. | M1 | should | C | c34, added 2026-11-28 (proposal G): at 320 CSS pixels, no sideways scrolling outside code blocks and tables. J. Reflow is part of WCAG 2.2 AA, which c22 claims, but an automated audit does not test it. Operation pages only; UX specifies the layout before the reference page is built. |
 
 Returning.
 
@@ -286,7 +291,7 @@ Debugging.
 | RD-21 | As a developer debugging, I want a failure of the portal's proxy to look different from an error returned by the API, so that I do not chase the wrong system. | M2 | must | N | J. |
 | RD-22 | As a developer, I want to know when a sample value was synthesized, so that I do not take it for a real one. | open | should | P | Brief, open decision. M1 default: buyers only. E: 85 of Stripe's 120 guide pages have placeholders. |
 | RD-23 | As a developer, I want webhooks documented with their payloads, so that I can handle events. | none | should | N | J. `m1.md` cuts them from M1; contract 8, open item 3. No milestone. |
-| RD-24 | As a developer whose API's descriptions are not in English, I want non-Latin and right-to-left text to display correctly in pages, twins and samples, so that the docs are legible. | M1 | must | N | J. No fixture is known to test it. |
+| RD-24 | As a developer whose API's descriptions are not in English, I want non-Latin and right-to-left text to display correctly in pages, twins and samples, so that the docs are legible. | M1 | must | C | c33, added 2026-11-28 (proposal F), on QA's `unicode-text` fixture. J. Not covered: bidi control characters, and non-ASCII header and cookie values, which no ADR decides yet (`m1.md`, "Not tested by these criteria"). |
 | RD-25 | As a developer who does not read English, I want the portal's own labels in my language, so that I can navigate. | none | could | N | J. No evidence of demand. Contract 8: localization out of scope. |
 | RD-26 | As a developer signed in to the provider's site, I want the portal to show my own key in samples and "Try it", so that I copy a sample that already works. | later | could | P | D: "Reader keys", 2026-11-27: a sign-in handoff from the customer's site, a paid-tier feature, in no milestone. Undesigned and needs a security review. See conflict 4. |
 | RD-29 | As a developer, I want to create an account with the portal and have it issue and manage my API keys or sandbox credentials, so that I need not go to the provider's site. | none | none | X | **Cut**, 2026-11-27: us issuing or managing developer accounts and keys is an API management product and out of scope. RD-6 and RD-26 serve the need. |
@@ -542,8 +547,9 @@ unbuilt. M6 is unchanged apart from replacing plans set by hand.
 ## M1 stories the criteria did not cover
 
 Proposals A to C were adopted by the user on 2026-11-27 and are in `m1.md`, which had 31
-criteria then and has 32 from 2026-11-28, when criterion 32 (the doctor report is private by
-default; SM-16) was added by the user's decision. D to G are still proposals.
+criteria then. Criterion 32 (the doctor report is private by default; SM-16) was added by the
+user's decision on 2026-11-28. Proposals F and G were adopted by the user on 2026-11-28 as
+criteria 33 and 34, so `m1.md` has 34 criteria. D and E are still proposals.
 
 | # | Proposed addition | Story | Basis | Timing |
 |---|---|---|---|---|
@@ -552,12 +558,13 @@ default; SM-16) was added by the user's decision. D to G are still proposals.
 | C | Adopted by amending c8, which names `server-not-callable`, including an open host variable, and `controlled-header-required`. The allowed-hosts fix is M1 (c29, c31). | SM-8, SM-9 | ADR 0004; decision B | Done. |
 | D | The doctor lists every webhook and callback as "not rendered". | SM-15 | `m1.md` out-of-scope table; ADR 0004 (`webhook-not-rendered`, `callback-not-rendered`) | Can wait until M1 close. Testable on `oai-webhook-example` and `oai-callback-example`. |
 | E | A 3.2 document builds as 3.1 with a warning finding. | SU-4 | Brief decision; ADR 0003 | Can wait. |
-| F | A fixture with non-Latin, right-to-left and emoji text in descriptions, names and examples renders correctly in pages and twins, and its samples pass criteria 13 and 14. | RD-24 | J | Can wait; add with the QA fixtures. |
-| G | At 320 CSS pixels wide, an operation page needs no sideways scrolling outside code blocks and tables. | RD-13 | J | Can wait; tell UX before the reference page is specified (step 5). |
+| F | Adopted as c33: on the `unicode-text` fixture, non-Latin, right-to-left and emoji text in descriptions, names and examples keeps its code points in page files, pages and twins, is bidi-isolated on pages, gets ids and slugs by the ADR 0002 rules, and its samples pass criteria 13 and 14. | RD-24 | J; ADR 0002, contract 1.1, ADRs 0003 and 0005 for the rules checked | Done. QA writes the fixture with the others (kickoff, step 2). |
+| G | Adopted as c34: at 320 CSS pixels wide, an operation page needs no sideways scrolling outside code blocks and tables, on five named operation pages, with JavaScript on and off. | RD-13 | J; WCAG 2.2, 1.4.10 | Done. UX specifies the 320-pixel layout before the reference page is built (kickoff, step 6). |
 
 **Does anything change M1 before the build starts? No.** Scaffolding, the `hard-schemas` fixture
 and the parser and model (kickoff steps 1, 2 and 3.1) are unaffected. A, B and C were decided
-before the spec doctor step. D to G can be decided any time before M1 is closed.
+before the spec doctor step. F and G were decided on 2026-11-28, before the fixtures and the
+reference page they affect. D and E can be decided any time before M1 is closed.
 
 ## Questions only the user can answer
 
@@ -623,3 +630,5 @@ Decided by the user on 2026-11-28, not raised as questions here:
     declared example. (SM-1, SM-7; `m1.md`, question 7, closed)
 23. The fetch cap per document is 16 MiB, the same as the local cap; the security reviewer
     confirms it when M4 is designed. (SU-1)
+24. Proposals F and G are adopted as M1 criteria 33 (text in any script) and 34 (an operation
+    page at 320 CSS pixels). (RD-24, RD-13)

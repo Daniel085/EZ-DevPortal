@@ -7,7 +7,7 @@ read and in what order to work.
 
 1. `CLAUDE.md`: the feature team, who decides what, and the four standing constraints.
 2. `docs/product-brief.md`: the product and the decisions made.
-3. `docs/milestones/m1.md`: scope and the 32 acceptance criteria. This defines "done".
+3. `docs/milestones/m1.md`: scope and the 34 acceptance criteria. This defines "done".
 4. `docs/adr/0001` to `0006`: the M1 architecture. All are accepted. ADR 0007 (guides generation
    and delivery) is M4 and M5 work and is not needed for M1. ADR 0002 (the API model) and
    ADR 0003 (the engine's interface) are what the engine and renderer developers code against.
@@ -24,7 +24,7 @@ read and in what order to work.
 - Node 24 or later and pnpm, as ADR 0001 specifies.
 - Run `fixtures/specs/fetch.sh` once. It downloads four large specs (33 MB) into the gitignored
   `fixtures/specs/large/` and verifies their hashes. Scale tests need them.
-- Criteria 13 and 14 need eight language toolchains to check and run samples: curl, Node, Python
+- Criteria 13 and 14, and criterion 33 through them, need eight language toolchains to check and run samples: curl, Node, Python
   with `requests`, Go, a JDK, the .NET SDK, PHP with the cURL extension, and Ruby. Find out which
   are installed before planning those tests, and report any that are missing instead of skipping
   the criteria.
@@ -55,6 +55,10 @@ The engine's own build order is ADR 0003, "Build order in M1"; the steps below f
    - A spec with an unsatisfiable schema, and the expected `synthesis-failed` findings
      (criterion 7).
    - A test-generated document over the size limit, for `limit-exceeded` (criterion 5).
+   - `unicode-text`: right-to-left, non-Latin and emoji text in descriptions, summaries, names,
+     path templates and examples, with none in a header or cookie and no bidi control
+     character; the mock as its first server, as in the matrix, and the hand-written expected
+     request of each operation (criterion 33, which lists what it must hold).
    - Update `fixtures/specs/malformed/expected.json` with the finding codes ADR 0004's rule table
      gives for each of the 16 malformed fixtures.
 3. **Engine**, each part with tests against the fixtures before the next starts.
@@ -74,10 +78,14 @@ The engine's own build order is ADR 0003, "Build order in M1"; the steps below f
    M1 command line" defines them. M1 reads local files only. `engine-developer`, working outside
    its usual package for this step.
 6. **Renderer**: `ux` specifies the pages and `designer` the default theme tokens first; then
-   `renderer-developer` builds the static portal and its `export` script (ADR 0006).
+   `renderer-developer` builds the static portal and its `export` script (ADR 0006). The page
+   specification includes the operation page's layout at 320 CSS pixels wide, with no
+   sideways scrolling outside code blocks and tables and with the navigation still reachable
+   (criterion 34), and how tenant text is isolated for right-to-left scripts (criterion 33,
+   clause (c)). `ux` specifies both before the reference page is built.
 7. **Close the milestone** as `m1.md` defines: `qa-engineer` runs the suite on all fixtures,
    `dx-reviewer` uses the built Petstore, Museum and GitHub portals, and `product-manager` marks
-   each of the 32 criteria.
+   each of the 34 criteria.
 
 The renderer consumes page files, which include samples, so it needs steps 3.4 and 3.5. Once step
 3.1 is done, `ux` and `designer` can specify the pages and the tokens, and `renderer-developer`
@@ -157,7 +165,7 @@ ADR 0004 also lists details the architect added to make the host rule decidable.
 reviewer has not confirmed them, so include them when the doctor's server checks go to review.
 
 The acceptance criteria for all of this are in `m1.md`: criteria 8 and 10 as amended, and 27 to 32.
-Security sign-off is required on criteria 15, 19, 29, 31 and 32.
+Security sign-off is required on criteria 15, 19, 29, 31, 32 and 33.
 
 ## One spec is one unit (decided 2026-11-27)
 
