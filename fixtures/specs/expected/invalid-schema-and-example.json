@@ -1,0 +1,36 @@
+{
+  "$comment": "Hand-written expected findings for fixtures/specs/qa/invalid-schema-and-example.yaml (criterion 6). 'includes': each finding must be present with that code and severity at that pointer ('pointerAlternatives', where given, are accepted in its place while the question named is open). 'exactCodes': for each code listed, the findings with that code must be exactly the pointers listed, no more and no fewer. Pointers follow ADR 0004: the offending node.",
+  "fixture": "qa/invalid-schema-and-example.yaml",
+  "build": "degrades",
+  "buildRule": "ADR 0004 'Fatal and degrading faults': none of these faults is fatal; the build completes and every operation is in the model.",
+  "operations": ["getHealth", "listWidgets", "createGadget", "getWidget"],
+  "unaffectedOperations": ["getHealth"],
+  "unaffectedRule": "Criterion 6: every unaffected operation renders in full. getHealth refers to no faulty schema or example.",
+  "findings": {
+    "includes": [
+      { "code": "schema-invalid", "severity": "warning", "pointer": "/components/schemas/Widget/required", "rule": "ADR 0004 degrade table: a schema keyword of the wrong type; the schema is kept without that keyword" },
+      { "code": "schema-invalid", "severity": "warning", "pointer": "/components/schemas/Widget/properties/name/minLength", "rule": "ADR 0004 degrade table" },
+      { "code": "schema-invalid", "severity": "warning", "pointer": "/components/schemas/Widget/properties/tags/items", "rule": "ADR 0004 degrade table" },
+      { "code": "schema-invalid", "severity": "warning", "pointer": "/components/schemas/Gizmo/properties", "rule": "ADR 0004 degrade table" },
+      { "code": "example-invalid", "severity": "warning", "pointer": "/paths/~1widgets/get/parameters/0/example", "keyword": "maximum", "rule": "ADR 0004 'example-invalid': a parameter example with errors under validateValue; the message names the first violated keyword" },
+      { "code": "example-invalid", "severity": "warning", "pointer": "/paths/~1widgets/post/requestBody/content/application~1json/example", "keyword": "required", "rule": "ADR 0004 'example-invalid': a media type example" },
+      { "code": "example-invalid", "severity": "warning", "pointer": "/components/schemas/Gadget/properties/color/example", "keyword": "enum", "rule": "ADR 0004 'example-invalid': a schema example" },
+      { "code": "example-invalid", "severity": "warning", "pointer": "/paths/~1widgets~1{widgetId}/get/responses/200/content/application~1json/examples/wrongType/value", "pointerAlternatives": ["/paths/~1widgets~1{widgetId}/get/responses/200/content/application~1json/examples/wrongType"], "keyword": "type", "rule": "ADR 0004 'example-invalid': a named example of a media type. Whether the pointer is the Example object or its value is question QA-4" }
+    ],
+    "exactCodes": {
+      "schema-invalid": [
+        "/components/schemas/Widget/required",
+        "/components/schemas/Widget/properties/name/minLength",
+        "/components/schemas/Widget/properties/tags/items",
+        "/components/schemas/Gizmo/properties"
+      ],
+      "example-invalid": [
+        "/paths/~1widgets/get/parameters/0/example",
+        "/paths/~1widgets/post/requestBody/content/application~1json/example",
+        "/components/schemas/Gadget/properties/color/example",
+        "/paths/~1widgets~1{widgetId}/get/responses/200/content/application~1json/examples/wrongType/value"
+      ]
+    },
+    "exactCodesRule": "The controls must not be reported: a value that violates only 'pattern' (never executed, ADR 0003 'Schema validation'), a value whose format is outside the nine checked formats, and two valid examples. A keyword that was not checked never causes example-invalid (ADR 0004)."
+  }
+}

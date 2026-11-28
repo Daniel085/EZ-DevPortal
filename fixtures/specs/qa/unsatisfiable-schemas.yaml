@@ -1,0 +1,235 @@
+# Written in-house by QA for M1 criterion 7 (docs/milestones/m1.md): schemas that admit no value,
+# each the whole schema of one required parameter or request body of its own operation, so its
+# synthesized sample value is checked and `synthesis-failed` is reported at that schema. Each
+# uses only keywords ADR 0003, "Schema validation", checks. Then controls that admit a value and
+# must not be reported. No case has an example, default or enum at its top, so every value is
+# synthesized. Tenant content: data only.
+# Expected findings, each with the reason the schema admits no value:
+# fixtures/specs/expected/synthesis-failed.json and expected/unsatisfiable-schemas.json.
+openapi: 3.1.0
+info:
+  title: Unsatisfiable Schemas
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+security:
+  - apiKey: []
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+paths:
+  /cases/range:
+    get:
+      operationId: caseRange
+      parameters:
+        - name: n
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 10
+            maximum: 5
+      responses:
+        '204':
+          description: No content.
+  /cases/length:
+    get:
+      operationId: caseLength
+      parameters:
+        - name: s
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 5
+            maxLength: 2
+      responses:
+        '204':
+          description: No content.
+  /cases/not-anything:
+    get:
+      operationId: caseNotAnything
+      parameters:
+        - name: v
+          in: query
+          required: true
+          schema:
+            not: {}
+      responses:
+        '204':
+          description: No content.
+  /cases/all-of-types:
+    get:
+      operationId: caseAllOfTypes
+      parameters:
+        - name: v
+          in: query
+          required: true
+          schema:
+            allOf:
+              - type: string
+              - type: integer
+      responses:
+        '204':
+          description: No content.
+  /cases/multiple-of:
+    get:
+      operationId: caseMultipleOf
+      parameters:
+        - name: n
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 3
+            maximum: 3
+            multipleOf: 2
+      responses:
+        '204':
+          description: No content.
+  /cases/integer-gap:
+    get:
+      operationId: caseIntegerGap
+      parameters:
+        - name: n
+          in: query
+          required: true
+          schema:
+            type: integer
+            exclusiveMinimum: 0
+            exclusiveMaximum: 1
+      responses:
+        '204':
+          description: No content.
+  /cases/const-type:
+    get:
+      operationId: caseConstType
+      parameters:
+        - name: v
+          in: query
+          required: true
+          schema:
+            type: string
+            const: 5
+      responses:
+        '204':
+          description: No content.
+  /cases/one-of-twins:
+    get:
+      operationId: caseOneOfTwins
+      parameters:
+        - name: v
+          in: query
+          required: true
+          schema:
+            oneOf:
+              - type: string
+              - type: string
+      responses:
+        '204':
+          description: No content.
+  /cases/required-forbidden:
+    post:
+      operationId: caseRequiredForbidden
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [a]
+              properties: {}
+              additionalProperties: false
+      responses:
+        '204':
+          description: No content.
+  /cases/array-bounds:
+    post:
+      operationId: caseArrayBounds
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+              minItems: 3
+              maxItems: 1
+      responses:
+        '204':
+          description: No content.
+  /cases/unique-enum:
+    post:
+      operationId: caseUniqueEnum
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                enum: [only]
+              minItems: 2
+              uniqueItems: true
+      responses:
+        '204':
+          description: No content.
+  # Controls: each admits a value, so `synthesis-failed` here is a fault in the synthesizer.
+  /controls/between:
+    get:
+      operationId: controlBetween
+      parameters:
+        - name: x
+          in: query
+          required: true
+          schema:
+            type: number
+            exclusiveMinimum: 0
+            exclusiveMaximum: 1
+      responses:
+        '204':
+          description: No content.
+  /controls/pattern:
+    get:
+      operationId: controlPattern
+      parameters:
+        - name: p
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            pattern: '^$'
+      responses:
+        '204':
+          description: No content.
+  /controls/format:
+    get:
+      operationId: controlFormat
+      parameters:
+        - name: f
+          in: query
+          required: true
+          schema:
+            type: string
+            format: iban
+      responses:
+        '204':
+          description: No content.
+  /controls/email:
+    get:
+      operationId: controlEmail
+      parameters:
+        - name: e
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        '204':
+          description: No content.

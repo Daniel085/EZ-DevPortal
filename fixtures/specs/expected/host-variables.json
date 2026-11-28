@@ -1,0 +1,30 @@
+{
+  "$comment": "Hand-written expected results for fixtures/specs/qa/host-variables.yaml (criterion 29). 'withList' is diagnose with the vendored Public Suffix List snapshot; 'strict' is diagnose with publicSuffixes: null. 'callable: false' means exactly one server-not-callable finding for that server; 'callable: true' means none. 'fix' is null where the finding carries no fix, else what the one fix must be. Rows 0 to 9 are the worked-examples table of ADR 0004 'The fix for an open host variable', copied in order; the table was written against the list as published on 2026-11-26 and must be re-checked against the snapshot when it is vendored (ADR 0004). A test compares the 'url' and 'withList.callable' of rows 0 to 9 with the ADR's table text.",
+  "fixture": "qa/host-variables.yaml",
+  "pointerRule": "The finding is located at the server object, '/servers/<n>'. ADR 0004 does not say whether it is the server, its 'url' or the variable; '/servers/<n>/url' and '/servers/<n>/variables/<name>' are accepted while question QA-7 is open.",
+  "fixTemplate": {
+    "title": "List the allowed hosts for this server. They are published in the spec, and the first one becomes the default.",
+    "confidence": "review",
+    "input": { "name": "values", "label": "Allowed hosts, one per line. The first becomes the default.", "list": { "maxItems": 32 } },
+    "patchOps": ["test S/url", "test V", "add V/enum", "add V/default"],
+    "rule": "ADR 0004 'The fix for an open host variable': 'Title and label', 'Input' and 'Patch'"
+  },
+  "servers": [
+    { "index": 0, "url": "https://{x}.example.com", "adrRow": 1, "withList": { "callable": true, "fix": null }, "strict": { "callable": false, "fix": null }, "rule": "ADR 0004 row 1. Strict: with no list every host variable without an enum is not callable; no fix, since {x} does not end the host" },
+    { "index": 1, "url": "https://api-{x}.example.com", "adrRow": 2, "withList": { "callable": true, "fix": null }, "strict": { "callable": false, "fix": null }, "rule": "ADR 0004 row 2; strict as row 1" },
+    { "index": 2, "url": "https://{x}example.com", "adrRow": 3, "withList": { "callable": false, "fix": null }, "strict": { "callable": false, "fix": null }, "rule": "ADR 0004 row 3: the label {x}example is followed by .com, a public suffix" },
+    { "index": 3, "url": "https://{x}.co.uk", "adrRow": 4, "withList": { "callable": false, "fix": null }, "strict": { "callable": false, "fix": null }, "rule": "ADR 0004 row 4: co.uk is a public suffix (ICANN section)" },
+    { "index": 4, "url": "https://{x}.github.io", "adrRow": 5, "withList": { "callable": false, "fix": null }, "strict": { "callable": false, "fix": null }, "rule": "ADR 0004 row 5: github.io is a public suffix (private section)" },
+    { "index": 5, "url": "https://{x}.internal", "adrRow": 6, "withList": { "callable": false, "fix": null }, "strict": { "callable": false, "fix": null }, "rule": "ADR 0004 row 6: a single label not on the list is a public suffix by the default rule" },
+    { "index": 6, "url": "https://{region}.{env}.example.com", "adrRow": 7, "withList": { "callable": false, "fix": null }, "strict": { "callable": false, "fix": null }, "rule": "ADR 0004 row 7: the text after {region} holds a variable; region needs an enum" },
+    { "index": 7, "url": "https://{host}/v1", "adrRow": 8, "withList": { "callable": false, "fix": { "format": "host-name", "variable": "host" } }, "strict": { "callable": false, "fix": { "format": "host-name", "variable": "host" } }, "rule": "ADR 0004 row 8: nothing follows the label, so clause (b) fails; the variable is the whole host, so the fix is offered with format host-name. The fix's conditions do not depend on the list, so strict mode offers it too (ADR 0004 'Strict mode': the fix is offered only for a variable that ends the host)" },
+    { "index": 8, "url": "https://api.{domain}", "adrRow": 9, "withList": { "callable": false, "fix": { "format": "host-suffix", "variable": "domain" } }, "strict": { "callable": false, "fix": { "format": "host-suffix", "variable": "domain" } }, "rule": "ADR 0004 row 9: other text comes before the variable in the host, so format host-suffix" },
+    { "index": 9, "url": "https://example.com:{port}/v1", "adrRow": 10, "withList": { "callable": true, "fix": null }, "strict": { "callable": true, "fix": null }, "rule": "ADR 0004 row 10: no host variable; a port variable never causes the finding by its position, with or without the list" },
+    { "index": 10, "url": "https://{region}.example.com", "adrRow": null, "withList": { "callable": false, "fix": null }, "strict": { "callable": false, "fix": null }, "rule": "Criterion 29, last clause; ADR 0004 'server-not-callable': a variable whose enum is empty allows no value, and no fix is offered" }
+  ],
+  "findings": {
+    "includes": [],
+    "exactCodes": { "server-variable-no-default": [] },
+    "exactCodesRule": "Every variable has a default. A variable for which the allowed-hosts fix is offered is never also server-variable-no-default (ADR 0004 'One fault, one finding, one fix')."
+  }
+}

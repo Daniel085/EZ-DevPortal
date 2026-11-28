@@ -1,0 +1,350 @@
+# Written in-house by QA for M1 criteria 1, 2 and 22 (docs/milestones/m1.md).
+# oneOf, anyOf, allOf, discriminators and recursion in one small spec. Tenant content: data only.
+# Expected values: fixtures/specs/expected/hard-schemas.json.
+openapi: 3.1.0
+info:
+  title: Hard Schemas
+  version: 1.0.0
+  description: Composition and recursion for the schema viewer.
+servers:
+  - url: https://api.example.com/v1
+security:
+  - apiKey: []
+tags:
+  - name: pets
+    description: A discriminated oneOf whose variants use allOf.
+  - name: orders
+    description: allOf merging.
+  - name: graphs
+    description: Self and mutual recursion.
+  - name: search
+    description: anyOf with referenced, titled and untitled members.
+paths:
+  /pets/{petId}:
+    get:
+      operationId: getPet
+      tags: [pets]
+      summary: Get a pet
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: pet-1
+      responses:
+        '200':
+          description: The pet.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        default:
+          description: An error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /pets:
+    post:
+      operationId: createPet
+      tags: [pets]
+      summary: Create a pet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pet'
+            example:
+              petType: cat
+              name: Tom
+              huntingSkill: lazy
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+  /orders:
+    post:
+      operationId: createOrder
+      tags: [orders]
+      summary: Create an order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Order'
+            example:
+              id: ord-1
+              createdAt: '2026-01-01T00:00:00Z'
+              lines:
+                - sku: A-1
+                  quantity: 2
+              contact:
+                email: buyer@example.com
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+  /tree:
+    get:
+      operationId: getTree
+      tags: [graphs]
+      summary: Get a category tree
+      responses:
+        '200':
+          description: The root node.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TreeNode'
+  /departments/{departmentId}:
+    get:
+      operationId: getDepartment
+      tags: [graphs]
+      summary: Get a department
+      parameters:
+        - name: departmentId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: dep-1
+      responses:
+        '200':
+          description: The department, its head and its members.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+  /search:
+    get:
+      operationId: search
+      tags: [search]
+      summary: Search everything
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          example: tom
+      responses:
+        '200':
+          description: Mixed results.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchResult'
+                  next:
+                    $ref: '#/components/schemas/Cursor'
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    # A discriminated oneOf. Cat and Dog are mapped explicitly; Lizard is not, so its value is the
+    # schema name (ADR 0002, "discriminator without mapping"; OpenAPI implicit mapping).
+    # Each variant fixes petType with `const`, so a value matches exactly one member: the
+    # discriminator is not an assertion and oneOf alone decides (ADR 0003, "Schema validation").
+    Pet:
+      oneOf:
+        - $ref: '#/components/schemas/Cat'
+        - $ref: '#/components/schemas/Dog'
+        - $ref: '#/components/schemas/Lizard'
+      discriminator:
+        propertyName: petType
+        mapping:
+          cat: '#/components/schemas/Cat'
+          dog: '#/components/schemas/Dog'
+    PetBase:
+      type: object
+      required: [petType, name]
+      properties:
+        petType:
+          type: string
+          description: Which kind of pet.
+        name:
+          type: string
+          minLength: 1
+          maxLength: 40
+        friend:
+          # Self-recursion through a oneOf member: a pet may have a pet as a friend.
+          $ref: '#/components/schemas/Pet'
+    Cat:
+      title: House cat
+      allOf:
+        - $ref: '#/components/schemas/PetBase'
+        - type: object
+          required: [huntingSkill]
+          properties:
+            petType:
+              const: cat
+            huntingSkill:
+              type: string
+              enum: [clueless, lazy, adventurous, aggressive]
+              default: lazy
+    Dog:
+      allOf:
+        - $ref: '#/components/schemas/PetBase'
+        - type: object
+          properties:
+            petType:
+              const: dog
+            packSize:
+              type: integer
+              format: int32
+              minimum: 0
+              default: 0
+    Lizard:
+      allOf:
+        - $ref: '#/components/schemas/PetBase'
+        - type: object
+          properties:
+            petType:
+              const: Lizard
+            lovesRocks:
+              type: boolean
+    # allOf of three members: a property declared in two members is merged; required is the union;
+    # `description` of `id` differs between members, so the first is kept and
+    # schema-allof-conflict (info) is expected (ADR 0003, "allOf merging").
+    Order:
+      allOf:
+        - $ref: '#/components/schemas/Identified'
+        - $ref: '#/components/schemas/Timestamped'
+        - type: object
+          required: [lines]
+          properties:
+            id:
+              type: string
+              description: The order id.
+            lines:
+              type: array
+              minItems: 1
+              items:
+                $ref: '#/components/schemas/OrderLine'
+            contact:
+              $ref: '#/components/schemas/Contact'
+    Identified:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+          description: A stable id.
+          maxLength: 64
+    Timestamped:
+      type: object
+      required: [createdAt]
+      properties:
+        createdAt:
+          type: string
+          format: date-time
+    OrderLine:
+      type: object
+      required: [sku, quantity]
+      properties:
+        sku:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+    # An inline oneOf with no discriminator: one titled member and one untitled, so the names are
+    # the title and "Option 2" (ADR 0003, "Variant names").
+    Contact:
+      oneOf:
+        - title: Email contact
+          type: object
+          required: [email]
+          properties:
+            email:
+              type: string
+              format: email
+        - type: object
+          required: [phone]
+          properties:
+            phone:
+              type: string
+    # Self-recursion through an array.
+    TreeNode:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/TreeNode'
+    # Mutual recursion: Department -> Employee -> Department, by a ref and through an array.
+    Department:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        head:
+          $ref: '#/components/schemas/Employee'
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/Employee'
+    Employee:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        department:
+          $ref: '#/components/schemas/Department'
+        manager:
+          $ref: '#/components/schemas/Employee'
+    # anyOf of a referenced member, a titled inline member and an untitled inline member, no
+    # discriminator: names "Pet", "Order hit" and "Option 3".
+    SearchResult:
+      anyOf:
+        - $ref: '#/components/schemas/Pet'
+        - title: Order hit
+          type: object
+          required: [kind, orderId]
+          properties:
+            kind:
+              const: order
+            orderId:
+              type: string
+        - type: object
+          required: [kind, text]
+          properties:
+            kind:
+              const: text
+            text:
+              type: string
+    # Control: anyOf of one schema and null is a nullable schema, not a set of variants
+    # (ADR 0002, normalization table).
+    Cursor:
+      anyOf:
+        - type: string
+          minLength: 1
+        - type: 'null'
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: integer
+        message:
+          type: string

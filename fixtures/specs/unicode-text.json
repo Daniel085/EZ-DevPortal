@@ -1,0 +1,397 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Unicode Text",
+    "version": "1.0.0",
+    "description": "Text in many scripts: العربية, עברית, 中文, 日本語, हिन्दी."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:14010"
+    }
+  ],
+  "security": [
+    {
+      "apiKey": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "مستخدمون",
+      "description": "قائمة المستخدمين وحساباتهم."
+    },
+    {
+      "name": "ユーザー",
+      "description": "ユーザーの検索と作成。"
+    },
+    {
+      "name": "فواتير‮Invoices",
+      "description": "Invoices and receipts."
+    }
+  ],
+  "paths": {
+    "/مستخدمين/{معرف}": {
+      "get": {
+        "operationId": "获取用户",
+        "tags": [
+          "مستخدمون"
+        ],
+        "summary": "عرض مستخدم واحد",
+        "description": "השתמשו בממשק API בגרסה 2‏ כדי לקבל משתמש אחד.",
+        "parameters": [
+          {
+            "name": "معرف",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "أحمد"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/مستخدم"
+                },
+                "example": {
+                  "الاسم": "أحمد",
+                  "status": "🚀"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/検索": {
+      "get": {
+        "operationId": "検索する",
+        "tags": [
+          "ユーザー"
+        ],
+        "summary": "ابحث عن ⁧مستخدمين",
+        "description": "日本語と中文の検索。支持中文：用户搜索 𠀋。",
+        "parameters": [
+          {
+            "name": "שאילתה",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "שלום עולם"
+          },
+          {
+            "name": "ترتيب",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "الأحدث",
+                "最新",
+                "नवीनतम"
+              ]
+            }
+          },
+          {
+            "name": "رمز",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 3
+            },
+            "example": "🎉🎉🎉"
+          },
+          {
+            "name": "قصير",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 4
+            },
+            "example": "🎉🎉"
+          },
+          {
+            "name": "طويل",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 3
+            },
+            "example": "🎉🎉🎉🎉"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/مستخدم"
+                  }
+                },
+                "example": []
+              }
+            }
+          }
+        }
+      }
+    },
+    "/مستخدمين": {
+      "post": {
+        "tags": [
+          "مستخدمون"
+        ],
+        "summary": "إنشاء مستخدم",
+        "description": "Creates a user. 👩🏽‍💻 🇯🇵 👨‍👩‍👧",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/مستخدم"
+              },
+              "example": {
+                "الاسم": "علي‮اختبار",
+                "名前": "山田太郎",
+                "ईमेल": "user@example.com",
+                "status": "نشط",
+                "note": "سطر أول second line",
+                "drink": "latte"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created."
+          }
+        }
+      }
+    },
+    "/🎉": {
+      "get": {
+        "tags": [
+          "ユーザー"
+        ],
+        "summary": "احتفال 🎉",
+        "description": "Celebrate with 👍🏿 and 🇮🇳.",
+        "responses": {
+          "200": {
+            "description": "OK."
+          }
+        }
+      }
+    },
+    "/نموذج": {
+      "post": {
+        "operationId": "नमूना-भेजें",
+        "tags": [
+          "مستخدمون"
+        ],
+        "summary": "फ़ॉर्म भेजें",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "city",
+                  "الاسم"
+                ],
+                "properties": {
+                  "city": {
+                    "type": "string"
+                  },
+                  "الاسم": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "city": "दिल्ली",
+                "الاسم": "محمد علي"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK."
+          }
+        }
+      }
+    },
+    "/headers/locale": {
+      "get": {
+        "operationId": "getLocaleHeader",
+        "tags": [
+          "فواتير‮Invoices"
+        ],
+        "summary": "A required header with a non-ASCII example",
+        "parameters": [
+          {
+            "name": "X-Locale",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "日本語"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK."
+          }
+        }
+      }
+    },
+    "/cookies/lang": {
+      "get": {
+        "operationId": "getLangCookie",
+        "tags": [
+          "فواتير‮Invoices"
+        ],
+        "summary": "A required cookie with a non-ASCII example",
+        "parameters": [
+          {
+            "name": "lang",
+            "in": "cookie",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "עברית"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK."
+          }
+        }
+      }
+    },
+    "/uploads": {
+      "post": {
+        "operationId": "uploadMultipart",
+        "tags": [
+          "فواتير‮Invoices"
+        ],
+        "summary": "Multipart parts whose names are refused",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "title"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "ملف": {
+                    "type": "string"
+                  },
+                  "a=b": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "title": "標題 🎌",
+                "ملف": "محتوى",
+                "a=b": "value"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-API-Key"
+      }
+    },
+    "schemas": {
+      "مستخدم": {
+        "type": "object",
+        "description": "This text ‮is reversed by an override.",
+        "required": [
+          "الاسم"
+        ],
+        "properties": {
+          "الاسم": {
+            "type": "string",
+            "maxLength": 50,
+            "description": "اسم المستخدم الكامل."
+          },
+          "名前": {
+            "type": "string",
+            "description": "表示名。"
+          },
+          "ईमेल": {
+            "type": "string",
+            "format": "email",
+            "description": "ईमेल पता।"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "نشط",
+              "非アクティブ",
+              "निलंबित",
+              "🚀"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "description": "A free-text note."
+          },
+          "drink": {
+            "$ref": "#/components/schemas/Café"
+          }
+        }
+      },
+      "उपयोगकर्ता": {
+        "type": "object",
+        "description": "उपयोगकर्ता का सारांश।",
+        "properties": {
+          "नाम": {
+            "type": "string"
+          }
+        }
+      },
+      "Café": {
+        "type": "string",
+        "enum": [
+          "espresso",
+          "latte"
+        ],
+        "description": "Café drinks, written in decomposed form."
+      }
+    }
+  }
+}

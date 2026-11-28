@@ -1,0 +1,91 @@
+{
+  "$comment": "Hand-written expected values for fixtures/specs/hard-schemas.yaml (criteria 1, 2 and 22). Each value names the rule it comes from in 'rule'. 'variants' are the names ADR 0003 'Variant names' gives, in member order. 'discriminator.values' maps each allowed value to the schema id it selects; implicit values come from ADR 0002 ('discriminator without mapping'). 'merged' is the property list and required set of resolveSchemaView's allOf merge (ADR 0003 'allOf merging'), properties in merge order. 'recursive' is NamedSchema.recursive (ADR 0002 'References and recursion'). Findings use the format of expected/README in fixtures/specs/README.md.",
+  "fixture": "hard-schemas.yaml",
+  "schemas": {
+    "Pet": {
+      "variants": { "keyword": "oneOf", "names": ["House cat", "Dog", "Lizard"], "rule": "ADR 0003 'Variant names': a reference member is named by the target's title, else its id; Cat has title 'House cat'" },
+      "discriminator": {
+        "propertyName": "petType",
+        "values": { "cat": "Cat", "dog": "Dog", "Lizard": "Lizard" },
+        "rule": "Explicit mapping for cat and dog; 'Lizard' is filled in from the member schema name (ADR 0002 normalization table, 'discriminator without mapping'). Criterion 1."
+      },
+      "recursive": true,
+      "recursiveRule": "Pet -> Cat -> PetBase.friend -> Pet (ADR 0002: a schema that can reach itself by $ref)"
+    },
+    "PetBase": { "recursive": true, "recursiveRule": "PetBase.friend -> Pet -> Cat -> PetBase" },
+    "Cat": {
+      "recursive": true,
+      "recursiveRule": "Cat -> PetBase -> Pet -> Cat",
+      "merged": {
+        "properties": ["petType", "name", "friend", "huntingSkill"],
+        "required": ["petType", "name", "huntingSkill"],
+        "rule": "ADR 0003 'allOf merging': members merged in order, required is the union"
+      }
+    },
+    "Dog": {
+      "recursive": true,
+      "merged": { "properties": ["petType", "name", "friend", "packSize"], "required": ["petType", "name"], "rule": "ADR 0003 'allOf merging'" }
+    },
+    "Lizard": {
+      "recursive": true,
+      "merged": { "properties": ["petType", "name", "friend", "lovesRocks"], "required": ["petType", "name"], "rule": "ADR 0003 'allOf merging'" }
+    },
+    "Order": {
+      "recursive": false,
+      "merged": {
+        "properties": ["id", "createdAt", "lines", "contact"],
+        "required": ["id", "createdAt", "lines"],
+        "idDescription": "A stable id.",
+        "idMaxLength": 64,
+        "rule": "ADR 0003 'allOf merging': 'id' is in two members and merged the same way; its description differs, so the first ('A stable id.') is kept and schema-allof-conflict is reported; maxLength from the first member is kept because the second gives none"
+      }
+    },
+    "Contact": {
+      "variants": { "keyword": "oneOf", "names": ["Email contact", "Option 2"], "rule": "ADR 0003 'Variant names': an inline member by its title, else 'Option' and its 1-based position" },
+      "recursive": false
+    },
+    "SearchResult": {
+      "variants": { "keyword": "anyOf", "names": ["Pet", "Order hit", "Option 3"], "rule": "ADR 0003 'Variant names'; Pet has no title so its id is used" },
+      "recursive": false,
+      "recursiveRule": "SearchResult refers to Pet, which is recursive, but no path leads back to SearchResult"
+    },
+    "Cursor": {
+      "variants": null,
+      "nullable": true,
+      "rule": "ADR 0002 normalization: anyOf of exactly one schema plus {type: 'null'} is that schema made nullable, so it shows no variant switcher",
+      "recursive": false
+    },
+    "TreeNode": { "recursive": true, "recursiveRule": "TreeNode.children.items -> TreeNode (self-recursion through an array)" },
+    "Department": { "recursive": true, "recursiveRule": "Department.head -> Employee.department -> Department (mutual recursion)" },
+    "Employee": { "recursive": true, "recursiveRule": "Employee.department -> Department.members.items -> Employee; also Employee.manager -> Employee" },
+    "Identified": { "recursive": false },
+    "Timestamped": { "recursive": false },
+    "OrderLine": { "recursive": false },
+    "Error": { "recursive": false }
+  },
+  "pages": {
+    "rule": "Criterion 2 and ADR 0003 'Named schemas on a page': a reference stays a reference (SchemaLink), never a nested copy; each named schema appears at most once in a page file's 'schemas'.",
+    "operations": ["getPet", "createPet", "createOrder", "getTree", "getDepartment", "search"],
+    "accessibilitySample": "getPet",
+    "accessibilitySampleRule": "Criterion 22's 'hard-schemas operation': getPet, which shows the discriminated oneOf with allOf variants and a recursive reference"
+  },
+  "findings": {
+    "includes": [
+      {
+        "code": "schema-allof-conflict",
+        "severity": "info",
+        "pointer": null,
+        "rule": "ADR 0003 'allOf merging' and ADR 0004 rule table: Order's members give different 'description' for 'id'. Pointer not asserted: ADR 0003 does not say whether it is at the allOf, the member or the keyword (question QA-3)."
+      }
+    ],
+    "exactCodes": {
+      "synthesis-failed": [],
+      "budget-exceeded": [],
+      "limit-exceeded": [],
+      "ref-circular": [],
+      "ref-unresolved": [],
+      "schema-invalid": []
+    },
+    "exactCodesRule": "Every schema here is satisfiable and every reference resolves; recursion through schema refs is legal and is not ref-circular (ADR 0004 'Fatal and degrading faults'). No fixture yields a budget or limit finding (ADR 0003 'Budgets')."
+  }
+}

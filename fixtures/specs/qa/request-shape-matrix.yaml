@@ -1,0 +1,323 @@
+# Written in-house by QA for M1 criterion 14 (docs/milestones/m1.md): one operation per request
+# shape. Its first server is the local mock at its fixed address (ADR 0005, "The local mock"), so
+# samples run against it need no overlay, and the harness refuses to run a sample whose base URL
+# is not this one. Tenant content: data only.
+#
+# Every value comes from a declared `example` (or, for `mode`, the first `enum` value), so no
+# value is synthesized. Where order is compared (query pairs, form pairs, multipart parts,
+# cookie pairs) the declared order, the schema's property order and the example's key order are
+# the same and are also code point order, so the expected request does not depend on which of
+# them the engine follows (question QA-2).
+#
+# Expected requests, written by hand: fixtures/specs/expected/request-shape-matrix.json.
+openapi: 3.0.3
+info:
+  title: Request Shape Matrix
+  version: 1.0.0
+servers:
+  - url: http://127.0.0.1:14010
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+    basicAuth:
+      type: http
+      scheme: basic
+    headerKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    queryKey:
+      type: apiKey
+      in: query
+      name: api_key
+    cookieKey:
+      type: apiKey
+      in: cookie
+      name: sid
+  schemas:
+    Ok:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+paths:
+  /items/{itemId}/parts/{partId}:
+    get:
+      operationId: pathParams
+      summary: Path parameters
+      security: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: widget 42
+        - name: partId
+          in: path
+          required: true
+          schema:
+            type: integer
+          example: 7
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+              example:
+                ok: true
+  /search:
+    get:
+      operationId: queryParams
+      summary: Query parameters
+      security: []
+      parameters:
+        - name: limit
+          in: query
+          required: true
+          schema:
+            type: integer
+          example: 10
+        - name: mode
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [fast, thorough]
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+          example: red shoes & socks+laces
+        - name: tags
+          in: query
+          required: true
+          style: form
+          explode: true
+          schema:
+            type: array
+            items:
+              type: string
+          example: [new, sale]
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+              example:
+                ok: true
+  /headers:
+    get:
+      operationId: headerParams
+      summary: Header parameters
+      security: []
+      parameters:
+        - name: X-Request-Id
+          in: header
+          required: true
+          schema:
+            type: string
+          example: req-0001
+        - name: X-Retry-Count
+          in: header
+          required: true
+          schema:
+            type: integer
+          example: 3
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+              example:
+                ok: true
+  /json:
+    post:
+      operationId: jsonBody
+      summary: JSON body
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                age:
+                  type: integer
+                name:
+                  type: string
+                owner:
+                  type: string
+                  nullable: true
+                tags:
+                  type: array
+                  items:
+                    type: string
+            example:
+              age: 3
+              name: Rex "the dog"
+              owner: null
+              tags: [good, 'very good']
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+              example:
+                ok: true
+  /form:
+    post:
+      operationId: formBody
+      summary: Form-urlencoded body
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [age, name]
+              properties:
+                age:
+                  type: integer
+                name:
+                  type: string
+            example:
+              age: 36
+              name: Ada Lovelace & co
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+              example:
+                ok: true
+  /multipart:
+    post:
+      operationId: multipartBody
+      summary: Multipart body
+      security: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [note, title]
+              properties:
+                note:
+                  type: string
+                title:
+                  type: string
+            example:
+              note: 'line one; with "quotes"'
+              title: Quarterly report
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+              example:
+                ok: true
+  /auth/bearer:
+    get:
+      operationId: bearerAuth
+      summary: Bearer token
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+              example:
+                ok: true
+  /auth/basic:
+    get:
+      operationId: basicAuth
+      summary: Basic authentication
+      security:
+        - basicAuth: []
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+              example:
+                ok: true
+  /auth/header-key:
+    get:
+      operationId: apiKeyHeader
+      summary: API key in a header
+      security:
+        - headerKey: []
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+              example:
+                ok: true
+  /auth/query-key:
+    get:
+      operationId: apiKeyQuery
+      summary: API key in the query
+      security:
+        - queryKey: []
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+              example:
+                ok: true
+  # Beyond criterion 14's list: a declared cookie and an API key in a cookie, in one Cookie
+  # header, declared cookies first (ADR 0005, "Cookies"). The corpus had no apiKey in a cookie.
+  /auth/cookie-key:
+    get:
+      operationId: apiKeyCookie
+      summary: API key in a cookie, with a declared cookie
+      security:
+        - cookieKey: []
+      parameters:
+        - name: theme
+          in: cookie
+          required: true
+          schema:
+            type: string
+          example: dark
+      responses:
+        '200':
+          description: OK.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+              example:
+                ok: true

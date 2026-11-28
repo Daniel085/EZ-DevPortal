@@ -1,0 +1,161 @@
+# Written in-house by QA for M1 criterion 6 (docs/milestones/m1.md): a parseable spec with
+# invalid schemas (schema-invalid) and examples that violate their schemas (example-invalid),
+# plus controls that must not be reported, and one operation (/health) that no fault touches and
+# that must render in full. Tenant content: data only.
+# Expected findings: fixtures/specs/expected/invalid-schema-and-example.json.
+openapi: 3.0.3
+info:
+  title: Invalid Schema and Example
+  version: 1.0.0
+servers:
+  - url: https://api.example.com
+security:
+  - apiKey: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Unaffected by any fault
+      responses:
+        '200':
+          description: Healthy.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+              example:
+                status: ok
+  /widgets:
+    get:
+      operationId: listWidgets
+      summary: List widgets
+      parameters:
+        # example-invalid: 500 is over maximum 100.
+        - name: limit
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          example: 500
+        # Control: violates only `pattern`, which is never executed, so no example-invalid.
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^[A-Z]{3}$'
+          example: abc
+        # Control: a format outside the checked list is not checked, so no example-invalid.
+        - name: account
+          in: query
+          required: false
+          schema:
+            type: string
+            format: iban
+          example: not-an-iban
+        # Control: a valid example.
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [name, created]
+          example: created
+      responses:
+        '200':
+          description: Widgets.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Widget'
+    post:
+      operationId: createGadget
+      summary: Create a gadget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Gadget'
+            # example-invalid: `name` is required and missing.
+            example:
+              color: red
+      responses:
+        '201':
+          description: Created.
+  /widgets/{widgetId}:
+    get:
+      operationId: getWidget
+      summary: Get a widget
+      parameters:
+        - name: widgetId
+          in: path
+          required: true
+          schema:
+            type: string
+          example: w-1
+      responses:
+        '200':
+          description: The widget.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id]
+                properties:
+                  id:
+                    type: string
+              examples:
+                # example-invalid: `id` is a number, the schema says string.
+                wrongType:
+                  value:
+                    id: 42
+                # Control: valid.
+                good:
+                  value:
+                    id: w-1
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    Widget:
+      type: object
+      # schema-invalid: `required` must be an array of strings.
+      required: id
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          # schema-invalid: `minLength` must be a non-negative integer.
+          minLength: five
+        tags:
+          type: array
+          # schema-invalid: `items` must be a schema object.
+          items: string
+    Gadget:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        color:
+          type: string
+          enum: [red, green]
+          # example-invalid: not one of the enum values.
+          example: purple
+    Gizmo:
+      type: object
+      # schema-invalid: `properties` must be a mapping.
+      properties: []

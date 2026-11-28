@@ -1,0 +1,17 @@
+{
+  "$comment": "Hand-written expected values for fixtures/specs/qa/unsatisfiable-schemas.yaml (criterion 7) other than the synthesis-failed list itself, which is in expected/synthesis-failed.json with a reason per case. 'sampleValues' are expectations on the SampleValue of each control's operation (ADR 0003 'The portal bundle', SampleValue): origin 'synthesized' and the keywords named in 'uncheckedIncludes' reported as not checked. 'looksLike' is a check of ours on the synthesized value.",
+  "fixture": "qa/unsatisfiable-schemas.yaml",
+  "sampleValues": [
+    { "operationId": "controlBetween", "in": "query", "name": "x", "origin": "synthesized", "uncheckedIncludes": [], "valid": true, "rule": "0.5 satisfies exclusiveMinimum 0 and exclusiveMaximum 1 for a number; synthesis-failed here would be a synthesizer fault" },
+    { "operationId": "controlPattern", "in": "query", "name": "p", "origin": "synthesized", "uncheckedIncludes": ["pattern"], "valid": "unknown", "rule": "ADR 0003 'Schema validation': pattern is never executed and is reported as unchecked, never as satisfied or violated, so no synthesis-failed although '^$' and minLength 1 together admit nothing (m1.md 'Not tested by these criteria', a sample value against a pattern)" },
+    { "operationId": "controlFormat", "in": "query", "name": "f", "origin": "synthesized", "uncheckedIncludes": ["format"], "valid": "unknown", "rule": "ADR 0003: a format outside the nine checked is unchecked and its synthesized value is a plain string" },
+    { "operationId": "controlEmail", "in": "query", "name": "e", "origin": "synthesized", "uncheckedIncludes": [], "valid": true, "looksLike": "email", "rule": "Criterion 7: an email-format string looks like an email, not \"string\"; email is one of the nine checked formats" }
+  ],
+  "findings": {
+    "includes": [
+      { "code": "schema-allof-conflict", "severity": "info", "pointer": null, "rule": "ADR 0003 'allOf merging': the members of caseAllOfTypes give different types. Pointer not asserted (question QA-3)" }
+    ],
+    "exactCodes": {},
+    "exactCodesRule": "synthesis-failed is asserted exactly from expected/synthesis-failed.json, for this and every committed fixture."
+  }
+}

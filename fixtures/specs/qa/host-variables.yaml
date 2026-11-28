@@ -1,0 +1,76 @@
+# Written in-house by QA for M1 criterion 29 (docs/milestones/m1.md): one root server per row of
+# the worked-examples table in ADR 0004, "The fix for an open host variable", in the table's
+# order, then one server whose variable has an empty enum. No variable in rows 0 to 9 has an
+# enum, as the table says. Every variable has a default, so `server-variable-no-default` is not
+# raised and the only finding under test is `server-not-callable`. Tenant content: data only.
+# Expected results: fixtures/specs/expected/host-variables.json. A test reads the ADR's table and
+# fails if a row and its server here differ.
+openapi: 3.1.0
+info:
+  title: Host Variables
+  version: 1.0.0
+security:
+  - apiKey: []
+servers:
+  - url: https://{x}.example.com
+    variables:
+      x:
+        default: tenant
+  - url: https://api-{x}.example.com
+    variables:
+      x:
+        default: tenant
+  - url: https://{x}example.com
+    variables:
+      x:
+        default: tenant
+  - url: https://{x}.co.uk
+    variables:
+      x:
+        default: tenant
+  - url: https://{x}.github.io
+    variables:
+      x:
+        default: tenant
+  - url: https://{x}.internal
+    variables:
+      x:
+        default: tenant
+  - url: https://{region}.{env}.example.com
+    variables:
+      region:
+        default: eu
+      env:
+        default: prod
+  - url: https://{host}/v1
+    variables:
+      host:
+        default: api.example.com
+  - url: https://api.{domain}
+    variables:
+      domain:
+        default: example.com
+  - url: https://example.com:{port}/v1
+    variables:
+      port:
+        default: '8443'
+  - url: https://{region}.example.com
+    description: Not in the ADR's table. A variable with an empty enum allows no value (criterion 29).
+    variables:
+      region:
+        default: eu
+        enum: []
+paths:
+  /ping:
+    get:
+      operationId: ping
+      summary: Ping
+      responses:
+        '204':
+          description: No content.
+components:
+  securitySchemes:
+    apiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key

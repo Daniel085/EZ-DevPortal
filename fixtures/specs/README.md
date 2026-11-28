@@ -46,6 +46,31 @@ counted.
 same hostile input. It is not a third-party work. If the two copies drift, the guides module's is
 the original.
 
+## Committed, written by QA for M1
+
+Written 2026-11-28 for kickoff step 2, before the engine exists. All are in-house, with no
+third-party licence. Each holds tenant content as data: nothing in them is executed, and no test
+calls a host they name (`example.com`, `tracker.example` and `attacker.example` are reserved
+names). `hard-schemas` and `unicode-text` are in m1.md's "all fixtures"; the files under `qa/` are
+used only where a criterion names them. Each has a hand-written expected file under `expected/`
+(see "The manifest and the expected files" below). Sizes and hashes are in `SHA256SUMS`.
+
+| File | OpenAPI | What it is there to exercise | Criteria | Expected file | Operations |
+|---|---|---|---|---|---|
+| `hard-schemas.yaml` | 3.1.0 | A discriminated `oneOf` (explicit and implicit mapping) whose variants use `allOf`; `allOf` of three members with a property merged across two and a conflicting `description`; inline `oneOf` with a titled and an untitled member; `anyOf` of a reference, a titled and an untitled member; self-recursion through an array and through a `oneOf` member; mutual recursion (`Department` and `Employee`); `anyOf` with `null` as a control that is not a variant set. | 1, 2, 22, 34, and all-fixture criteria | `expected/hard-schemas.json` | 6 |
+| `unicode-text.json` | 3.1.0 | Criterion 33's list: Arabic, Hebrew, Chinese, Japanese, Devanagari, U+2000B, emoji with ZWJ, a flag and a skin-tone modifier, an NFD schema name; U+202E in a description, a JSON body example and a tag name; an unclosed U+2067 in a summary; U+200F in a Hebrew sentence with `API` and `2`; U+2028 in a JSON body example; declared non-ASCII `operationId`s and two derived ids (`post_________`, `get__`); slugs `x`, `x-2`, `x-3`; `maxLength`/`minLength` examples that differ in code points and UTF-16 code units; a required header and a required cookie with non-ASCII examples and two refused multipart part names (non-ASCII, and one holding `=`). First server is the local mock. JSON, not YAML, so that U+2028 is unambiguous to every parser. The bidi controls are raw UTF-8 in the file; the integrity test checks the exact set. | 33, 13, 14, 34, and all-fixture criteria | `expected/unicode-text.json` | 8 |
+| `qa/hostile-content.yaml` | 3.0.3 | HTML, script, event handlers and `javascript:` URLs in descriptions, summaries, examples, enum values and names (operation id, tag, schema, property, parameter); in descriptions a `javascript:` link, a `data:` link, a reference link to `javascript:`, an autolink, an HTML block and comment, and a remote image; an `externalDocs` URL of `javascript:`; `{{api_key}}` as literal example text. One construct per description, so its safe form is written by hand. | 19 | `expected/hostile-content.json` | 2 |
+| `qa/invalid-schema-and-example.yaml` | 3.0.3 | Four `schema-invalid` keywords (`required` as a string, `minLength` as a string, `items` as a string, `properties` as an array) and four `example-invalid` examples (parameter, media type, schema, named response example); controls that must not be reported (a value violating only `pattern`, a format outside the checked nine, valid examples); one operation no fault touches. | 6 | `expected/invalid-schema-and-example.json` | 4 |
+| `qa/request-shape-matrix.yaml` | 3.0.3 | One operation per request shape: path, query and header parameters; JSON, form-urlencoded and multipart bodies; bearer, basic, and API key in a header and in the query; and, beyond criterion 14's list, a declared cookie with an API key in a cookie. First server is the local mock, `http://127.0.0.1:14010`. | 14 | `expected/request-shape-matrix.json` | 11 |
+| `qa/host-variables.yaml` | 3.1.0 | One root server per row of ADR 0004's worked-examples table, in order, then a variable with an empty `enum`. Every variable has a `default`. | 29 | `expected/host-variables.json` | 1 |
+| `qa/unsatisfiable-schemas.yaml` | 3.1.0 | Eleven schemas that admit no value, each the whole schema of one required parameter or request body, using only keywords the validator checks; four controls that admit a value (an open interval, an unchecked `pattern`, an unchecked format, `email`). | 7 | `expected/unsatisfiable-schemas.json` and `expected/synthesis-failed.json` | 15 |
+
+Generated, not committed: **documents past each parsing limit** (criterion 5), made by
+`packages/engine/test/corpus/oversize.ts`: text one code unit over `inputBytes`, empty text with
+`bytes` over it (the file not read), nesting one level over `depth`, one node over `nodes` and one
+alias over `aliasExpansions`. Each is otherwise a valid document. The limits are ADR 0003's
+`defaultLimits`.
+
 ## Not committed: `./fetch.sh` downloads these into `large/`
 
 | File | OpenAPI | What it is there to exercise | Source (pinned URL) | Version and commit | License | Size | Operations | SHA-256 |
@@ -76,7 +101,9 @@ the counts that module reported.
 ## Malformed, hand-written
 
 One fault per file, each as small as it can be. `malformed/expected.json` gives the stage at which
-each must be caught and the JSON Pointer of the fault, for tests to assert against.
+each must be caught, the JSON Pointer of the fault, and the finding code, severity and fatality
+ADR 0004 assigns it, for tests to assert against. Five are fatal (the three of stage parse,
+`missing-openapi` and `unsupported-swagger-2.0`); the other eleven build with findings.
 
 | File | Stage | Fault | Size | SHA-256 |
 |---|---|---|---|---|
@@ -101,12 +128,44 @@ Stages: **parse** means the text is not YAML or JSON; **structure** means it par
 shape of an OpenAPI document; **resolve** means a `$ref` cannot be followed; **semantic** means the
 document is well-formed but wrong.
 
+## The manifest and the expected files
+
+`corpus.json` lists every fixture spec: its set (`all`, `broken` or `qa`), origin, licence and
+licence file, whether it is fetch-only, whether it parses as YAML or JSON, whether its first
+server is the local mock, the criteria that name it, and its expected file. The tests in
+`packages/engine/test/` discover the specs on disk and fail if one is missing from the manifest,
+so no fixture is skipped by accident.
+
+The expected files are written by hand, never taken from engine output, and each value names
+the ADR rule it comes from in a `rule` field. They are shared by the engine's tests and, from
+kickoff step 4, the publisher's mock tests, which is why they are here and not in a package's
+`test/__golden__/` (ADR 0001, Fixtures). Formats:
+
+- **Findings**, in every `expected/*.json` that has a `findings` member: `includes` lists
+  findings that must be present with that code and severity at that pointer (`pointer: null`
+  means the pointer is not asserted; `pointerAlternatives` are accepted while the question
+  named is open); `exactCodes` maps a code to the complete list of places it must be reported,
+  no more and no fewer (an entry is a pointer, or `{ pointer, alternatives, subject }`, where a
+  `null` pointer counts a finding without placing it). A code not in either is not asserted.
+- **Requests** (`request-shape-matrix.json`, `unicode-text.json`): one entry per operation in the
+  comparison form of ADR 0005, "How a received request is compared": `method`, `target` (path
+  and query), `headers`, `contentType`, `body` (`none`, `json` compared parsed, `form` pairs in
+  order, `multipart` parts in order), `mustBeAbsent` and the `status` the mock answers.
+- **`synthesis-failed.json`**: for every committed fixture that builds, the complete list of
+  `synthesis-failed` findings, each with a written reason its schema admits no value (criterion
+  7). A fixture listed with `[]` is expected to have none.
+- **`malformed/expected.json`**: the stage, pointer, finding code, severity and whether it is
+  fatal, for each of the 16 malformed fixtures, from ADR 0004, "Fatal and degrading faults".
+
+Open questions about expected values are numbered `QA-n` in the files; they are listed in the
+report of kickoff step 2 and are to be answered in the ADRs.
+
 ## Coverage
 
 | Need | Committed | Fetch-only |
 |---|---|---|
-| OpenAPI 3.0 | `petstore`, `redoc-petstore-3.0`, `openai`, `oai-link-example`, `oai-callback-example`, `oai-petstore-expanded`, `oai-uspto`, `synthetic-orders` | `stripe`, `github-ghes`, `clubhouse` |
-| OpenAPI 3.1 | `museum`, `redoc-petstore-3.1`, `adyen-checkout-v72`, `oai-webhook-example` | `github-api-3.1` |
+| OpenAPI 3.0 | `petstore`, `redoc-petstore-3.0`, `openai`, `oai-link-example`, `oai-callback-example`, `oai-petstore-expanded`, `oai-uspto`, `synthetic-orders`; QA's `hostile-content`, `invalid-schema-and-example`, `request-shape-matrix` | `stripe`, `github-ghes`, `clubhouse` |
+| OpenAPI 3.1 | `museum`, `redoc-petstore-3.1`, `adyen-checkout-v72`, `oai-webhook-example`, `hard-schemas`, `unicode-text`; QA's `host-variables`, `unsatisfiable-schemas` | `github-api-3.1` |
 | Small, under 20 operations | `museum` (8), `petstore` (19), `synthetic-orders` (9), the `oai-*` files (0 to 6) | |
 | Mid-sized | `openai` (148) | `clubhouse` (41) |
 | Very large, hundreds of operations | none | `stripe` (612), `github-ghes` (908), `github-api-3.1` (1,281) |
@@ -115,26 +174,32 @@ document is well-formed but wrong.
 | Heavy `oneOf` | `openai` (116), `adyen-checkout-v72` (4, with very many branches) | `stripe` (322), `github-api-3.1` (274), `github-ghes` (187) |
 | Heavy `anyOf` | `openai` (45) | `stripe` (2,124), `github-api-3.1` (260) |
 | `allOf` | `openai` (18), `redoc-petstore-3.0` (11) | `github-api-3.1` (86) |
-| Discriminators | `openai` (10), `adyen-checkout-v72` (5), `redoc-petstore-*` (1) | `github-api-3.1` (6) |
-| Recursive schemas | `redoc-petstore-*` (`Pet.friend`) | `stripe` (120 schemas on a cycle) |
-| `apiKey` | `petstore`, `redoc-petstore-*`, `adyen-checkout-v72` (all in a header) | |
+| Discriminators | `openai` (10), `adyen-checkout-v72` (5), `redoc-petstore-*` (1), `hard-schemas` (1, explicit and implicit mapping) | `github-api-3.1` (6) |
+| Recursive schemas | `redoc-petstore-*` (`Pet.friend`), `hard-schemas` (self, through an array, through `oneOf`, and mutual) | `stripe` (120 schemas on a cycle) |
+| `apiKey` | `petstore`, `redoc-petstore-*`, `adyen-checkout-v72` (all in a header); `qa/request-shape-matrix` (header, query and cookie) | |
 | `http` basic | `museum`, `adyen-checkout-v72` | `stripe` |
 | `http` bearer | `openai`, `synthetic-orders` | `stripe` |
 | `oauth2` | `petstore`, `redoc-petstore-*` (implicit flow only) | |
 | Webhooks (3.1) | `museum` (1), `redoc-petstore-3.1` (2), `oai-webhook-example` (1) | `github-api-3.1` (276) |
 | Callbacks | `oai-callback-example`, `redoc-petstore-*` | |
 | Thin: sparse descriptions, no examples | `oai-link-example`, `synthetic-orders` | `clubhouse` |
-| Malformed | `malformed/` (16 files) | |
+| Malformed | `malformed/` (16 files), `qa/invalid-schema-and-example` | |
+| Hostile text | `synthetic-orders`, `redoc-petstore-*` (HTML in descriptions), `qa/hostile-content` | |
+| Text outside ASCII, bidi controls | `unicode-text` | |
+| Host variables | `oai-uspto`, `qa/host-variables` | |
+| Unsatisfiable schemas | `qa/unsatisfiable-schemas` | |
 
 Known gaps:
 
 - **No very large spec is committed.** Scale tests need `./fetch.sh` and network access to
   `raw.githubusercontent.com`.
-- **No `apiKey` in a query string or cookie, no `openIdConnect`, no `mutualTLS`, and no `oauth2`
-  flow other than implicit.** A spec with authorization-code or client-credentials flows is still
-  needed.
-- **Recursion in the committed set is one self-reference.** Mutual recursion across several schemas
-  is only in Stripe.
+- **No `openIdConnect`, no `mutualTLS`, and no `oauth2` flow other than implicit.** A spec with
+  authorization-code or client-credentials flows is still needed. `apiKey` in a query string and
+  in a cookie is now in `qa/request-shape-matrix` only.
+- **Mutual recursion** in the committed set is `hard-schemas` only (`Department` and `Employee`);
+  among third-party specs it is only in Stripe.
+- **No binary multipart part.** The matrix and `unicode-text` send text parts only, because a
+  sample run unmodified reads its file from `YOUR_FILE_PATH` (ADR 0005, rule 2).
 - **Nothing committed is near 5 MB.** The 5 MB case is Stripe (8.3 MB) or larger.
 - **No multi-file spec** (relative `$ref` to sibling files) and no Swagger 2.0 document other than
   the minimal negative fixture.
@@ -144,6 +209,7 @@ Known gaps:
 
 ## Sizes
 
-Committed specs: 2,373,804 bytes (2.37 MB) in 12 files. Everything committed under
-`fixtures/specs/` apart from this README: 2,412,766 bytes (2.41 MB). `large/` after `./fetch.sh`: 32,797,678 bytes
+Committed specs: 2,417,434 bytes (2.42 MB) in 19 files: the 12 above, 2,373,804 bytes, and QA's
+seven, 43,630 bytes. The 16 malformed specs are counted separately (3,057 bytes). Everything
+committed under `fixtures/specs/` apart from this README: 2,528,648 bytes (2.53 MB). `large/` after `./fetch.sh`: 32,797,678 bytes
 (32.8 MB) in 4 files.

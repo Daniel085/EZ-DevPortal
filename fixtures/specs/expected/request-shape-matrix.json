@@ -1,0 +1,128 @@
+{
+  "$comment": "Hand-written expected requests for fixtures/specs/qa/request-shape-matrix.yaml (criterion 14), in the comparison form of ADR 0005 'How a received request is compared'. Written by hand from the spec and the ADR rules named in each 'rule', not from buildRequest or HttpRequest. Percent-escapes were worked out by hand from ADR 0005 'Text outside ASCII' rule 1 (UTF-8 bytes, every byte outside A-Z a-z 0-9 - . _ ~ as % and two upper-case hex digits, space as %20) and cross-checked with Python's urllib.parse.quote(value, safe='-._~'). Fields: 'method' compared exactly; 'target' is path and query, compared byte for byte except the case of a percent-escape's hex digits; 'headers' each present exactly once, name without regard to ASCII case, value byte for byte after trimming spaces and tabs; 'contentType' compared as ADR 0005 says ('multipart/form-data' also needs a boundary); 'body' is {kind:'none'}, {kind:'json', value} compared parsed, {kind:'form', pairs:[[name,value]]} compared in order by the URL rule, or {kind:'multipart', parts:[{name, content, filename?, contentType?}]} compared in order; 'mustBeAbsent' lists header names that must not be present (ADR 0005: a declared parameter, a credential carrier, Cookie or Authorization not expected); 'status' is what the mock answers (ADR 0005 'It accepts a request': the selectResponseExample status when it is an exact 2xx code, else 200).",
+  "fixture": "qa/request-shape-matrix.yaml",
+  "server": "http://127.0.0.1:14010",
+  "serverRule": "ADR 0005 'The local mock': the port is fixed at 14010 and the matrix declares the mock as its first server; the harness refuses to run a sample whose base URL is not this one.",
+  "requests": [
+    {
+      "operationId": "pathParams", "shape": "path parameters", "criterion": 14,
+      "method": "GET",
+      "target": "/items/widget%2042/parts/7",
+      "headers": [],
+      "mustBeAbsent": ["Authorization", "Cookie"],
+      "body": { "kind": "none" },
+      "status": 200,
+      "rule": "ADR 0005 rule 1: a path value is percent-encoded, space as %20; style simple"
+    },
+    {
+      "operationId": "queryParams", "shape": "query parameters", "criterion": 14,
+      "method": "GET",
+      "target": "/search?limit=10&mode=fast&q=red%20shoes%20%26%20socks%2Blaces&tags=new&tags=sale",
+      "headers": [],
+      "mustBeAbsent": ["Authorization", "Cookie"],
+      "body": { "kind": "none" },
+      "status": 200,
+      "rule": "ADR 0005 rule 1: '&' is %26 and '+' is %2B in a value; style form, explode true gives one pair per array item; 'mode' has no example, so its first enum value (ADR 0005 'Rules', fill order)"
+    },
+    {
+      "operationId": "headerParams", "shape": "header parameters", "criterion": 14,
+      "method": "GET",
+      "target": "/headers",
+      "headers": [ { "name": "X-Request-Id", "value": "req-0001" }, { "name": "X-Retry-Count", "value": "3" } ],
+      "mustBeAbsent": ["Authorization", "Cookie"],
+      "body": { "kind": "none" },
+      "status": 200,
+      "rule": "ADR 0005: header values printable ASCII; an integer example is written as its decimal text (style simple)"
+    },
+    {
+      "operationId": "jsonBody", "shape": "JSON body", "criterion": 14,
+      "method": "POST",
+      "target": "/json",
+      "headers": [],
+      "contentType": "application/json",
+      "mustBeAbsent": ["Authorization", "Cookie"],
+      "body": { "kind": "json", "value": { "age": 3, "name": "Rex \"the dog\"", "owner": null, "tags": ["good", "very good"] } },
+      "status": 201,
+      "rule": "ADR 0005 'How a received request is compared': JSON compared parsed; status 201 because the response example is under the exact 2xx code 201"
+    },
+    {
+      "operationId": "formBody", "shape": "form-urlencoded body", "criterion": 14,
+      "method": "POST",
+      "target": "/form",
+      "headers": [],
+      "contentType": "application/x-www-form-urlencoded",
+      "mustBeAbsent": ["Authorization", "Cookie"],
+      "body": { "kind": "form", "pairs": [["age", "36"], ["name", "Ada%20Lovelace%20%26%20co"]] },
+      "status": 200,
+      "rule": "ADR 0005 rule 1: form field values percent-encoded as in a query, space %20 never '+', '&' %26; pairs compared in order"
+    },
+    {
+      "operationId": "multipartBody", "shape": "multipart body", "criterion": 14,
+      "method": "POST",
+      "target": "/multipart",
+      "headers": [],
+      "contentType": "multipart/form-data",
+      "mustBeAbsent": ["Authorization", "Cookie"],
+      "body": { "kind": "multipart", "parts": [ { "name": "note", "content": "line one; with \"quotes\"" }, { "name": "title", "content": "Quarterly report" } ] },
+      "status": 200,
+      "rule": "ADR 0005: parts compared in order, name and content byte for byte; '\"' is refused only in a part's name or filename (rule 2), not in its content"
+    },
+    {
+      "operationId": "bearerAuth", "shape": "bearer", "criterion": 14,
+      "method": "GET",
+      "target": "/auth/bearer",
+      "headers": [ { "name": "Authorization", "value": "Bearer YOUR_ACCESS_TOKEN" } ],
+      "mustBeAbsent": ["Cookie"],
+      "body": { "kind": "none" },
+      "status": 200,
+      "rule": "ADR 0003 security statement: http bearer is header Authorization with prefix 'Bearer '; ADR 0005 'What an M1 sample shows': display text YOUR_ACCESS_TOKEN (that bearer uses the access_token variable is question QA-1)"
+    },
+    {
+      "operationId": "basicAuth", "shape": "basic", "criterion": 14,
+      "method": "GET",
+      "target": "/auth/basic",
+      "headers": [ { "name": "Authorization", "value": "Basic WU9VUl9VU0VSTkFNRTpZT1VSX1BBU1NXT1JE" } ],
+      "mustBeAbsent": ["Cookie"],
+      "body": { "kind": "none" },
+      "status": 200,
+      "rule": "ADR 0005 'Basic authentication': on the wire every sample sends the Base64 of YOUR_USERNAME:YOUR_PASSWORD; no sample text contains the encoded value"
+    },
+    {
+      "operationId": "apiKeyHeader", "shape": "API key in a header", "criterion": 14,
+      "method": "GET",
+      "target": "/auth/header-key",
+      "headers": [ { "name": "X-API-Key", "value": "YOUR_API_KEY" } ],
+      "mustBeAbsent": ["Authorization", "Cookie"],
+      "body": { "kind": "none" },
+      "status": 200,
+      "rule": "ADR 0003 security statement: apiKey in and name from the scheme, no prefix; display text YOUR_API_KEY"
+    },
+    {
+      "operationId": "apiKeyQuery", "shape": "API key in the query", "criterion": 14,
+      "method": "GET",
+      "target": "/auth/query-key?api_key=YOUR_API_KEY",
+      "headers": [],
+      "mustBeAbsent": ["Authorization", "Cookie"],
+      "body": { "kind": "none" },
+      "status": 200,
+      "rule": "ADR 0003 security statement; the credential is a query pair"
+    },
+    {
+      "operationId": "apiKeyCookie", "shape": "API key in a cookie, with a declared cookie", "criterion": null,
+      "method": "GET",
+      "target": "/auth/cookie-key",
+      "headers": [ { "name": "Cookie", "value": "theme=dark; sid=YOUR_API_KEY" } ],
+      "mustBeAbsent": ["Authorization"],
+      "body": { "kind": "none" },
+      "status": 200,
+      "rule": "Beyond criterion 14's list. ADR 0005 'Cookies': one Cookie header, declared non-credential cookies first in parameter order, then the credential cookie; pairs joined by '; '"
+    }
+  ],
+  "findings": {
+    "includes": [
+      { "code": "server-not-callable", "severity": "warning", "pointer": "/servers/0", "rule": "ADR 0004: the mock's address is http and localhost, so the proxy will not send to it (m1.md 'A mock-server build'). Pointer: the server object (question QA-7)" }
+    ],
+    "exactCodes": { "request-invalid": [], "synthesis-failed": [], "example-invalid": [], "example-missing": [] },
+    "exactCodesRule": "Every value is declared (example or enum), so nothing is synthesized and no example-missing is due (ADR 0004 'example-missing' needs no example, default and enum); every header and cookie value is printable ASCII, so nothing is refused."
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "$comment": "Hand-written expected values for fixtures/specs/qa/hostile-content.yaml (criterion 19). 'markdown' entries are Markdown fields: 'safeForm' is sanitizeMarkdown(authored).text by the rewrite table of ADR 0003 'Tenant Markdown' (null where the table leaves white space undetermined; then 'visibleIncludes'/'visibleExcludes' apply), and 'visible' is the text a reader sees. 'text' entries are tenant strings that are not Markdown: 'escaped' is escapeMarkdownText(authored) by ADR 0003 'escapeMarkdownText'. 'slug' is by ADR 0002 'Identifiers', Slug. 'url' entries are not Markdown and must never become a live link. Every entry also falls under 'pageAssertions'.",
+  "fixture": "qa/hostile-content.yaml",
+  "strings": [
+    { "pointer": "/info/description", "kind": "markdown", "authored": "Hello <script>alert(1)</script> world", "safeForm": "Hello &lt;script>alert(1)&lt;/script> world", "visible": "Hello <script>alert(1)</script> world", "rule": "ADR 0003 'Tenant Markdown': raw inline HTML, each '<' written '&lt;'" },
+    { "pointer": "/externalDocs/url", "kind": "url", "authored": "javascript:alert(1)", "rule": "Standing constraint: tenant content is never executed. ADR 0003 'linkDestinationAllowed' refuses it; no page or twin may hold it as an href" },
+    { "pointer": "/externalDocs/description", "kind": "markdown", "authored": "[Click here](javascript:alert(document.cookie)) to continue.", "safeForm": "Click here to continue.", "visible": "Click here to continue.", "rule": "ADR 0003 'Tenant Markdown': a refused link is its link text alone; the destination is dropped" },
+    { "pointer": "/tags/0/name", "kind": "text", "authored": "<script>alert('tag')</script>", "escaped": "\\<script\\>alert('tag')\\</script\\>", "slug": "script-alert-tag-script", "rule": "ADR 0003 'escapeMarkdownText'; ADR 0002 Slug" },
+    { "pointer": "/tags/0/description", "kind": "markdown", "authored": "<img src=\"https://tracker.example/x.png\" onerror=\"alert(1)\">", "safeForm": "&lt;img src=\"https://tracker.example/x.png\" onerror=\"alert(1)\">", "visible": "<img src=\"https://tracker.example/x.png\" onerror=\"alert(1)\">", "rule": "ADR 0003 'Tenant Markdown': an HTML block, each '<' written '&lt;'; shown as the text that was typed, no image, no request to tracker.example" },
+    { "pointer": "/paths/~1things/get/operationId", "kind": "text", "authored": "<img src=x onerror=alert(1)>", "escaped": "\\<img src=x onerror=alert(1)\\>", "slug": "img-src-x-onerror-alert-1", "operationId": "<img src=x onerror=alert(1)>", "rule": "ADR 0002: a declared operationId is used verbatim; its slug keeps ASCII a-z0-9 runs joined by '-'" },
+    { "pointer": "/paths/~1things/get/summary", "kind": "text", "authored": "<b onmouseover=\"alert(1)\">Get</b> things", "escaped": "\\<b onmouseover=\"alert(1)\"\\>Get\\</b\\> things", "rule": "ADR 0003 'escapeMarkdownText'" },
+    { "pointer": "/paths/~1things/get/description", "kind": "markdown", "authored": "[Click here](javascript:alert(document.cookie)) to continue.", "safeForm": "Click here to continue.", "visible": "Click here to continue.", "rule": "ADR 0003 'Tenant Markdown': refused link" },
+    { "pointer": "/paths/~1things/get/parameters/0/name", "kind": "text", "authored": "<q onfocus=alert(1)>", "escaped": "\\<q onfocus=alert(1)\\>", "urlEncoded": "%3Cq%20onfocus%3Dalert%281%29%3E", "rule": "ADR 0003 'escapeMarkdownText'; ADR 0005 'Text outside ASCII' rule 1 for the name in the URL" },
+    { "pointer": "/paths/~1things/get/parameters/0/description", "kind": "markdown", "authored": "![Remote image](https://tracker.example/pixel.gif)", "safeForm": "Remote image", "visible": "Remote image", "rule": "ADR 0003 'Tenant Markdown': an image is escapeMarkdownText of its alt text; never an image, no remote host contacted" },
+    { "pointer": "/paths/~1things/get/parameters/0/example", "kind": "example", "authored": "\"><script>alert(1)</script>", "urlEncoded": "%22%3E%3Cscript%3Ealert%281%29%3C%2Fscript%3E", "rule": "Criterion 19: an example is shown as inert text; ADR 0005 rule 1 in the URL" },
+    { "pointer": "/paths/~1things/get/parameters/1/description", "kind": "markdown", "authored": "[x](data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg==)", "safeForm": "x", "visible": "x", "rule": "ADR 0003 'Tenant Markdown': a data: destination is refused" },
+    { "pointer": "/paths/~1things/get/parameters/1/schema/enum/0", "kind": "enum", "authored": "<b>bold</b>", "urlEncoded": "%3Cb%3Ebold%3C%2Fb%3E", "rule": "Criterion 19: enum values inert. The first enum value is the sample value (ADR 0005 'Rules', fill order)" },
+    { "pointer": "/paths/~1things/get/parameters/1/schema/enum/1", "kind": "enum", "authored": "javascript:alert(1)", "rule": "Criterion 19" },
+    { "pointer": "/paths/~1things/get/parameters/1/schema/enum/2", "kind": "enum", "authored": "\" onmouseover=\"alert(1)", "rule": "Criterion 19: an attribute break-out attempt" },
+    { "pointer": "/paths/~1things/get/parameters/1/schema/enum/3", "kind": "enum", "authored": "<img src=https://tracker.example/e.png>", "rule": "Criterion 19" },
+    { "pointer": "/paths/~1things/get/responses/200/description", "kind": "markdown", "authored": "[docs][evil]\n\n[evil]: javascript:alert(1)", "safeForm": null, "visibleIncludes": ["docs"], "visibleExcludes": ["javascript", "evil"], "rule": "ADR 0003 'Tenant Markdown': a reference link whose destination is refused is its link text alone, and the definition is removed. White space left after removing the definition is not specified (question QA-5)" },
+    { "pointer": "/paths/~1things/post/description", "kind": "markdown", "authored": "[Docs](https://docs.example.com/guide)", "safeForm": "[Docs](https://docs.example.com/guide)", "visible": "Docs", "rule": "Control. ADR 0003: an inline link whose destination is allowed is unchanged" },
+    { "pointer": "/paths/~1things/post/requestBody/content/application~1json/example", "kind": "example", "authored": { "onclick=\"alert(1)\"": "<script>alert('example')</script>", "link": "javascript:alert(1)", "template": "https://attacker.example/?k={{api_key}}" }, "rule": "Criterion 19; ADR 0005 'Variables are structure, never marker text': '{{api_key}}' is literal text in every sample, never a variable" },
+    { "pointer": "/components/securitySchemes/apiKey/description", "kind": "markdown", "authored": "<!-- comment --><style>body{display:none}</style>", "safeForm": "&lt;!-- comment -->&lt;style>body{display:none}&lt;/style>", "visible": "<!-- comment --><style>body{display:none}</style>", "rule": "ADR 0003 'Tenant Markdown': an HTML block (comment and style), each '<' written '&lt;'" },
+    { "pointer": "/components/schemas/Thing/description", "kind": "markdown", "authored": "<a href=\"javascript:alert(1)\" onclick=\"steal()\">open</a>", "safeForm": "&lt;a href=\"javascript:alert(1)\" onclick=\"steal()\">open&lt;/a>", "visible": "<a href=\"javascript:alert(1)\" onclick=\"steal()\">open</a>", "rule": "ADR 0003 'Tenant Markdown': inline HTML in a paragraph (not a type 7 block: text follows the tag on its line)" },
+    { "pointer": "/components/schemas/Thing/properties/onclick=\"alert(1)\"", "kind": "text", "authored": "onclick=\"alert(1)\"", "escaped": "onclick=\"alert(1)\"", "rule": "A property name; escapeMarkdownText leaves it unchanged (no character it escapes). On a page it must be text, never an attribute" },
+    { "pointer": "/components/schemas/Thing/properties/onclick=\"alert(1)\"/description", "kind": "markdown", "authored": "See <javascript:alert(1)> now", "safeForm": "See &lt;javascript:alert(1)> now", "visible": "See <javascript:alert(1)> now", "rule": "ADR 0003 'Tenant Markdown': an autolink is text, its '<' written '&lt;'" },
+    { "pointer": "/components/schemas/Thing/properties/onclick=\"alert(1)\"/example", "kind": "example", "authored": "<script>alert('example')</script>", "rule": "Criterion 19" },
+    { "pointer": "/components/schemas/Evil<svg onload=alert(1)>", "kind": "text", "authored": "Evil<svg onload=alert(1)>", "escaped": "Evil\\<svg onload=alert(1)\\>", "slug": "evil-svg-onload-alert-1", "rule": "A schema name: escapeMarkdownText; ADR 0002 Slug" },
+    { "pointer": "/components/schemas/Evil<svg onload=alert(1)>/description", "kind": "markdown", "authored": "Hello <script>alert(1)</script> world", "safeForm": "Hello &lt;script>alert(1)&lt;/script> world", "visible": "Hello <script>alert(1)</script> world", "rule": "ADR 0003 'Tenant Markdown'" }
+  ],
+  "slugs": {
+    "tags": { "<script>alert('tag')</script>": "script-alert-tag-script" },
+    "operations": { "<img src=x onerror=alert(1)>": "img-src-x-onerror-alert-1", "createThing": "creatething" },
+    "schemas": { "Thing": "thing", "Evil<svg onload=alert(1)>": "evil-svg-onload-alert-1" },
+    "rule": "ADR 0002 'Identifiers', Slug"
+  },
+  "pageAssertions": {
+    "rule": "Criterion 19, checked in the built pages and in the twins: tenant content executes nothing, and no remote host is contacted.",
+    "html": [
+      "no <script> element other than the app's own",
+      "no attribute whose name begins with 'on' that came from tenant text",
+      "no href, src, action, formaction or srcset whose value begins with 'javascript:' or 'data:', in any letter case",
+      "no <img>, <svg>, <iframe>, <object> or <embed> from tenant text, and no request to tracker.example or attacker.example while the page loads"
+    ],
+    "twins": [
+      "parsed by parseMarkdown: no html, image, imageReference or definition node (ADR 0003 'Tenant Markdown', Tests)",
+      "every link is one the engine wrote to another twin or passes linkDestinationAllowed"
+    ]
+  },
+  "findings": {
+    "includes": [],
+    "exactCodes": { "markdown-not-rendered": [], "synthesis-failed": [], "budget-exceeded": [] },
+    "exactCodesRule": "No description here needs the fallback (each is short, shallow and settles in one pass), so markdown-not-rendered is not expected (ADR 0003 'Fallback')."
+  }
+}

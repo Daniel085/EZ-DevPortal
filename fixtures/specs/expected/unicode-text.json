@@ -1,0 +1,463 @@
+{
+  "$comment": "Hand-written expected values for fixtures/specs/unicode-text.json (criterion 33; also 13 and 14 through it). Bidi controls and U+2028 are written here as \\u escapes so this file is readable; the fixture holds them as raw UTF-8 (see 'controls'). Request entries use the comparison form of fixtures/specs/expected/request-shape-matrix.json and ADR 0005 'How a received request is compared'. Percent-escapes were worked out from ADR 0005 'Text outside ASCII' rule 1 (UTF-8 bytes, upper-case hex, space %20; path template literal text: each code point that is not an RFC 3986 pchar or '/' encoded) and cross-checked with Python's urllib.parse.quote. Ids and slugs are from ADR 0002 'Identifiers' and contract 1.1, worked by hand.",
+  "fixture": "unicode-text.json",
+  "server": "http://127.0.0.1:14010",
+  "controls": {
+    "rule": "Criterion 33's list. Every occurrence in the fixture of U+061C, U+200E, U+200F, U+202A-U+202E, U+2066-U+2069, U+2028 or U+2029 (ADR 0005 rule 3(b)) is one of these, and each of these is present. The tag name with U+202E is also each operation's 'tags' entry that names it.",
+    "occurrences": [
+      {
+        "pointer": "/tags/2/name",
+        "codePoint": "U+202E",
+        "what": "a tag name"
+      },
+      {
+        "pointer": "/paths/~1headers~1locale/get/tags/0",
+        "codePoint": "U+202E",
+        "what": "that tag name, used by an operation"
+      },
+      {
+        "pointer": "/paths/~1cookies~1lang/get/tags/0",
+        "codePoint": "U+202E",
+        "what": "that tag name, used by an operation"
+      },
+      {
+        "pointer": "/paths/~1uploads/post/tags/0",
+        "codePoint": "U+202E",
+        "what": "that tag name, used by an operation"
+      },
+      {
+        "pointer": "/components/schemas/مستخدم/description",
+        "codePoint": "U+202E",
+        "what": "a description"
+      },
+      {
+        "pointer": "/paths/~1مستخدمين/post/requestBody/content/application~1json/example/الاسم",
+        "codePoint": "U+202E",
+        "what": "a JSON request-body example"
+      },
+      {
+        "pointer": "/paths/~1検索/get/summary",
+        "codePoint": "U+2067",
+        "what": "an operation summary, unclosed (no U+2069 follows)"
+      },
+      {
+        "pointer": "/paths/~1مستخدمين~1{معرف}/get/description",
+        "codePoint": "U+200F",
+        "what": "inside a right-to-left (Hebrew) sentence with the Latin word API and the number 2"
+      },
+      {
+        "pointer": "/paths/~1مستخدمين/post/requestBody/content/application~1json/example/note",
+        "codePoint": "U+2028",
+        "what": "a JSON request-body example"
+      }
+    ]
+  },
+  "scripts": {
+    "rule": "Criterion 33: the fixture as a whole holds each of these. The integrity test checks each by code point range.",
+    "required": [
+      "Arabic",
+      "Hebrew",
+      "Han (Chinese)",
+      "Kana (Japanese)",
+      "Devanagari",
+      "a non-BMP character that is not an emoji (U+2000B)",
+      "an emoji ZWJ sequence",
+      "a flag (two regional indicators)",
+      "a skin-tone modifier",
+      "one string in NFD that differs from its NFC"
+    ],
+    "nfd": {
+      "pointer": "/components/schemas/Café",
+      "value": "Café",
+      "rule": "A schema name in NFD ('e' + U+0301). Kept as authored (ADR 0002 'Text is kept as authored'); its slug is 'cafe', where NFC would give 'caf'."
+    }
+  },
+  "operations": [
+    {
+      "method": "get",
+      "path": "/مستخدمين/{معرف}",
+      "id": "获取用户",
+      "idSource": "declared",
+      "slug": "x-3",
+      "page": "operations/x-3"
+    },
+    {
+      "method": "get",
+      "path": "/検索",
+      "id": "検索する",
+      "idSource": "declared",
+      "slug": "x-2",
+      "page": "operations/x-2"
+    },
+    {
+      "method": "post",
+      "path": "/مستخدمين",
+      "id": "post_________",
+      "idSource": "derived",
+      "slug": "post",
+      "page": "operations/post"
+    },
+    {
+      "method": "get",
+      "path": "/🎉",
+      "id": "get__",
+      "idSource": "derived",
+      "slug": "get",
+      "page": "operations/get"
+    },
+    {
+      "method": "post",
+      "path": "/نموذج",
+      "id": "नमूना-भेजें",
+      "idSource": "declared",
+      "slug": "x",
+      "page": "operations/x"
+    },
+    {
+      "method": "get",
+      "path": "/headers/locale",
+      "id": "getLocaleHeader",
+      "idSource": "declared",
+      "slug": "getlocaleheader",
+      "page": "operations/getlocaleheader"
+    },
+    {
+      "method": "get",
+      "path": "/cookies/lang",
+      "id": "getLangCookie",
+      "idSource": "declared",
+      "slug": "getlangcookie",
+      "page": "operations/getlangcookie"
+    },
+    {
+      "method": "post",
+      "path": "/uploads",
+      "id": "uploadMultipart",
+      "idSource": "declared",
+      "slug": "uploadmultipart",
+      "page": "operations/uploadmultipart"
+    }
+  ],
+  "operationsRule": "Criterion 33(d); contract 1.1 and ADR 0002 'Identifiers'. A declared operationId is used verbatim. A derived id is the method and the path with each code point (not UTF-16 code unit) outside A-Za-z0-9 replaced by one '_': 'post' + '/' + 8 Arabic letters gives 'post' and 9 underscores; 'get' + '/' + U+1F389 gives 'get__'. A slug keeps ASCII a-z0-9 runs joined by '-', so an id with none gets 'x'; in the operations pool three ids get 'x', taken in code point order of the id: U+0928 (Devanagari) 'x', U+691C (検) 'x-2', U+83B7 (获) 'x-3'. 'post_________' and 'get__' become 'post' and 'get' once '-' runs are trimmed.",
+  "tags": [
+    {
+      "name": "مستخدمون",
+      "slug": "x",
+      "page": "tags/x"
+    },
+    {
+      "name": "ユーザー",
+      "slug": "x-2",
+      "page": "tags/x-2"
+    },
+    {
+      "name": "فواتير\u202EInvoices",
+      "slug": "invoices",
+      "page": "tags/invoices"
+    }
+  ],
+  "tagsRule": "ADR 0002 Slug, tags pool: U+0645 (Arabic) sorts before U+30E6 (Katakana), so the Arabic tag keeps 'x' and the Japanese one gets 'x-2'. The U+202E tag keeps only its ASCII run 'invoices' (lower-cased)",
+  "schemas": [
+    {
+      "id": "مستخدم",
+      "slug": "x",
+      "page": "schemas/x",
+      "fragment": "schema-x"
+    },
+    {
+      "id": "उपयोगकर्ता",
+      "slug": "x-2",
+      "page": "schemas/x-2",
+      "fragment": "schema-x-2"
+    },
+    {
+      "id": "Café",
+      "slug": "cafe",
+      "page": "schemas/cafe",
+      "fragment": "schema-cafe"
+    }
+  ],
+  "schemasRule": "ADR 0002 Slug, schemas pool: U+0645 (Arabic) before U+0909 (Devanagari). Fragments are 'schema-' + slug (ADR 0003 'Fragments'), all ASCII.",
+  "lengths": {
+    "rule": "Criterion 33(e); ADR 0003 'Schema validation': minLength and maxLength count code points. U+1F389 is one code point and two UTF-16 code units.",
+    "cases": [
+      {
+        "pointer": "/paths/~1検索/get/parameters/2/example",
+        "schema": "maxLength 3",
+        "value": "🎉🎉🎉",
+        "codePoints": 3,
+        "utf16Units": 6,
+        "exampleInvalid": false
+      },
+      {
+        "pointer": "/paths/~1検索/get/parameters/3/example",
+        "schema": "minLength 4",
+        "value": "🎉🎉",
+        "codePoints": 2,
+        "utf16Units": 4,
+        "exampleInvalid": true
+      },
+      {
+        "pointer": "/paths/~1検索/get/parameters/4/example",
+        "schema": "maxLength 3",
+        "value": "🎉🎉🎉🎉",
+        "codePoints": 4,
+        "utf16Units": 8,
+        "exampleInvalid": true
+      }
+    ]
+  },
+  "requests": [
+    {
+      "operationId": "获取用户",
+      "method": "GET",
+      "target": "/%D9%85%D8%B3%D8%AA%D8%AE%D8%AF%D9%85%D9%8A%D9%86/%D8%A3%D8%AD%D9%85%D8%AF",
+      "headers": [
+        {
+          "name": "X-API-Key",
+          "value": "YOUR_API_KEY"
+        }
+      ],
+      "mustBeAbsent": [
+        "Cookie",
+        "Authorization"
+      ],
+      "body": {
+        "kind": "none"
+      },
+      "status": 200,
+      "rule": "ADR 0005 rule 1: the template's literal text and the path value, UTF-8, upper-case hex"
+    },
+    {
+      "operationId": "検索する",
+      "method": "GET",
+      "target": "/%E6%A4%9C%E7%B4%A2?%D7%A9%D7%90%D7%99%D7%9C%D7%AA%D7%94=%D7%A9%D7%9C%D7%95%D7%9D%20%D7%A2%D7%95%D7%9C%D7%9D&%D8%AA%D8%B1%D8%AA%D9%8A%D8%A8=%D8%A7%D9%84%D8%A3%D8%AD%D8%AF%D8%AB&%D8%B1%D9%85%D8%B2=%F0%9F%8E%89%F0%9F%8E%89%F0%9F%8E%89",
+      "headers": [
+        {
+          "name": "X-API-Key",
+          "value": "YOUR_API_KEY"
+        }
+      ],
+      "mustBeAbsent": [
+        "Cookie",
+        "Authorization"
+      ],
+      "body": {
+        "kind": "none"
+      },
+      "status": 200,
+      "rule": "ADR 0005 rule 1: names and values encoded, space %20 (the ADR's own example value). Only required parameters are sent (ADR 0005 'Rules'); the sort parameter takes its first enum value. Declared order is also code point order (question QA-2)"
+    },
+    {
+      "operationId": "post_________",
+      "method": "POST",
+      "target": "/%D9%85%D8%B3%D8%AA%D8%AE%D8%AF%D9%85%D9%8A%D9%86",
+      "headers": [
+        {
+          "name": "X-API-Key",
+          "value": "YOUR_API_KEY"
+        }
+      ],
+      "contentType": "application/json",
+      "mustBeAbsent": [
+        "Cookie",
+        "Authorization"
+      ],
+      "body": {
+        "kind": "json",
+        "value": {
+          "الاسم": "علي\u202Eاختبار",
+          "名前": "山田太郎",
+          "ईमेल": "user@example.com",
+          "status": "نشط",
+          "note": "سطر أول\u2028second line",
+          "drink": "latte"
+        }
+      },
+      "status": 201,
+      "rule": "ADR 0005 'How a received request is compared': JSON compared parsed, strings by code point after escapes are decoded, so U+202E and U+2028 match although samples write them as \\u escapes (rule 3(b))"
+    },
+    {
+      "operationId": "get__",
+      "method": "GET",
+      "target": "/%F0%9F%8E%89",
+      "headers": [
+        {
+          "name": "X-API-Key",
+          "value": "YOUR_API_KEY"
+        }
+      ],
+      "mustBeAbsent": [
+        "Cookie",
+        "Authorization"
+      ],
+      "body": {
+        "kind": "none"
+      },
+      "status": 200,
+      "rule": "ADR 0005 rule 1"
+    },
+    {
+      "operationId": "नमूना-भेजें",
+      "method": "POST",
+      "target": "/%D9%86%D9%85%D9%88%D8%B0%D8%AC",
+      "headers": [
+        {
+          "name": "X-API-Key",
+          "value": "YOUR_API_KEY"
+        }
+      ],
+      "contentType": "application/x-www-form-urlencoded",
+      "mustBeAbsent": [
+        "Cookie",
+        "Authorization"
+      ],
+      "body": {
+        "kind": "form",
+        "pairs": [
+          [
+            "city",
+            "%E0%A4%A6%E0%A4%BF%E0%A4%B2%E0%A5%8D%E0%A4%B2%E0%A5%80"
+          ],
+          [
+            "%D8%A7%D9%84%D8%A7%D8%B3%D9%85",
+            "%D9%85%D8%AD%D9%85%D8%AF%20%D8%B9%D9%84%D9%8A"
+          ]
+        ]
+      },
+      "status": 200,
+      "rule": "ADR 0005 rule 1: a form field name and value are encoded like a query's; 'city' sorts before the Arabic name by code point and is first in the schema and the example"
+    },
+    {
+      "operationId": "getLocaleHeader",
+      "method": "GET",
+      "target": "/headers/locale",
+      "headers": [
+        {
+          "name": "X-API-Key",
+          "value": "YOUR_API_KEY"
+        }
+      ],
+      "mustBeAbsent": [
+        "X-Locale",
+        "Cookie",
+        "Authorization"
+      ],
+      "body": {
+        "kind": "none"
+      },
+      "status": 400,
+      "rule": "Criterion 33(i); ADR 0005 rule 2: a header value that is not printable ASCII is left out with request-invalid; the mock answers 400 because a required parameter is missing, and the request is still compared"
+    },
+    {
+      "operationId": "getLangCookie",
+      "method": "GET",
+      "target": "/cookies/lang",
+      "headers": [
+        {
+          "name": "X-API-Key",
+          "value": "YOUR_API_KEY"
+        }
+      ],
+      "mustBeAbsent": [
+        "Cookie",
+        "Authorization"
+      ],
+      "body": {
+        "kind": "none"
+      },
+      "status": 400,
+      "rule": "Criterion 33(i); ADR 0005 rule 2 and 'Cookies': a non-ASCII cookie value is refused, so no Cookie header at all; the mock answers 400"
+    },
+    {
+      "operationId": "uploadMultipart",
+      "method": "POST",
+      "target": "/uploads",
+      "headers": [
+        {
+          "name": "X-API-Key",
+          "value": "YOUR_API_KEY"
+        }
+      ],
+      "contentType": "multipart/form-data",
+      "mustBeAbsent": [
+        "Cookie",
+        "Authorization"
+      ],
+      "body": {
+        "kind": "multipart",
+        "parts": [
+          {
+            "name": "title",
+            "content": "標題 🎌"
+          }
+        ]
+      },
+      "status": 200,
+      "rule": "Criterion 33(i); ADR 0005 rule 2: a part whose name is not printable ASCII, and one whose name holds '=', are left out; part content is UTF-8 and is sent. The mock validates JSON bodies only (ADR 0005 'It accepts a request'), so it answers 200"
+    }
+  ],
+  "findings": {
+    "includes": [
+      {
+        "code": "slug-collision",
+        "severity": "info",
+        "pointer": "/paths/~1検索/get",
+        "rule": "ADR 0002 Slug: '検索する' takes 'x-2'. Reported at the item that did not keep the slug (question QA-9)"
+      },
+      {
+        "code": "slug-collision",
+        "severity": "info",
+        "pointer": "/paths/~1مستخدمين~1{معرف}/get",
+        "rule": "ADR 0002 Slug: '获取用户' takes 'x-3'"
+      },
+      {
+        "code": "slug-collision",
+        "severity": "info",
+        "pointer": "/tags/1",
+        "rule": "ADR 0002 Slug: tag 'ユーザー' takes 'x-2'"
+      },
+      {
+        "code": "slug-collision",
+        "severity": "info",
+        "pointer": "/components/schemas/उपयोगकर्ता",
+        "rule": "ADR 0002 Slug: schema 'उपयोगकर्ता' takes 'x-2'"
+      }
+    ],
+    "exactCodes": {
+      "example-invalid": [
+        "/paths/~1検索/get/parameters/3/example",
+        "/paths/~1検索/get/parameters/4/example"
+      ],
+      "request-invalid": [
+        {
+          "pointer": "/paths/~1headers~1locale/get/parameters/0",
+          "alternatives": [
+            "/paths/~1headers~1locale/get"
+          ],
+          "subject": "header X-Locale"
+        },
+        {
+          "pointer": "/paths/~1cookies~1lang/get/parameters/0",
+          "alternatives": [
+            "/paths/~1cookies~1lang/get"
+          ],
+          "subject": "cookie lang"
+        },
+        {
+          "pointer": null,
+          "subject": "multipart part 'ملف' (non-ASCII name)"
+        },
+        {
+          "pointer": null,
+          "subject": "multipart part 'a=b' (name holds '=')"
+        }
+      ],
+      "synthesis-failed": [],
+      "operation-id-collision": [],
+      "markdown-not-rendered": [],
+      "parse-error": []
+    },
+    "exactCodesRule": "Criterion 33(e) for example-invalid. Criterion 33(i): exactly one request-invalid for each refused header, cookie and part. ADR 0004 gives request-invalid no location; the parameter declaration is asserted for the header and cookie with the operation accepted (question QA-10), and the parts' pointers are not asserted, only their count. No id collides, so no operation-id-collision (contract 1.1)."
+  }
+}
