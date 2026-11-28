@@ -125,3 +125,17 @@ everything above. These are new.
 4. **Assumption: several `<Steps>` on a page.** The module now writes a `Before you start` block and
    a task block, each a `<Steps>` under its own `h2`. 4.2 does not say a page holds one `<Steps>`;
    the module assumes any number.
+
+**Added 2026-11-28, with vendor extensions.**
+
+5. **Proposal: settings as an input of the portal's step.** The module can now show a spec's vendor
+   extensions (`x-` fields) on pages, but only when a settings object says what each one is: a
+   permission, a requirement, a note, the source of the errors page, or nothing. Section 6 gives
+   the step two inputs, the published spec and the existing bundle. Per-tenant settings would be a
+   third. Without them the module's output is unchanged.
+6. **Proposal: define `extensions` in the report schema.** The module lists every extension in
+   `report.json` under `extensions`, with a count, where it is used, an example value and a
+   suggested role. A portal screen that lets a tenant choose roles would read that list, so it
+   would need a defined shape and a limit on its size; today it is an extra member, uncapped, and
+   counts toward the report's 2 MB. The example values and labels are text from a spec or a
+   person, so such a screen needs the security reviewer.
