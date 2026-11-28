@@ -8,6 +8,12 @@ Revised again that day for the user's decision that a portal may hold several AP
 several versions of one: "The unit" is added. The shape is unchanged.
 Revised again that day to state the order of `content` and `examples`, which ADR 0003's
 example-selection rule depends on. The shape is unchanged.
+Revised again that day to make the slug rule exact. The shape is unchanged.
+Revised again that day after the second audit. One change of shape: a server variable's
+`default` is optional. `Tag.id` is defined, and "Fields OpenAPI requires and real specs omit"
+says what the model holds for each.
+Checked 2026-11-28 against guides contract 0.3 and its security review: portal-supplied
+parameters need no change of shape ("Dropped header parameters" says why).
 Milestone: M1. Longer than other ADRs because two developers code against it in parallel.
 
 ## Context
@@ -82,7 +88,26 @@ unit is the whole portal.
   `webhook_` + method + `_` + sanitized name.
 - **Slug**: `slug` on operations, tags and schemas is the URL segment. Lowercase, runs outside
   `[a-z0-9]` become `-`, trimmed, same collision rule with `-2`. Ids are for lookup; only slugs
-  appear in URLs.
+  appear in URLs. Made exact on 2026-11-27, because URLs must be stable (m1.md, criterion 11):
+  the source text is `Operation.id`, `Tag.name` or `NamedSchema.id`; lower-casing is ASCII
+  only; the result is cut to 120 characters and trimmed of `-` again; an empty result is `x`.
+  Operations, tags and schemas are three separate pools, since each has its own URL prefix (ADR
+  0003). Within a pool, items that share a slug are taken in order of source text by code
+  point: the first keeps it and the rest get `-2`, `-3`, the first unused. Each such item is
+  reported as `slug-collision`, an info.
+- **Tag id**: `Tag.id` is the tag's `name`, verbatim, compared by code point. Tags are named, so
+  no collision rule is needed.
+  - Declared tags come first, in declared order, with `synthetic: false`. A second declared tag
+    with a name already declared is dropped (`structure-invalid`, ADR 0004).
+  - A name an operation uses that no declared tag has becomes a tag with that `id` and `name`,
+    no description and `synthetic: true`. These follow the declared tags, in order of first
+    use: by `model.operations` order, then by position in the operation's `tags`.
+  - An operation with no `tags`, or an empty list, belongs to the tag whose id is `default`. If
+    no tag of that name exists it is created last, with `name: 'default'` and
+    `synthetic: true`; if one exists the operation joins it and the tag is unchanged.
+  - `Operation.tags` holds those ids, each once, in authored order. `Tag.operationIds` is in
+    `model.operations` order. Webhooks and callback operations get `tags` by the same rule, but
+    they neither create an entry in `model.tags` nor appear in `operationIds`.
 
 ### Shape
 
@@ -110,10 +135,11 @@ interface ApiModel {
 }
 
 interface Server { url: string; description?: Markdown;
-  variables: { name: string; default: string; enum?: string[]; description?: Markdown }[] }
+  variables: { name: string; default?: string;    // absent when the spec gives none (see below)
+               enum?: string[]; description?: Markdown }[] }
 
 interface Tag { id: string; slug: string; name: string; description?: Markdown;
-  operationIds: string[]; synthetic: boolean }   // untagged operations go to synthetic tag 'default'
+  operationIds: string[]; synthetic: boolean }   // id: see "Identifiers", Tag id
 
 interface Operation {
   id: string; idSource: 'declared' | 'derived'; slug: string;
@@ -136,7 +162,7 @@ interface Parameter { name: string; in: 'path'|'query'|'header'|'cookie'; requir
   deprecated: boolean; description?: Markdown;
   style: 'matrix'|'label'|'form'|'simple'|'spaceDelimited'|'pipeDelimited'|'deepObject';
   explode: boolean; allowReserved: boolean;       // defaults already applied
-  schema?: Schema; content?: MediaType;           // exactly one of the two
+  schema?: Schema; content?: MediaType;           // exactly one of the two, always (see below)
   examples: Example[]; ref?: string; loc: Loc }
 
 // `content` arrays and `examples` arrays are in authored order: the order of the keys in the
@@ -163,6 +189,31 @@ type SecurityScheme = { id: string; description?: Markdown; loc: Loc } & (
   | { type: 'mutualTLS' });
 ```
 
+### Fields OpenAPI requires and real specs omit
+
+The model holds an empty value or drops the item; it never guesses a value. For each field
+OpenAPI requires, this is what the model holds when the spec leaves it out. Each case is a finding; the code is `structure-invalid`
+unless another is named (ADR 0004, "Fatal and degrading faults" and the rule table).
+
+| Required by OpenAPI | In the model when absent or of the wrong type |
+|---|---|
+| `info`, `info.title`, `info.version` | `''` |
+| `responses` on an operation; `content` on a request body | `[]` |
+| A server's `url` | The server is dropped |
+| A server variable's `default` | `default` is absent (`server-variable-no-default`). Nothing else about the variable changes. |
+| A tag's `name` | The tag is dropped |
+| A parameter's `name` or `in` | The parameter is dropped |
+| `required: true` on a path parameter | `required: true` |
+| One of `schema` and `content` on a parameter | Neither: `schema` is an empty schema node of any type. Both: `schema` is kept and `content` dropped. |
+| A response's `description` | Absent; the field is optional in the model |
+| A security scheme's `type`; `name` and `in` for `apiKey`; `scheme` for `http`; `openIdConnectUrl` for `openIdConnect` | The scheme is dropped. A requirement that names it then names an undefined scheme (`security-scheme-missing`). |
+| `flows` on `oauth2`; `scopes` on a flow | `[]` |
+| `url` on `externalDocs` | `externalDocs` is absent |
+| `propertyName` on a discriminator | The discriminator is dropped (`schema-invalid`) |
+
+An `http` scheme's `scheme` is held as written. It is compared with `bearer` and `basic`
+without regard to ASCII case (ADR 0003, "The security statement"; ADR 0005).
+
 ### Source hashes
 
 Both are SHA-256 in lowercase hex, of the root document only, computed by the caller (ADR 0003).
@@ -184,6 +235,17 @@ compared case-insensitively, is not in the model: OpenAPI says such a definition
 appears in no `Operation.parameters`, whether declared on the operation or on its path item, so
 no sample, request or MCP input carries it. The spec doctor still sees the declaration in the
 parsed documents and reports it under its auth rules (ADR 0004).
+
+These three are the only parameters the model drops. Every other parameter the guides contract
+calls portal-supplied (4.3) stays in `Operation.parameters` exactly as declared: a header on
+the controlled list, a header, query or cookie parameter whose name a security scheme carries
+its credential in, and any cookie parameter. The reference page lists them, because the spec
+declares them. The model has no field that marks one. Whether a parameter is portal-supplied
+follows from data the model already holds: its `in` and `name`, `securitySchemes`, and the
+controlled-header list, which is a constant. Whether a credential is placed for it follows
+from which entry of `Operation.security` is in effect, which is a choice made per request
+and not a fact about the spec. `buildRequest` and the doctor derive both (ADR 0005, ADR
+0004). So contract 0.3 changes nothing in this ADR's shape.
 
 ### Schemas
 
@@ -221,7 +283,7 @@ Normalization, so consumers see one dialect (3.1 semantics):
 | 3.0 boolean `exclusiveMinimum`/`Maximum` | numeric form |
 | `type: 'x'` or `type: ['x','null']` | `types` array |
 | singular `example` | `examples: [value]` |
-| 3.0 siblings of `$ref` | dropped, with a finding. 3.1 `description` sibling kept on the ref. |
+| 3.0 siblings of `$ref` | dropped, with a finding (`ref-siblings-ignored`, an info). 3.1 `description` sibling kept on the ref. |
 | discriminator without `mapping` | mapping filled in from the `oneOf`/`anyOf` member schema names |
 | `allOf` | kept as authored. `resolveSchemaView()` (ADR 0003) returns the merged object for display. |
 

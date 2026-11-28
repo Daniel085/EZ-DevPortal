@@ -1,6 +1,20 @@
 # Guides Bundle Contract
 
-Status: **draft v0.2**. Revised by the portal side in response to the guides module's feedback on
+Status: **draft v0.3**, 2026-11-28. 0.3 is the portal side's answer to the guides module's second
+round of feedback, the section "On v0.2" of
+[`guides-contract-feedback.md`](./guides-contract-feedback.md), written after the module had
+implemented 0.2 and run its guides against a real API. Every item is decided in
+[section 13](#13-decisions-on-the-v02-feedback), and section 12 lists what changed. 0.2 was
+released to the guides module, so these changes carry a new version: a portal implementing this
+document accepts `"0.3"` only (section 7). The security reviewer reviewed this draft on 2026-11-28
+and passed it subject to required fixes
+(`docs/reviews/2026-11-28-security-review-contract-0.3.md`). They are applied here. 0.3 had not
+been released to the guides module when they were made, so the version is unchanged; the end of
+section 12 lists them. **One thing stays blocked:** the portal runs the module on no tenant's
+spec until its owner has answered two questions about it (section 6, "Running the module on
+tenant specs is blocked").
+
+How 0.2 came about: it was revised by the portal side in response to the guides module's feedback on
 v0.1 ([`guides-contract-feedback.md`](./guides-contract-feedback.md)). Every proposal and assumption
 in that feedback is answered by number in [section 11](#11-decisions-on-the-v01-feedback). This
 draft also carries the corrections required by the security design review of 2026-11-26 and by its
@@ -18,7 +32,10 @@ portal provides the "get a key" link (9); a portal that is a private preview ser
 without sign-in (9); and one bundle belongs to one version of one API (3).
 Two more decisions by the user that day are recorded the same way: a `<Todo>`, or a page that is
 not `ready`, withholds its own page and not the bundle (4.7, 5); and "Try it" in a private
-preview shows the spec's example response and sends nothing (9).
+preview shows the spec's example response and sends nothing (9). Two later decisions that day
+replace part of the second: "Try it" makes live calls in a private preview where the server's
+host is verified, and example-response mode is the mode for any server that gets no live calls
+(9).
 Awaiting the guides module's re-sync and confirmation.
 
 This is the interface between two projects:
@@ -141,7 +158,8 @@ name is not significant. All paths in this contract and in validation reports ar
 
 ```
 guides.json          manifest (required)
-report.json          generator's run report (optional, see 5.2)
+guides.lock.json     generation record: what the generator wrote, and what a person deleted (see 5.3)
+settings.json        the tenant's settings for the generator (optional, see 5.4)
 pages/               one file per guide, .md
   quickstart.md
   payments/accept-a-payment.md
@@ -149,20 +167,34 @@ assets/              images and downloadable files (optional)
   payments/flow.png
 ```
 
-- The root may contain only `guides.json`, `report.json`, `pages/` and `assets/`. Anything else,
+- The root may contain only `guides.json`, `guides.lock.json`, `settings.json`, `pages/` and
+  `assets/`. Anything else,
   including dotfiles, symbolic links, empty directories outside this layout, and files under
   `pages/` that do not end in `.md`, is `unexpected-file`.
-- `guides.json`, `report.json` and every page are UTF-8 without a byte order mark, with LF line
-  endings and no NUL characters. A violation is `invalid-encoding`.
+- **The run report is not a bundle file.** A generator's `report.json` is a second output of a
+  run, written beside the bundle directory and never in it; the portal keeps it and it never
+  reaches the tenant's repository (5.2). A `report.json` at the bundle root is
+  `unexpected-file`, like any other file this layout does not name. Earlier drafts allowed it
+  there.
+- `guides.json`, `guides.lock.json`, `settings.json` and every page are UTF-8
+  without a byte order mark, with LF line endings and no NUL characters. A violation is
+  `invalid-encoding`.
 - A file path under `pages/` or `assets/` is one or more segments separated by `/`. Each segment
   matches `[a-z0-9-]+`. The last segment is followed by one extension matching `\.[a-z0-9]+`. The
   whole path is at most 200 characters. A violation is `invalid-path`.
-- Limits: 1 MB for `guides.json`, 2 MB per page, 16 KB for a page's frontmatter (section 4), 2 MB
-  for `report.json`, 5 MB per asset, 200 MB and 5,000 files per bundle. A violation is `size-limit`.
-- JSON in a bundle is nested at most 64 deep. This covers `guides.json`, `report.json` and the
-  inline block of a `<Sample>` (4.3). The top-level value is at depth 1, and each object or array
-  inside another is one deeper. The portal enforces the cap while it parses. Deeper JSON is treated
-  as not valid JSON: `invalid-manifest`, `invalid-report` or `invalid-sample`.
+- Limits: 1 MB for `guides.json`, 2 MB per page, 16 KB for a page's frontmatter (section 4),
+  2 MB for `guides.lock.json`, 64 KB for `settings.json`, 5 MB per asset,
+  200 MB and 5,000 files per bundle. A violation is `size-limit`.
+- JSON in a bundle is nested at most 64 deep. This covers `guides.json`, `guides.lock.json`,
+  `settings.json` and the inline block of a `<Sample>` (4.3). The top-level value
+  is at depth 1, and each object or array inside another is one deeper. The portal enforces the
+  cap while it parses. Deeper JSON is treated as not valid JSON: `invalid-manifest`,
+  `invalid-lock`, `invalid-settings` or `invalid-sample`.
+- No object in `guides.lock.json` or `settings.json` has a duplicate key. One that has is
+  treated as not valid JSON in the same way: `invalid-lock` or `invalid-settings`. The portal
+  detects a duplicate while it parses and never lets a later key replace an earlier one. The
+  same two rules, depth and duplicate keys, hold for the run report (5.2), and the inline
+  block of a `<Sample>` already forbids duplicate keys (4.3).
 - Allowed asset extensions: `png`, `jpg`, `webp`, `gif`, `svg`, `pdf`, `json`, `zip`. Any other
   extension, or a file whose content is not of the type its extension names, is `asset-type`.
 - Assets are untrusted. The portal shows images only through image elements and never inlines an
@@ -190,7 +222,7 @@ The JSON Schema is in [`guides-manifest.schema.json`](./guides-manifest.schema.j
 
 ```json
 {
-  "contractVersion": "0.2",
+  "contractVersion": "0.3",
   "generator": { "name": "guides-module", "version": "1.4.0" },
   "spec": {
     "sha256": "9f2c…",
@@ -213,8 +245,10 @@ The JSON Schema is in [`guides-manifest.schema.json`](./guides-manifest.schema.j
 
 - A missing manifest is `missing-manifest`. One that is not JSON, is nested deeper than 64
   (section 2) or fails the schema is `invalid-manifest`. One larger than 1 MB is `size-limit`.
-- `contractVersion` must be exactly `"0.2"` for a portal implementing this document. Anything else
-  is `unsupported-contract-version`. See section 7.
+- `contractVersion` must be exactly `"0.3"` for a portal implementing this document. Anything else,
+  `"0.2"` included, is `unsupported-contract-version`. See section 7. `generator.version` is the
+  generator's own version and has nothing to do with it: the guides module's release 0.3.0 wrote
+  bundles for contract 0.2.
 - `spec.sha256` is the SHA-256, in lowercase hex, of the bytes of the published spec (1.2) the
   guides were generated from: the patched root document exactly as the portal published it, with no
   normalization. When no fix was applied, those are the bytes of the tenant's original document.
@@ -342,6 +376,12 @@ A closed set of block-level components. Unknown tags are `unknown-component`; un
 the operation's `responses` exactly, for example `201`, `default` or `4XX`; otherwise
 `unknown-response`. The portal shows the same example its reference page shows for that response.
 
+**A page may hold any number of each component.** Nothing limits how often a component appears
+on a page or inside a parent that allows it. Several `<Steps>` on one page, each under its own
+`h2`, is valid, and so are several `<Tabs>` or `<CardGroup>`. The limits are the ones the table
+and the nesting rule below state: a `<Steps>` cannot be inside a `<Step>`, directly or at any
+depth, so two `<Steps>` are siblings and never nested.
+
 **Attributes.**
 
 - Written `name="value"` with double quotes, always, including for numbers and booleans:
@@ -452,7 +492,7 @@ selected and is `unknown-example`.
 - `body` is the request body as JSON. For a JSON media type it is sent as is. For
   `application/x-www-form-urlencoded` and `multipart/form-data` it is an object whose members the
   portal serializes as form fields. For a `text/*` media type it is a JSON string. A binary body
-  cannot be expressed in 0.2.
+  cannot be expressed in 0.3.
 - Any violation of the rules in this list is `invalid-sample`.
 
 **Merging forms 2 and 3.** The named example supplies its values first. Inline `path`, `query` and
@@ -461,12 +501,12 @@ for the same parameter. If the named example supplies a request body and the inl
 `body` key, the sample is `invalid-sample`: there is exactly one source for the body.
 
 **Validation of values.** For forms 2, 3 and 4 the portal validates the merged values against the
-operation. Nothing is filled in from defaults except credentials.
+operation. Nothing is filled in from defaults except portal-supplied parameters, defined below.
 
 | Condition | Result |
 |---|---|
 | A value does not match its parameter's schema, or `body` does not match the request body schema of the sample media type | `invalid-sample` |
-| A required parameter or a required request body has no value | `invalid-sample` |
+| A required path, query or header parameter that is not portal-supplied (below), or a required request body, has no value | `invalid-sample` |
 | A `path` name is not a parameter in the operation's path template | `invalid-sample` |
 | A `body` is given and the operation has no request body | `invalid-sample` |
 | A `query` or `headers` name is not a declared parameter of the operation | `undeclared-parameter`, a **warning**. The value is sent as written, unless a row below applies. |
@@ -476,6 +516,71 @@ operation. Nothing is filled in from defaults except credentials.
 
 A declared parameter is one listed on the operation or on its path item, after references are
 resolved. A string value that contains a variable is exempt from schema validation, as 4.6 defines.
+
+**Portal-supplied parameters.** A spec may declare, as a parameter of an operation, something a
+bundle is not allowed to set. Such a parameter is **portal-supplied**. A declared parameter is
+portal-supplied when it is one of these:
+
+1. a header parameter whose name is a header the portal controls (the list below);
+2. a header or query parameter whose name carries a credential (defined below);
+3. a cookie parameter. The inline block has no key for cookies, and the portal alone builds
+   the `Cookie` header (below).
+
+For a portal-supplied parameter, in every form of `<Sample>`:
+
+- **A sample never sets it.** For 1 and 2 that is the two `invalid-sample` rows above, which
+  apply whether or not the operation declares the name. For 3 there is no key to write it under.
+- **It is never counted as missing.** `required: true` on it does not make a sample invalid, and
+  the row for a required parameter with no value does not apply to it. A sample for an operation
+  that declares `Authorization`, or its API key header, as a required parameter is valid without
+  that header, and invalid with it.
+- **The portal decides what is sent, from the published spec alone:**
+  - *A name that carries a credential.* The sample generator places the reader's credential
+    there only for the schemes of the one security requirement object in effect for the
+    request: the operation's `security`, else the document's; `security: []` means none; where
+    there are alternatives, only the one the reader selected. Until a reader selects, and in
+    everything published, that is the first alternative in the spec's order (ADR 0005). This
+    is exactly what the generator does when the parameter is not declared. The declaration
+    adds nothing: its `example`, `default` and schema are never used as a value, and the
+    request has that header, query parameter or cookie once. So an API key header declared
+    both as a security scheme and as a parameter is sent once, holding the credential. Where
+    the requirement in effect does not include the scheme, nothing is sent under that name,
+    whether or not the parameter is required, and the spec doctor reports the parameter
+    (ADR 0004).
+  - *`Authorization`, `Content-Type` and `Accept` declared as header parameters.* OpenAPI says
+    such a definition is ignored, and the portal's model does not contain it (ADR 0002). The
+    first two are on the controlled list: `Authorization` is set only from the security
+    requirement and `Content-Type` only from the sample media type. `Accept` is not on the list.
+    Because the model never holds it as a declared parameter, it is never required, and a
+    sample that sets it gets `undeclared-parameter` and the value is sent.
+  - *Any other controlled header, except `Cookie`.* No value from the spec or from a bundle
+    is sent for it. The spec doctor reports an operation that requires one, and "Try it" is
+    withheld for it (below).
+  - *Cookies.* The portal alone builds `Cookie`, from the credential cookie and declared
+    non-credential cookies, each through a cookie encoder (name is a token; value has no `;`,
+    `,`, space, quote or control character). A name equal to a credential cookie's is never
+    filled from the spec. The credential cookie is the cookie of an `apiKey` scheme with
+    `in: cookie`, placed under the rule for a name that carries a credential, above. A
+    declared cookie parameter that carries no credential is filled, when it is required, as
+    in the operation's default sample. A name or value the encoder refuses is left out of the
+    header, nothing stands in for it, and the spec doctor reports it (ADR 0004); the encoder
+    refuses and never rewrites, so a value from a spec example cannot add a second cookie or
+    shadow the credential. No bundle, and no header parameter a spec declares under the name
+    `Cookie`, ever supplies the header's text.
+
+**A name that carries a credential.** Taken from every scheme under `components/securitySchemes`
+of the published spec, whether or not a security requirement uses it:
+
+| Scheme | Name |
+|---|---|
+| `apiKey` with `in: header` | That header name, compared case-insensitively |
+| `apiKey` with `in: query` | That query parameter name, compared exactly |
+| `apiKey` with `in: cookie` | That cookie name, compared exactly |
+| `http`, `oauth2`, `openIdConnect` | The header `Authorization`, which is already on the controlled list |
+| `mutualTLS` | None |
+
+None of this gives a bundle a way to name or place a credential. There is still no credential
+variable (4.6).
 
 **Headers the portal controls.** Names are compared case-insensitively.
 
@@ -555,9 +660,11 @@ index   = "0" / [1-9][0-9]*
 
 - No other separator, no leading or trailing space, and no other JSONPath syntax is accepted.
 - A name must not be one of the built-in variables in 4.6 and must not be captured more than once
-  on the same page.
+  on the same page. A name that matches `unique(_[0-9]+)?` is reserved for generated values
+  (4.6) and cannot be captured, whether or not it is a built-in today: `unique`, `unique_3` and
+  `unique_10` are all refused.
 - A captured name must not be a credential variable name; the engine exports the closed list. In
-  0.2 the list is `api_key`, `access_token`, `username` and `password`.
+  0.3 the list is `api_key`, `access_token`, `username` and `password`.
 - A violation of the grammar or of these rules is `invalid-capture`.
 - The path is evaluated against the JSON response body when the reader runs the sample. A captured
   value is a string, number or boolean of at most 2,048 characters, read by own-property lookup;
@@ -565,9 +672,12 @@ index   = "0" / [1-9][0-9]*
   object, an array, `null`, a missing member, an inherited member and a longer value all capture
   nothing, and the name stays unfilled exactly as if the sample had not been run.
 - The captured value keeps its JSON type. The path is not checked against the response schema in
-  0.2.
+  0.3.
 - A captured name is in scope from the end of its `<Sample>` to the end of the page. It is not
   available on other pages.
+- While a captured name that a sample's request uses is unfilled, "Try it" sends nothing for
+  that sample (section 9). A reader therefore cannot send the spec's example identifier in
+  the place of one an earlier step was meant to create.
 
 ### 4.4 Ordinary code blocks
 
@@ -692,7 +802,7 @@ Both sides compute it the same way:
 | `## Errors`, a second time on the same page | `errors-1` |
 | `## ???` | `section` |
 
-`<Step>` and `<Tab>` titles and footnotes have no anchors in 0.2.
+`<Step>` and `<Tab>` titles and footnotes have no anchors in 0.3.
 
 An anchor is the name a `guide:` link uses. It is not the `id` in the published HTML. An `id` made
 from bundle text can shadow a DOM global (`location`, `forms`, `name`), so the portal puts a fixed
@@ -709,7 +819,12 @@ space, separates it from the braces.
 | `{{base_url}}` | The server URL selected by the reader | string |
 | `{{idempotency_key}}` | A UUID generated in the reader's browser. Each `<Sample>` gets its own. | string |
 | `{{api_name}}` | The API title from the spec | string |
+| `{{unique}}` | Eight decimal digits generated in the reader's browser. Each `<Sample>` gets its own. See "Generated values" below. | string |
+| `{{unique_1}}` to `{{unique_9}}` | Eight decimal digits generated in the reader's browser. Each of the nine names has one value for the whole page. See "Generated values" below. | string |
 | captured names | The value captured by an earlier `<Sample>` on the same page (4.3) | the JSON type of the captured value |
+
+**The built-in variables** are these thirteen names and no others: `base_url`, `idempotency_key`,
+`api_name`, `unique`, and `unique_1` to `unique_9`. The list is closed, and the engine exports it.
 
 `{{api_key}}` is not available to bundles; anywhere in a bundle it is `unknown-variable`.
 Credentials are placed only by the portal's sample generator, from the operation's security
@@ -726,12 +841,19 @@ as for any other name, and nothing ever fills them in (item 6 below).
 
 Everywhere else `{{name}}` is literal text: code spans, link destinations and titles, image sources
 and alt text, component attributes, code block info strings, frontmatter, object keys in a
-`<Sample>` block, the manifest and `report.json`.
+`<Sample>` block, the manifest, `guides.lock.json`, `settings.json` and the run report (5.2).
+
+**Built-ins that belong to a sample.** `{{idempotency_key}}` and `{{unique}}` have one value per
+`<Sample>`. They are therefore recognised only in place 3, a string value in that sample's inline
+block. In prose or in an ordinary code block there is no sample for the value to belong to, and
+each is `unknown-variable`. 0.2 did not say what `{{idempotency_key}}` meant outside a sample.
+`{{base_url}}`, `{{api_name}}`, `{{unique_1}}` to `{{unique_9}}` and captured names are
+recognised in all three places.
 
 **Unknown variables.** In the three places above, every unescaped `{{` must begin a well-formed
 variable whose name is a built-in or a captured name in scope. Anything else is `unknown-variable`:
-an unknown name, a captured name used before its `<Sample>` or on another page, or a `{{` that is
-not followed by a name and `}}`.
+an unknown name, a captured name used before its `<Sample>` or on another page, a built-in that
+belongs to a sample used outside one, or a `{{` that is not followed by a name and `}}`.
 
 **Writing a literal `{{`.**
 
@@ -775,6 +897,81 @@ placeholder stays unfilled.
 - A header value is checked again after substitution (4.3).
 - In prose a value is inserted as text and nothing else.
 
+**Generated values.** A spec's examples are fixed, and many APIs refuse a second record with the
+same code, name or phone number. A guide that creates such a record then works once per account.
+`{{unique}}` and `{{unique_1}}` to `{{unique_9}}` give a sample a value that is new for each
+reader and each visit.
+
+- **The value.** Exactly eight characters, each one of `0` to `9`: it matches `^[0-9]{8}$`, and
+  a leading `0` is possible. Digits only, at a fixed length, because that is safe in every place
+  a variable can be written: a JSON string, a path segment, a query value, a header value, a
+  string literal in each of the eight sample languages, and an ordinary code block, whose
+  allowlist above it always passes. It also fits a field that takes digits only, such as a phone
+  number. A guide adds what else a field needs as literal text around it:
+  `"branch_code": "B{{unique}}"`, `"phone": "+1555{{unique}}"`.
+- **The type is string, always.** A JSON string that is exactly `"{{unique}}"` is sent as a JSON
+  string of eight digits, never as a number. A unique value for a field whose schema is a number
+  cannot be written in 0.3.
+- **`{{unique}}` is one value per `<Sample>`.** Every `{{unique}}` in one sample's inline block
+  is the same value, and each other sample on the page has a different one, as for
+  `{{idempotency_key}}`. Use it where no later step needs the value again.
+- **`{{unique_1}}` to `{{unique_9}}` are one value each per page.** `{{unique_1}}` is the same
+  value wherever it appears on the page, in any sample, in prose and in an ordinary code block;
+  `{{unique_2}}` is a different value; and so on. This is how a later step refers to a value an
+  earlier step sent: a step that creates a branch with `"branch_code": "B{{unique_1}}"` can be
+  followed by a lookup with `"code": "B{{unique_1}}"`. A value the API sends back can also be
+  carried by `capture`, as before. The numbers are names, not an order: a page may use
+  `{{unique_3}}` without the others. There are nine and no more; `{{unique_10}}` is
+  `unknown-variable`.
+- **Generated in the reader's browser, and nowhere else.** The values are chosen when the page
+  loads, uniformly at random from the browser's cryptographic random source, and they stay the
+  same for as long as the page is open, so that the steps of a guide agree with each other.
+  Each digit is drawn by rejection sampling from `crypto.getRandomValues`. If that is
+  unavailable the placeholder keeps its display text; `Math.random` is never used. A value is
+  never written to storage, a URL or analytics. The
+  portal gives the reader a way to get new values, and it replaces every generated value on the
+  page together. Nothing is generated when a bundle is validated or published, or by any
+  server, so published output does not depend on randomness and the same bundle publishes to
+  the same bytes. The portal does not store or log a generated value; it leaves the browser only
+  inside a request the reader sends.
+- **Before any script runs, and in every copy that is not a live page,** the placeholder shows
+  fixed display text: `UNIQUE` for `{{unique}}` and `UNIQUE_1` to `UNIQUE_9` for the others. The
+  example above is published as `"branch_code": "BUNIQUE"`. That is what a reader without
+  JavaScript sees and copies, and what the Markdown twin, `llms.txt`, the search index and the
+  docs MCP show (item 6 below). It is visibly not a real value, and a request sent with it works
+  as a fixed example does.
+- **It is exempt from nothing.** A generated value is filled into a placeholder through the same
+  language and location encoders as any runtime value, and a header value that holds one is
+  checked again after substitution.
+- **It promises little.** A generated value is not a secret and must not be used as one. It is
+  not an idempotency key. It is not guaranteed to be unused: two values are equal once in
+  10^8, and the API may hold a record from an earlier visit.
+- **Not for a password.** Where a string in a sample's inline block holds `{{unique}}` or one
+  of `{{unique_1}}` to `{{unique_9}}`, and the schema of the property or parameter it fills
+  has `format: password`, the portal reports `generated-value-as-secret`, a warning (5.1). A
+  reader who ran that sample would create a real account with a secret of about 26 bits. The
+  check uses the schema the validator resolves for that position; where it cannot resolve
+  one, nothing is reported. The warning blocks nothing.
+- **The names are reserved.** No name that matches `unique(_[0-9]+)?` can be captured (4.3).
+
+````markdown
+<Sample operation="createBranch" capture="branch_id=$.id">
+```json
+{
+  "body": { "branch_code": "B{{unique_1}}", "phone": "+1555{{unique}}" }
+}
+```
+</Sample>
+
+<Sample operation="findBranches">
+```json
+{
+  "query": { "code": "B{{unique_1}}" }
+}
+```
+</Sample>
+````
+
 **Order of operations. This is a requirement on the portal's renderer and validator.**
 
 1. A variable exists only where the characters `{`, `{`, the name, `}`, `}` are **literal characters
@@ -791,8 +988,9 @@ placeholder stays unfilled.
 4. A substituted value is inserted as plain text, or as a typed data value in a sample. It is never
    parsed again as Markdown, as a component, as HTML or for further variables. Substitution is a
    single pass.
-5. Values that are specific to the reader (the selected `base_url`, `idempotency_key`, captured
-   values, and the credentials the sample generator places) are filled in in the reader's browser.
+5. Values that are specific to the reader (the selected `base_url`, `idempotency_key`, the
+   generated values `unique` and `unique_1` to `unique_9`, captured values, and the credentials
+   the sample generator places) are filled in in the reader's browser.
    Published pages contain placeholders for them, so pages stay static and no credential is stored
    in or served from published content.
 6. Published output carries variables as structure (a placeholder element or a segment list), never
@@ -825,11 +1023,12 @@ Both are **visible in preview and withhold their own page from publishing**:
 - Each `<Todo>` is reported as `todo-present`.
 
 These two codes have the severity `blocker` (section 5). **A blocker is about one page, not the
-bundle** (decided by the user on 2026-11-27). A bundle whose only findings are blockers and
-warnings is valid and can be published. A page that carries at least one blocker finding is a
-**withheld page**, and the published portal leaves it out. Every other page is published. An
-`error` is different: one error anywhere keeps the whole bundle from being staged or published
-(section 5).
+bundle** (decided by the user on 2026-11-27). A bundle whose only findings are blockers, page
+errors and warnings is valid and can be published. A page that carries at least one finding of
+severity `blocker` or `page-error` is a **withheld page**, and the published portal leaves it
+out. Every other page is published. A `page-error` is a fault in one page and withholds it in
+the same way; see "An invalid page withholds only itself" below. An `error` is different: one
+error anywhere keeps the whole bundle from being staged or published (section 5).
 
 `draft` and `review` withhold a page equally. The difference is information for people.
 
@@ -853,9 +1052,61 @@ warnings is valid and can be published. A page that carries at least one blocker
   search index or the docs MCP. The same holds for any other text of a withheld page.
 
 Withholding changes what is published and nothing about validation. A withheld page is validated
-in full: an `error` in it blocks the bundle like any other, its slug and its anchors count as
-present for `unknown-guide` and `unknown-anchor`, and its `operations` count for
-`page-unreferenced`.
+in full and every finding in it is reported. Its slug counts as present for `unknown-guide`.
+Where it is withheld for blockers only, its anchors count as present for `unknown-anchor` and
+its `operations` count for `page-unreferenced`.
+
+**An invalid page withholds only itself** (0.3). A fault in what one page says is reported with
+the severity `page-error` (section 5). The page it is in is a withheld page: everything under
+"What withheld means" applies to it, and every other page is published. A fault in the bundle's
+structure keeps the severity `error` and still stops the whole bundle. The line between them:
+
+- **`page-error`: the bundle can be read without the page.** The manifest, the set of files,
+  and every path, encoding and size are sound. The fault is in one page's content: its
+  frontmatter, its Markdown, a component, a variable, a sample, a link, or a reference to an
+  operation, schema, guide, anchor, asset, response or example that does not exist.
+- **`error`: the portal cannot tell what the bundle is, or cannot read it safely.** No manifest
+  or an invalid one; a contract version it does not accept; `nav` and the files under `pages/`
+  disagreeing; a file the layout does not allow; a bad path or encoding; a size or count
+  limit; an asset that is not what its extension says. These are never reduced to one page,
+  even where the file at fault is a page (`invalid-encoding`, `invalid-path`, `size-limit`):
+  they are checked on bytes before any page is parsed, and reading stops at the first limit
+  passed (section 6).
+
+Each code has one severity, listed in 5.1. The rules that go with it:
+
+- **Who wrote the page does not matter.** A finding's severity is a function of the bundle's
+  content and the published spec, and never of authorship. A page the generator wrote and a
+  page a person edited get the same finding for the same fault. The validator does not read
+  `guides.lock.json` (5.3) to decide a finding.
+- A page error is reported on the page that contains the fault. `unknown-guide` and
+  `unknown-anchor` are reported on the page that holds the link, not on its target.
+- The validator finds every page error other than `unknown-anchor` first. A page that carries
+  one offers nothing to other pages: an anchor into it is not checked, so no `unknown-anchor`
+  is reported for a link to it, and its `operations` count for nothing. The link is a link to
+  a withheld page: it is published as text and reported as `link-to-withheld-page`.
+- A page error never becomes an error, and no number of them makes a bundle unpublishable. If
+  every page is withheld, "The guides entry point" below says what the portal shows.
+- This is what lets a generator keep a page it must not change. A page a person edited that
+  no longer fits the spec, for example one that names a removed operation, is kept as the
+  person left it, carries `unknown-operation`, and is withheld by itself until a person fixes
+  or deletes it. The other pages are published.
+
+**Rendering is gated by the validator** (security review of 2026-11-28, ruling 1). Confining a
+fault to its page is safe only on this condition. The renderer builds a page only from the
+tree the validator produced for a page with no page error; it never parses a page file
+itself. For a page with a page error, preview and dashboard show only its slug, finding codes
+and line numbers: never its frontmatter title or description, and no excerpt of its source. A
+finding's `message` contains no bundle text.
+
+- This holds for every page error, `invalid-frontmatter` included. A title or description
+  that failed validation is never shown, and neither is one that passed on a page that has
+  another page error. Earlier wording had such a page "listed and marked in the same way" as
+  a page with a blocker, which would have shown its title.
+- Where preview or the dashboard lists such a page in navigation, the entry is its slug, not
+  its title and not the manifest's `label`.
+- A page withheld for blockers only has no page error. Its tree comes from the validator like
+  any other, and preview shows it in full.
 
 **A link to a withheld page is a warning.** Each `guide:` link or `<Card>` `href` on a page
 that is not withheld, whose target is a withheld page, is reported as `link-to-withheld-page`
@@ -872,10 +1123,14 @@ portal attaches to a `quickstart` page (9) is absent with it. If every page is w
 portal shows no guides section and no link to one; the bundle is still published, and its
 predecessor's pages are gone.
 
-**In preview nothing is withheld.** The preview of a staged bundle shows every page, including
-the withheld ones. A withheld page is marked as withheld on the page and in navigation, with
-its findings, and each `<Todo>` is rendered as a clearly marked placeholder. Links to a
-withheld page work there. The preview of a staged bundle is not the private preview of
+**In preview nothing is left out.** The preview of a staged bundle has an entry for every
+page, including the withheld ones. A page withheld for a blocker is shown and is marked as
+withheld on the page and in navigation, with its findings, and each `<Todo>` is rendered as a
+clearly marked placeholder. Links to a withheld page work there. A page withheld for a
+`page-error` is the exception: it is listed by its slug with the codes and line numbers of
+its findings and nothing else, as "Rendering is gated by the validator" above requires. Its
+title, description and body are not shown, there or anywhere, and a link to it in preview
+leads to that listing. The preview of a staged bundle is not the private preview of
 section 9: a bundle published into a portal that is a private preview has its withheld pages
 left out, exactly as in a public portal.
 
@@ -889,7 +1144,7 @@ a pull request that a person merges (section 6).
 
 **Before a repository is connected** the portal holds the generated bundle, and it is read-only:
 there is nowhere to edit it. The rule is the same in both cases: the pages that carry a blocker
-are withheld and the others are published. A withheld page of a held bundle stays withheld until
+or a page error are withheld and the others are published. A withheld page of a held bundle stays withheld until
 the tenant connects a repository and a person finishes it there, or a regenerated bundle arrives
 without the blocker.
 
@@ -906,9 +1161,9 @@ Two things follow.
   *The guides module's part.* The pull request is only reviewable if its difference is small and
   true. Three requirements bind the guides module:
 
-  1. **Deterministic.** The same inputs give a byte-identical bundle directory, `report.json`
-     included. The inputs are the bytes of the published spec, the existing bundle when one is
-     given, the module's settings and the module's version. Output does not depend on the clock,
+  1. **Deterministic.** The same inputs give a byte-identical bundle directory and a
+     byte-identical run report (5.2). The inputs are the bytes of the published spec, the existing bundle when one is
+     given, the tenant's settings (the bundle's `settings.json`, 5.4) and the module's version. Output does not depend on the clock,
      randomness, locale, environment or the order in which a directory is listed. A module run by
      the portal therefore leaves `generatedAt` out (section 3).
   2. **Stable.** A file changes between two runs only for a reason in the inputs. When the
@@ -924,15 +1179,27 @@ Two things follow.
      the output. Emitting an edited page byte for byte as given always conforms. Merging newly
      generated content into an edited page conforms only if every change the person made
      survives. Without an existing bundle, on a first run or before a repository is connected,
-     the module generates in full.
+     the module generates in full. A page a person edited or added is recognised by the
+     generation record, as 5.3 defines.
+  4. **Does not bring back a page a person deleted.** A page the module wrote and a person
+     then deleted from the bundle is not written again. The generation record carries the
+     deletion from run to run under `deleted` (5.3), and a person brings the page back by
+     taking its slug out of that list.
+  5. **Does not depend on the run report.** The report is information for people and is not
+     in the bundle (5.2). The module is never given the report of an earlier run: the
+     existing-bundle input holds none (section 6). What must survive between runs is in
+     `guides.lock.json` (5.3) and `settings.json` (5.4), and the module emits `settings.json`
+     byte for byte as it was given.
 
-  *Still the guides module's own design:* how it tells a page a person edited from one it wrote;
-  and what it does with an edited page that no longer fits the new spec, for example one that
-  names a removed operation, provided it keeps the person's text and says so in `report.json`
-  (5.2). The bundle root allows no file of the module's own (section 2); `report.json` accepts
-  members the schema does not define (5.2). If the module needs an input beyond the two named
-  here, such as its own previous output, it says so and the portal side decides whether to
-  supply it.
+  *Still the guides module's own design:* whether it keeps an edited page whole or merges into
+  it; and what it does with an edited page that no longer fits the new spec, for example one
+  that names a removed operation, provided it keeps the person's text and says so in
+  the run report (5.2). Such a page is withheld by itself (above). How an edited or deleted page
+  is recognised is no longer the module's own design: it is the generation record of 5.3, a
+  file with a defined shape, because it has to survive in the tenant's repository and the
+  portal tells the tenant what it is. The bundle root allows no other file of the module's
+  (section 2). If the module needs an input beyond the published spec and the existing
+  bundle, it says so and the portal side decides whether to supply it.
 - Every rule in this contract applies to the bundle as ingested, whoever wrote each line. Where the
   contract says "a generator writes", an edit made by hand is held to the same rule and gets the
   same finding.
@@ -943,7 +1210,7 @@ The portal validates every bundle before staging it and returns a machine-readab
 
 ```json
 {
-  "contractVersion": "0.2",
+  "contractVersion": "0.3",
   "ok": true,
   "publishable": true,
   "withheld": ["quickstart"],
@@ -970,26 +1237,32 @@ The portal validates every bundle before staging it and returns a machine-readab
 | Severity | Meaning |
 |---|---|
 | `error` | **The whole bundle** is invalid. It is not staged, cannot be previewed, and no page of it is published. |
-| `blocker` | **One page** is withheld from publishing: the page named in `file`. The bundle is valid, is staged for preview and can be published; its other pages are published (4.7). |
+| `page-error` | **One page** is invalid and is withheld from publishing: the page named in `file`. The bundle is valid, is staged for preview and can be published; its other pages are published. Nothing of the page is rendered, in preview or anywhere: preview lists its slug with its findings' codes and line numbers (4.7). |
+| `blocker` | **One page** is waiting for a person and is withheld from publishing: the page named in `file`. The bundle is valid, is staged for preview and can be published; its other pages are published (4.7). |
 | `warning` | Nothing is blocked and nothing is withheld. |
 
-The two blocking severities differ in reach. An error stops every page, wherever it is. A blocker
-stops only the page that carries it. A blocker never becomes an error, and no number of blockers
-makes a bundle unpublishable.
+The three blocking severities differ in reach and in cause. An error stops every page, wherever
+it is. A page error and a blocker each stop only the page that carries them: a page error because
+the page is invalid, a blocker because it is unfinished. Neither ever becomes an error, and no
+number of them makes a bundle unpublishable. Each code has exactly one severity (5.1), and it
+does not depend on who wrote the page (4.7).
 
 - `ok` is true when there is no finding of severity `error`.
 - `publishable` is one value for the bundle. It is true when there is no finding of severity
-  `error`: the bundle can be published. Blockers do not make it false. In 0.2 it therefore has
-  the same value as `ok`; it stays in the report so that "can be staged" and "can be published"
+  `error`: the bundle can be published. Blockers and page errors do not make it false. In 0.3 it
+  therefore has the same value as `ok`; it stays in the report so that "can be staged" and "can be published"
   remain separate questions with separate answers.
 - `withheld` is the per-page answer: the slugs of the withheld pages, each once, sorted by Unicode
   code point. It is always present and is empty when no page is withheld. A page is in it exactly
-  when a finding of severity `blocker` names its file. When `ok` is false nothing is published
-  and the list is only information.
-- A blocker's `file` is always a page file.
+  when a finding of severity `blocker` or `page-error` names its file. When `ok` is false nothing
+  is published and the list is only information.
+- The `file` of a blocker or a page error is always a page file.
 - `target` is present on `link-to-withheld-page` only and is the path of the withheld page.
 - `file` is relative to the bundle root. `line` is 1-based and is omitted when a finding is about a
-  whole file or the whole bundle. `message` is for people and is not part of the contract.
+  whole file or the whole bundle. `message` is for people, and its wording is not part of the
+  contract. One rule about it is: a finding's `message` contains no bundle text. It is the
+  portal's own fixed text for the code, and what the finding is about is carried by `code`,
+  `file`, `line` and `target` (4.7).
 - The portal reports every finding it can, not only the first.
 
 ### 5.1 Codes
@@ -997,7 +1270,7 @@ makes a bundle unpublishable.
 The codes and their severities are part of the contract. A generator's own validator uses the same
 names for the same conditions.
 
-**Errors**
+**Errors.** Each stops the whole bundle.
 
 | Code | Condition |
 |---|---|
@@ -1008,12 +1281,18 @@ names for the same conditions.
 | `unlisted-page` | A file under `pages/` is not in `nav`. |
 | `duplicate-page` | A slug appears in `nav` more than once. |
 | `nav-depth` | A group is nested deeper than depth 3. |
-| `unexpected-file` | A file, directory or link that the layout in section 2 does not allow. |
+| `unexpected-file` | A file, directory or link that the layout in section 2 does not allow. A `report.json` in the bundle is one. |
 | `invalid-path` | A path breaks the character or length rules. |
 | `invalid-encoding` | Not UTF-8, or has a byte order mark, CR line endings or NUL. |
-| `size-limit` | A size or count limit in section 2 is exceeded, including the limits on `guides.json` and on frontmatter. |
-| `nesting-limit` | Markdown nesting deeper than 32. See 4.1. |
+| `size-limit` | A size or count limit in section 2 is exceeded, including the limits on `guides.json`, `guides.lock.json`, `settings.json` and frontmatter. |
 | `asset-type` | An asset's extension is not allowed, or its content does not match it. |
+
+**Page errors.** Each withholds the page it is reported on, and only that page (4.7). Up to
+0.2 these were errors.
+
+| Code | Condition |
+|---|---|
+| `nesting-limit` | Markdown nesting deeper than 32. See 4.1. The parser stops reading the page there. |
 | `invalid-frontmatter` | Frontmatter is missing, is not plain YAML, or breaks the field rules. |
 | `heading-h1` | The body contains an `h1`. |
 | `disallowed-syntax` | Raw HTML in any form, or an angle-bracket autolink. |
@@ -1027,7 +1306,7 @@ names for the same conditions.
 | `unknown-operation` | An operation id that is not in the spec, in an attribute, a link or frontmatter. |
 | `unknown-schema` | A schema name that is not in the spec. |
 | `unknown-guide` | A `guide:` slug that is not in the bundle. |
-| `unknown-anchor` | A `guide:` anchor that the target page does not have. |
+| `unknown-anchor` | A `guide:` anchor that the target page does not have. Not checked where the target page carries another page error (4.7). |
 | `unknown-asset` | An `asset:` path that is not in the bundle. |
 | `unknown-response` | A `<Response>` status the operation does not define. |
 | `unknown-example` | An `example` name that selects nothing. |
@@ -1053,7 +1332,11 @@ names for the same conditions.
 | `page-unreferenced` | A page of type `quickstart`, `how-to` or `tutorial` has no `operations`. Pages of type `concept` and `reference` are exempt. |
 | `api-request-code` | An ordinary code block contains `{{base_url}}`. See 4.4. |
 | `undeclared-parameter` | A sample sends a header or query parameter the operation does not declare. |
-| `invalid-report` | `report.json` is present but is not JSON, is nested deeper than 64, or fails its schema. The report is ignored. |
+| `invalid-report` | The run report (5.2) is not UTF-8 JSON, is larger than 2 MB, is nested deeper than 64, has a duplicate key, or fails its schema. The report is ignored. It is a finding on the run that wrote the report, not on a bundle: the report is not a bundle file. |
+| `missing-lock` | No `guides.lock.json` at the bundle root. The next generation keeps every existing page as it is (5.3). |
+| `invalid-lock` | `guides.lock.json` is present but is not JSON, is nested deeper than 64, has a duplicate key, fails its schema, or lists a slug twice. It is treated as absent (5.3). |
+| `invalid-settings` | `settings.json` is present but is not JSON, is nested deeper than 64, has a duplicate key, or is not a JSON object. No generation is run with it (5.4). |
+| `generated-value-as-secret` | A string in a `<Sample>` inline block holds `{{unique}}` or one of `{{unique_1}}` to `{{unique_9}}` and fills a property or parameter whose schema has `format: password`. One finding per such string (4.6). |
 | `link-to-withheld-page` | A `guide:` link or a `<Card>` `href` on a page that is not withheld targets a withheld page. One finding per link, on the linking page, with the withheld page in `target`. The link is published as plain text, or the card without a link (4.5, 4.7). |
 
 **Generator-side only**
@@ -1064,10 +1347,31 @@ names for the same conditions.
 
 ### 5.2 The run report: `report.json`
 
-Optional, at the bundle root. It carries what the generator wants a person to know about the run:
-pages it skipped, things the spec did not say, problems it found in the spec. The portal may show
-it to the customer in the dashboard. It is never published, never affects validation of the rest of
-the bundle, and its text is shown as plain text.
+Optional. **It is an output of a run, beside the bundle, and not a file of the bundle**
+(security review of 2026-11-28, F1). It carries what the generator wants a person to know
+about the run: pages it skipped, things the spec did not say, problems it found in the spec,
+and the vendor extensions it saw.
+
+- **Where it is written.** A generator writes the report apart from the bundle directory: as
+  a file named `report.json` beside that directory and never inside it, or, when it is called
+  as a library, as a value of its own apart from the bundle's files. A `report.json` inside a
+  bundle is `unexpected-file` (section 2).
+- **Where it is kept.** The portal keeps `report.json` for the dashboard and does not include
+  it in a pull request. It stores the report with the run that wrote it and shows it to
+  signed-in members of the tenant's account, and to nobody else. The report is never in the
+  tenant's repository. The reason: `extensions[].example` carries values of `x-` fields
+  whether or not any setting shows them, and `specProblems` is a list of a spec's defects; in
+  a public repository both would be public, against the rule below and against the private
+  doctor report.
+- **It is never published**, and it never affects validation of a bundle.
+- **How it is displayed.** Shown as text nodes, never linkified; control and bidirectional
+  formatting characters are removed or shown visibly; `fix` has no action attached; `pointer`
+  is displayed, not resolved.
+
+**It is information and nothing else** (0.3). Nothing reads it to decide anything: not the
+portal's validator, and not the generator on its next run (4.7, requirement 5). It is not an
+input of any run, and no copy of it exists that a tenant could edit. What a generator needs
+from one run to the next is in `guides.lock.json` (5.3).
 
 The JSON Schema is in [`guides-report.schema.json`](./guides-report.schema.json). The minimum shape:
 
@@ -1081,7 +1385,25 @@ The JSON Schema is in [`guides-report.schema.json`](./guides-report.schema.json)
     { "page": "quickstart", "message": "The spec does not describe how credentials are issued." }
   ],
   "specProblems": [
+    {
+      "code": "no-examples",
+      "severity": "high",
+      "title": "Requests have no examples",
+      "message": "412 of 795 operations have a request body with no example.",
+      "fix": "Add an example to each request body.",
+      "count": 412
+    },
     { "pointer": "/paths/~1pets/get", "message": "No operationId." }
+  ],
+  "extensions": [
+    {
+      "name": "x-required-permission",
+      "count": 212,
+      "usedIn": ["operation"],
+      "valueKinds": ["string"],
+      "example": "orders:write",
+      "suggestedRole": "permission"
+    }
   ]
 }
 ```
@@ -1092,10 +1414,167 @@ The JSON Schema is in [`guides-report.schema.json`](./guides-report.schema.json)
 - `pointer` is a JSON Pointer into the published spec (1.2).
 - Members the schema does not define are allowed anywhere and are ignored by the portal. A
   generator may keep its own detail there.
-- `pages`, `gaps` and `specProblems` hold at most 1,000 items each, and a slug is at most 197
-  characters, the longest a page path allows. These are in the schema.
-- A report that is not JSON, is nested deeper than 64 (section 2), or fails the schema, is
-  `invalid-report`, a warning.
+- `pages`, `gaps`, `specProblems` and `extensions` hold at most 1,000 items each, and a slug is at
+  most 197 characters, the longest a page path allows. These are in the schema.
+- The report is UTF-8 JSON of at most 2 MB, nested at most 64 deep, and no object in it has a
+  duplicate key. The schema cannot express these four; the portal checks them as it reads.
+- **`specProblems`** (0.3). Besides `message` and `pointer`, an item may carry:
+
+  | Member | Shape | Meaning |
+  |---|---|---|
+  | `code` | `^[a-z][a-z0-9-]{0,63}$` | The generator's own name for the kind of problem. It is not a code of this contract or of the portal's spec doctor. |
+  | `severity` | `high`, `medium` or `low` | How much the problem limited the guides. The generator's own scale; it has nothing to do with the severities of section 5. |
+  | `title` | 1 to 200 characters | A short name for the problem. |
+  | `fix` | 1 to 1,000 characters | What a person could change in the spec, in words. |
+  | `count` | An integer, 0 or more | How many places in the spec it was found. |
+
+  All are optional. `fix` is advice in plain text. It is not a patch: the portal never applies
+  it, never turns it into a spec-doctor fix, and shows it apart from the spec doctor's own
+  findings, marked as coming from the guide generator. Anything else a generator records about
+  a problem stays an extra member, which the portal ignores.
+- **`extensions`** (0.3). One item for each vendor extension (`x-` field) name the generator saw
+  in the spec:
+
+  | Member | Shape | Meaning |
+  |---|---|---|
+  | `name` | Required. Starts with `x-`, at most 200 characters | The extension's name. |
+  | `count` | An integer, 0 or more | How many times it appears. |
+  | `usedIn` | At most 20 strings of 1 to 100 characters | The kinds of place it appears, in the generator's words, such as `operation` or `schema`. |
+  | `valueKinds` | A list of `string`, `number`, `boolean`, `null`, `array`, `object` | The JSON types of its values. |
+  | `example` | A string of at most 200 characters | One value, as text. A value that is not a string is given as its JSON text. The generator cuts it to fit. |
+  | `suggestedRole` | `^[a-z][a-z0-9-]{0,31}$` | The role its name suggests. The roles are the generator's (5.4). A suggestion changes no page. |
+
+  `name`, `usedIn` and `example` are copied from the spec, so they are text a tenant, or
+  whoever wrote the tenant's spec, chose. The portal treats every string in the report as
+  untrusted and shows it as plain text only: never as Markdown, HTML or a link, and never as
+  the name of anything it looks up. `example` may hold something the spec's owner did not
+  mean to show, so it is shown only to signed-in members of the tenant's account, like the
+  rest of the report, and the report is kept out of the repository.
+- A report that is not UTF-8 JSON, is larger than 2 MB, is nested deeper than 64, has a
+  duplicate key, or fails the schema, is `invalid-report`, a warning on the run. The report
+  is ignored and the run's bundle is unaffected. That includes a `severity` outside the three values and an
+  `example` longer than 200 characters.
+
+### 5.3 The generation record: `guides.lock.json`
+
+At the bundle root. It records what the generator last wrote, so that its next run can tell a
+page a person edited from one it wrote, and a page a person deleted from one that never
+existed. 0.2 left this to the module, which kept it in `report.json`, a file people may delete.
+It is a file of its own, with a defined shape, so that the report stays information only.
+
+The JSON Schema is in [`guides-lock.schema.json`](./guides-lock.schema.json).
+
+```json
+{
+  "pages": [
+    { "page": "payments/accept-a-payment", "sha256": "5d41…" },
+    { "page": "quickstart", "sha256": "9b74…" }
+  ],
+  "deleted": ["pagination"],
+  "navSha256": "1f3a…",
+  "settingsSha256": "c0de…"
+}
+```
+
+- `pages`: required. One entry for each page the generator wrote and still tracks: the slug,
+  and the SHA-256, in lowercase hex, of the page file's bytes exactly as the generator wrote
+  them. Each slug appears once. At most 5,000 entries, the most files a bundle may hold, so
+  every page has one.
+- `deleted`: the slugs of pages the generator wrote and a person then deleted. Each slug
+  appears once and is not also in `pages`. At most 5,000.
+- `navSha256`: optional. A hash the generator defines over `nav` as it last wrote it, so that
+  it can tell whether a person reordered the navigation. The portal does not interpret it.
+- `settingsSha256`: the SHA-256 of the bytes of the `settings.json` the run used (5.4). Absent
+  when the run had no settings. It is the generator's own note. The portal does not decide
+  from it whether to run (section 6).
+- Both lists are sorted by slug, by Unicode code point, so the file changes only where its
+  content does.
+- Members the schema does not define are allowed and are ignored by the portal.
+
+**What the record means.** This binds a generator that is given an existing bundle:
+
+| In the existing bundle | It means | The generator |
+|---|---|---|
+| The page file is there, with an entry in `pages` whose hash equals the file's | The generator's page, untouched | May rewrite or remove it |
+| The page file is there, with an entry whose hash differs | A person edited it | Keeps the person's changes (4.7, requirement 3) and leaves the entry as it was |
+| The page file is there, with no entry | A person's page | Keeps it (requirement 3) and adds no entry |
+| The page file is there and its slug is in `deleted` | A person put a page back | Keeps it as a person's page and takes the slug out of `deleted` |
+| No page file, and an entry in `pages` | A person deleted it | Does not write it; moves the slug from `pages` to `deleted` (requirement 4) |
+| No page file, and the slug is in `deleted` | Deleted on an earlier run | Does not write it; the slug stays in `deleted` |
+| No page file, in neither list | Never written, or handed back | May write it |
+
+- **With no valid record**, missing or `invalid-lock`, every page in the existing bundle and
+  its `nav` are a person's. The generator keeps them byte for byte and writes a new record
+  with no entry for them. Nothing a person wrote is lost. Nothing is brought up to date
+  either, and a page deleted earlier cannot be recognised, so it may be written again.
+- **Two edits to the record by hand have a defined meaning.** To get a deleted page back, take
+  its slug out of `deleted`. To hand an edited page back to the generator, delete the page
+  file, its `nav` entry and its entry in `pages`. Any other hand edit is not supported.
+- A person who deletes a page also deletes its `nav` entry; otherwise the bundle has
+  `missing-page`.
+- The generator writes the record on every run, the first included, and it is covered by the
+  determinism rule (4.7).
+
+**What the portal does with it.**
+
+- It checks the shape. A record that is not JSON, is nested deeper than 64, has a duplicate
+  key, fails the schema, lists a slug twice in `pages` or in `deleted`, or lists one slug in both, is `invalid-lock`
+  and is treated as absent. A bundle with no record gets `missing-lock`. Both are warnings:
+  published pages do not depend on the record, so neither blocks a bundle or withholds a page.
+- It never publishes or serves the file, and never uses it to decide a finding (4.7).
+- It reads only slugs and hashes from it, to tell the tenant which pages are kept as edited
+  and which stay deleted (section 6).
+- The step's existing-bundle input omits `report.json`, and omits `guides.lock.json` when it is
+  `invalid-lock`. Slugs from the record are lookup keys and are never joined into paths. So a
+  generator is never handed a record the portal found malformed; it sees a bundle with no
+  record and keeps every page, as above.
+- The record is a file the tenant can edit, and it is trusted for nothing else. An edit to it
+  can freeze a page, bring back a deleted one, or mark an edited page as untouched so that
+  the generator rewrites it. Each of those arrives as a pull request a person reviews, and
+  whoever can edit the record can edit the page.
+
+### 5.4 Settings: `settings.json`
+
+Optional, at the bundle root. It holds the tenant's settings for the generator: today, the role
+of each vendor extension (`x-` field), which decides whether its values are written into pages.
+**What the file contains is the generator's to define**, and this contract does not describe it.
+What the contract fixes is where the settings live and how they are handled.
+
+- **Settings are the third input of the step that runs the generator** (section 6), beside the
+  published spec and the existing bundle. Their only source is this file, in the bundle on the
+  branch the portal ingests from. The portal keeps no other copy and has no screen that sets
+  them. They are in the tenant's repository so that a change to them is versioned and reviewed
+  in the same place as the pages it changes.
+- **Without the file the generator runs with no settings**, and its output is what it was under
+  0.2: no vendor extension reaches a page. A bundle the portal holds before a repository is
+  connected has no settings, because there is nowhere to write them.
+- **It is tenant-supplied data.** The portal checks three things: the file is at most 64 KB
+  (`size-limit`), it is JSON nested at most 64 deep with no duplicate key, and its top level
+  is an object (`invalid-settings`, a warning). It interprets nothing else in it, never evaluates it, and
+  never publishes or serves it.
+- **The portal passes the file's bytes to the generator unchanged.** With `invalid-settings`
+  it runs no generation until the file is corrected. A generator may also refuse settings
+  whose contents it does not accept; that is a failed run (section 6).
+- **The generator emits `settings.json` byte for byte as given** and never creates or changes
+  it. It records the hash of the bytes it used as `settingsSha256` in the generation record
+  (5.3).
+- **A change to the settings takes effect at the next generation.** The portal regenerates
+  when the bytes of `settings.json` on the ingested branch are not those of the last run it
+  recorded (section 6). It compares against its own record of that run, not against
+  `settingsSha256`, which is in a file the tenant can edit. Until that pull request is
+  merged, the pages are those of the earlier settings.
+- Text that settings put on a page, such as a label, is bundle content like any other: it is
+  validated with the page and is never trusted because a setting produced it.
+- **Settings can publish what the spec kept out of sight.** A vendor extension has no declared
+  meaning, and specs use them for internal notes, owners, ticket numbers and rollout flags. The
+  published spec of a hosted portal is not a public download by default (1.2), so those values
+  are normally not public. A setting that gives an extension a role writes its values into
+  guide pages, which are public. The safeguards are that nothing is shown without a setting;
+  that a setting changes a page only through a pull request whose difference shows the exact
+  text that would be published; and that the portal says so there. Every pull request from a
+  run that had a `settings.json` carries the warning (section 6), not only the one a change
+  to the settings started: once an extension has a role, a later change to the spec can put
+  new values of it on a page. A person still has to read the difference.
 
 ## 6. Delivery
 
@@ -1107,26 +1586,97 @@ guides in M5. Earlier drafts of 0.2 said that transport would be settled in M5 a
 candidates. This replaces that.
 
 - **The portal runs the guides module**, for a tenant, as a step of the portal's own pipeline. The
-  tenant does not run it. The step's inputs are the bytes of the published spec (1.2) and,
-  optionally, the existing bundle directory (4.7). Its output is a bundle directory, with
-  `report.json` in it if the module writes one. The step is given no network access and no
-  credential, and needs neither.
+  tenant does not run it. The step has three inputs: the bytes of the published spec (1.2);
+  optionally, the existing bundle directory (4.7); and, when that bundle holds one, the bytes of
+  its `settings.json` (5.4). Settings have no other source. The step's existing-bundle input
+  omits `report.json`, and omits `guides.lock.json` when it is `invalid-lock`. Slugs from the
+  record are lookup keys and are never joined into paths (5.3). Its output is a bundle
+  directory, with `guides.lock.json` (5.3) in it, and, apart from that directory, the run
+  report if the module writes one (5.2). The step is given no network access and no
+  credential, and needs neither. How the step is isolated is the portal's and is in ADR 0007.
+- **The step takes the bundle directory and the run report, and nothing else.** Whatever else
+  the module writes, such as a file for a person beside the bundle, is discarded, and so is
+  the module's own validation result: the portal validates the output itself. The portal
+  never asks the module for a timestamp. The files the step returns pass the section 2
+  limits where they cross out of the step, before anything else reads them.
+- **The report stays with the portal.** The portal keeps `report.json` for the dashboard and
+  does not include it in a pull request (5.2). It is not part of what is proposed, held,
+  staged or published.
+- **When it runs.** For a tenant's first bundle; when the published spec's hash differs from
+  the bundle's `spec.sha256`; when the bytes of `settings.json` on the ingested branch have
+  changed (5.4); and when the portal moves to a new version of the module. The portal decides
+  all four from its own records and never from a hash written in the repository. The portal
+  records the input hashes (spec, settings, existing bundle, module version) of each run and
+  does not repeat one; runs are rate-limited per tenant; one open pull request per API
+  version. `settingsSha256` in the generation record is the generator's note and starts
+  nothing: the record is a file the tenant edits, and a wrong or missing value would
+  otherwise start a run on every ingest. A run the rate limit holds back waits; it is not
+  dropped. When a run finishes while a pull request for that API version is open, the portal
+  updates that pull request or replaces it, and never opens a second.
+- **A run that fails changes nothing.** If the module fails, exceeds the step's limits, or
+  writes a bundle that has an `error`, no pull request is opened, the bundle in place stays as
+  it is, and the tenant is told in the dashboard. Anything the module says about the failure is
+  untrusted text. It is cut at 2,000 characters and shown under the display rule of 5.2. A
+  bundle whose only faults are page errors and blockers is not a failed run: it is proposed,
+  and the pull request names the withheld pages.
+- **Running the module on tenant specs is blocked** (security review of 2026-11-28, ruling 8).
+  This is a note to the guides module, and it is not a rule about bundles. Two things are
+  needed from the module's owner first.
+  1. *What the module gives Ajv, its schema-compiling dependency.* Ajv compiles a JSON Schema
+     to JavaScript. Given only this contract's own schemas, that is acceptable. Given a
+     schema taken from a tenant's spec, for example to check sample values against it, it is
+     tenant content compiled to code, which the portal does not allow in a step it runs.
+     **Until the owner confirms which it is, the portal runs the module on no tenant's spec.
+     If the module compiles tenant schemas, the module must change before it can be run.**
+  2. *A licence for the module.* It declares none. That blocks it under ADR 0001 rule 5,
+     whatever the answer to the first. It is not a security matter.
+
+  Neither holds back the release of this contract or the module's own work on 0.3. The
+  isolation the step has either way is in ADR 0007.
 - **Once the tenant has connected a repository**, the portal's GitHub App proposes the generated
   bundle as a pull request on the tenant's repository. The tenant reviews it, edits it and merges
   it. The portal ingests the bundle from that repository. A regeneration arrives the same way, as
   a pull request against the bundle that is there. The portal never commits to the branch it
   ingests from and never merges a pull request.
+- **What the pull request's description says.** The repository is where a tenant meets the
+  bundle's files, so the description explains them, each time:
+  - Pages may be edited, and edits are kept by later regenerations.
+  - `guides.lock.json` is how edits and deletions are recognised. It is to be left in place.
+    Without it nothing is lost, but every existing page is from then on treated as edited and
+    is no longer brought up to date. The description says how to hand a page back to the
+    generator and how to get a deleted page back (5.3).
+  - The run report is not among the files: the portal keeps it and shows it in the dashboard.
+  - A deleted page stays deleted. Deleting a page means deleting its file and its `nav` entry.
+  - `settings.json` is where the generator's settings go, and a change to it shows up as a
+    later pull request.
+  - For this run: the pages kept as a person left them, the pages that would be withheld with
+    the codes of their findings, and the slugs under `deleted`. The portal works the first out
+    itself, from the record's hashes and the page files, and does not take it from the run
+    report.
+  - When the existing bundle had no valid record: that every existing page was kept as it was.
+  - When the run had a `settings.json`, whatever started the run: that the settings may put
+    values of the spec's `x-` fields on public pages, and that the difference shows the text.
+    Every pull request from a run that had a `settings.json` carries the warning.
+
+  The description is made of the portal's own fixed text, slugs, finding codes and counts. No
+  text from the run report, from a page or from the spec is copied into it. The title, branch
+  name and commit message follow the same rule as the description. Slugs appear in code
+  spans. Each list is cut at 50 slugs, with a count of the rest. The Git host renders all of
+  these, so a bare slug of hex digits would otherwise be linked as a commit, and a full list
+  of 5,000 slugs would not fit a description.
 - **Before a repository is connected**, the portal holds the generated bundle. It is read-only:
   there is no editor and no upload. It is validated, staged and published like any other bundle:
-  a page that carries a blocker is withheld and the others are published (4.7).
+  a page that carries a blocker or a page error is withheld and the others are published (4.7).
+  It has no `settings.json`, so the module runs for it with no settings (5.4).
 - **Where the bundle root lives in the tenant's repository is a setting**, not part of this
   contract: a directory in the repository, set per API version (section 3), that holds the bundle
   and nothing else. Section 2 applies from that directory down. Its name and its place in the
   repository are not significant.
 
-Not designed yet: the GitHub App's permissions and how its tokens are held (M4); branch and
-pull request naming, what happens to an open pull request when a newer regeneration is ready,
-and how the portal learns of a merge (M5); hosts other than GitHub. The App holds write access
+Not designed yet: the GitHub App's permissions and how its tokens are held (M4); the exact
+branch and pull request names within the rule above, whether a newer run updates the open
+pull request or replaces it, the values of the rate limit, and how the portal learns of a
+merge (M5); hosts other than GitHub. The App holds write access
 to tenants' repositories, so its design goes to the security reviewer before it starts (ADR
 0007).
 
@@ -1159,8 +1709,11 @@ What is fixed besides:
 
 - `contractVersion` is `major.minor`.
 - **While the major version is 0, any minor version may change or remove things**, and a portal
-  accepts exactly one version. A portal implementing this document accepts `0.2` only. 0.2 differs
-  from 0.1 in ways that would otherwise need a major version; see section 10.
+  accepts exactly one version. A portal implementing this document accepts `0.3` only, and a
+  `0.2` bundle is `unsupported-contract-version`. 0.3 differs from 0.2, and 0.2 from 0.1, in ways
+  that would otherwise need a major version; see sections 12 and 10. A change made after a
+  version has been released to the guides module carries a new version, as 0.3 does. No portal
+  validator had been built when 0.3 was written, so no published bundle is affected.
 - From 1.0: minor versions only add optional fields, components, attributes, variables and codes.
   Major versions may remove or change. The portal supports the previous major for at least 6 months
   and rejects a bundle whose major version it does not support.
@@ -1169,7 +1722,7 @@ What is fixed besides:
 
 | Question | Answer |
 |---|---|
-| Content the contract cannot express | A marker for incomplete content was needed and is added (4.7). Diagrams, video and widgets are not in 0.2. A `mermaid` block is shown as code. Rendering diagrams is a candidate for a later version and needs a security review first. |
+| Content the contract cannot express | A marker for incomplete content was needed and is added (4.7). Diagrams, video and widgets are not in 0.3. A `mermaid` block is shown as code. Rendering diagrams is a candidate for a later version and needs a security review first. |
 | More than one spec version per guide | No. A bundle is pinned to one spec document by hash. One bundle belongs to one version of one API, and the portal keys bundles by project, API and version (section 3). |
 | Localization | Out of scope. If it comes into scope, it will be one bundle per locale, not a locale dimension in the layout. |
 | Disabling "Try it" per sample | Yes: `tryIt="false"` (4.3). |
@@ -1189,7 +1742,7 @@ Decided on 2026-11-27:
 | Swagger 2.0 | Out of scope. The portal rejects it with a clear message (1.1). |
 | Where the allowed hosts are listed for a server with an open host variable, such as `https://{host}/v1` with no `enum` | In the spec, as the variable's `enum`. The tenant supplies the values through a spec-doctor fix, so they are in the published spec. This decision did not change the rule in 4.3; the security review of the same day tightened it (10). A generator is not affected. A verified domain suffix, for hosts that cannot be listed, is planned for a later milestone and is not part of this contract. |
 
-Still open, and not blocking 0.2:
+Still open, and not blocking 0.3:
 
 1. The design of the GitHub App (M4) and of ingestion from the tenant's repository (M5), after
    a security review (section 6). Transport itself is decided.
@@ -1201,9 +1754,25 @@ Still open, and not blocking 0.2:
    does not change with that file. Operation ids are not affected, because a fix never changes an
    id. Whether the portal also publishes the patched referenced files is not decided; it does not
    block M1.
-5. Whether a guide can ask for the "get a key" link at a particular place. In 0.2 it cannot: the
+5. Whether a guide can ask for the "get a key" link at a particular place. In 0.3 it cannot: the
    portal places the link and nothing in a bundle refers to it (9). A way to place it would be an
    addition to the contract and needs a security review first.
+6. A generated value for a field whose schema is a number. `{{unique}}` is always a string (4.6).
+7. A screen in the dashboard that lists the report's `extensions` and helps a tenant choose
+   roles. It is not designed. It would change `settings.json` only by proposing a pull request,
+   and it shows text from a spec, so it needs a security review first (5.2, 5.4).
+8. Whether publishing asks for confirmation when a new bundle would withhold a page that is
+   live. From 0.3 a page error removes one page instead of stopping the bundle, so a faulty
+   regeneration can take live pages down. That is the same reach a blocker already has. A
+   question for the product manager. The security review of 2026-11-28 recommends
+   confirmation: what one page's writer gains from a page error is removing a live page
+   quietly.
+9. Whether a generated page should be published before anyone has run it. The guides module
+   marks every page it writes `ready`, and in its first run against a real API a call failed
+   on 136 of 236 pages (9). A question for the product manager and the user. It must be
+   decided before a bundle the portal holds is published unattended (security review of
+   2026-11-28, F6). The rules for "Try it" in section 9 limit the harm in the meantime and do
+   not answer it.
 
 ## 9. What the portal must handle
 
@@ -1233,7 +1802,9 @@ engine and renderer. They are here so they are written down on the portal side.
   literal, whatever it contains.
 - Inline blocks contain only the keys that have values. A block with only `path` is normal.
 - Captured values arrive as quoted strings even where the parameter is an integer. Apply the typed
-  substitution rule in 4.6. A captured value is a scalar within the limits in 4.6.
+  substitution rule in 4.6. A captured value is a scalar within the limits in 4.6. The module
+  writes captured names inside `body` at any depth, inside arrays included, and chains up to
+  eleven calls on one page.
 - Every value that reaches generated code, from a bundle, a spec or a captured response, is data.
   The sample generator must encode it for the target language, including shell quoting, so that a
   value cannot change the meaning of the code a reader copies. This holds for a value filled in at
@@ -1243,13 +1814,31 @@ engine and renderer. They are here so they are written down on the portal side.
 - Enforce the parser limits while parsing: frontmatter size and plain-YAML checks on the token
   stream, manifest size and nav depth, the JSON depth cap of 64, and the Markdown nesting cap
   (sections 2 to 4).
-- Export the closed list of credential variable names (4.3), and the closed list of encoder ids
-  (4.6).
+- Export the closed list of credential variable names (4.3), the closed list of encoder ids
+  (4.6), the closed list of the thirteen built-in variable names, and the reserved pattern
+  `unique(_[0-9]+)?` for captured names (4.3, 4.6).
+- The engine never generates a `unique` value: it has no source of randomness and stays pure.
+  It carries each one as a `Var` with its encoders, like any other variable, and gives its
+  display text (4.6; ADR 0005).
+- Work out which parameters are portal-supplied (4.3) from the model, and never fill one from
+  the spec's example, default or schema where it carries a credential or is a controlled
+  header. An API key header that is also declared as a parameter appears in a request once,
+  and a credential is placed only for the security requirement in effect (4.3; ADR 0005).
+  This part is M1 work: the sample builder and the spec doctor need it (ADR 0004, ADR 0005).
+- Build `Cookie` alone, from the credential cookie and declared non-credential cookies, each
+  through the cookie encoder (4.3; ADR 0005). M1 for samples, M2 for requests that are sent.
+- Report `generated-value-as-secret` (4.6). M5, with the bundle validator.
+- Give each code its one severity (5.1). Find page errors other than `unknown-anchor` before
+  checking anchors (4.7). Severity never depends on `guides.lock.json`.
 - Bundle validation is a pure function of the bundle's file contents and the normalized model. The
   control plane does the reading and unpacking, and the checks in section 6 that a pure function
-  cannot make.
-- Sample values built from types (`"email": "string"`) pass the schema but are not realistic. 85 of
-  Stripe's 120 generated pages have them. The bundle marks them only in `report.json`.
+  cannot make. Besides the report of section 5 it returns the tree of each page that has no
+  page error, which is the only thing the renderer builds a guide page from (4.7; ADR 0003).
+  A finding's `message` is fixed text of the portal's and holds no bundle text.
+- Sample values built from types (`"email": "string"`) pass the schema but are not realistic. 149
+  of Stripe's 186 generated pages have them. `report.json` marks those pages, and since the
+  module's 0.3.0 each such page also opens with a `<Callout type="warning">` that says so, which
+  readers see.
 
 **Renderer**
 
@@ -1257,7 +1846,24 @@ engine and renderer. They are here so they are written down on the portal side.
 - Do not enable GFM autolink literals. Text taken from spec descriptions contains bare `http://` URLs.
 - Substitute reader-specific variables in the browser, into placeholders only. Published pages are
   static and carry no `{{` marker text for client code to find (4.6, item 6).
+- Generate `unique` values in the browser when the page loads, one per `<Sample>` for
+  `{{unique}}` and one per page for each of `{{unique_1}}` to `{{unique_9}}`, from the browser's
+  cryptographic random source, as eight decimal digits. Fill them through the encoders. Show
+  `UNIQUE` and `UNIQUE_1` to `UNIQUE_9` until then, without JavaScript, and in twins,
+  `llms.txt`, search and the docs MCP. Each digit is drawn by rejection sampling from
+  `crypto.getRandomValues`. If that is unavailable the placeholder keeps its display text;
+  `Math.random` is never used. A value is never written to storage, a URL or analytics. Give
+  the reader a control that replaces all of them on the page together (4.6). The control is
+  UX's to design. M5.
 - Render `<Todo>` in preview only.
+- Build a guide page only from the tree the validator produced for a page with no page
+  error, and never parse a page file. For a page with a page error, show only its slug,
+  finding codes and line numbers, in preview and in the dashboard: never its title or
+  description, and no excerpt of its source (4.7). M5.
+- "Try it" sends nothing while a captured name in the request is unfilled; there is no
+  run-all; a write shows the final request before it is sent (security review of 2026-11-28,
+  F6). These are M2 requirements on the console and are stated in ADR 0003, "Live calls and
+  example-response mode". The first has its effect from M5, when guides bring captured names.
 - Leave a withheld page out of everything published, as 4.7 lists: no page and no URL, no twin,
   no `llms.txt` entry, no search record, no docs MCP entry, no `nav` entry and no group left
   empty by it, no back-link from a reference page, and no asset that only withheld pages refer
@@ -1283,8 +1889,8 @@ engine and renderer. They are here so they are written down on the portal side.
   version (section 3; ADR 0003). An `op:`, `schema:`, `guide:` or `asset:` target resolves within
   the bundle's own API version.
 - Guide slugs are chosen by the generator and include fixed names such as `authentication`, `errors`,
-  `pagination`, `idempotency`, `rate-limits` and `webhooks`. That is why section 3 reserves a prefix
-  for guides.
+  `pagination`, `idempotency`, `rate-limits`, `webhooks` and, where settings name a permission,
+  `permissions`. That is why section 3 reserves a prefix for guides.
 - Prefix every `id` derived from a heading (4.5), and render external links with the `rel` value
   in 4.5.
 - Build every `asset:` URL from the asset's type (section 2). For svg, pdf, json and zip, and for
@@ -1296,7 +1902,15 @@ engine and renderer. They are here so they are written down on the portal side.
 - An unknown encoder id on a placeholder means the placeholder is not filled (4.6).
 - The guides module sanitizes spec text before writing it into a page. The portal must not rely on
   that. Every page is untrusted input.
-- Scale seen so far: 120 pages from a spec with 612 operations, and 25 pages from one with 908.
+- Scale seen so far, from the module's 0.3.0: 186 pages from a spec with 612 operations, 257
+  from one with 795, and 20 from one with 908.
+- Navigation from the module is wide and flat: one group per tag, 52 top-level groups for one
+  spec, and a single group of about 170 entries for a spec with no tags. The module expects to
+  add a second level. The sidebar has to stay usable at that size.
+- A page's `operations` lists operations of other resources too, because a guide creates the
+  records it depends on first. One operation, such as "create customer", can therefore be
+  listed by very many pages. The links back to guides on a reference page need an order and a
+  limit, and nothing may assume that a page belongs to one resource.
 
 **Control plane, proxy and MCP**
 
@@ -1304,16 +1918,45 @@ engine and renderer. They are here so they are written down on the portal side.
   server-side, from the published model. The bundle validator is not in the path of a direct call.
 - The proxy sends requests to `https` servers only, follows no redirects, and strips `X-Ezdp-`
   headers from inbound requests (4.3; ADR 0003, "Proxy destination policy"). For an `http://` or
-  localhost server the samples still render and "Try it" and MCP are withheld with a spec-doctor
-  finding.
+  localhost server the samples still render and live calls are withheld with a spec-doctor
+  finding (ADR 0003, "Live calls and example-response mode").
 - The proxy does not send a request whose parsed host differs from the host built by position
   (4.3). This is an M2 requirement.
 - The hosted portal does not serve the published spec for public download unless the tenant
   chose that. It passes the bytes to the step that runs the guides module, so no path exists for
   fetching them (1.2, 6; ADR 0003, ADR 0007). M4 and M5.
-- Run the guides module as an isolated step: in the per-tenant worker and under its time limit
-  (ADR 0003), with no network access and no credential. Its output is untrusted and is validated
-  like any bundle, whoever ran the module (ADR 0007).
+- Run the guides module as an isolated step: its own OS process or container, apart from the
+  one that fetches specs and the one that holds the App token, with no network access and no
+  credential. ADR 0007 states the requirements in full; the per-tenant publish worker of ADR
+  0003 does not meet them and is not the control. Its output is untrusted and is validated
+  like any bundle, whoever ran the module.
+- Give that step three inputs and no others: the published spec, the existing bundle, and the
+  bytes of that bundle's `settings.json`. Leave `report.json` out of the existing bundle, and
+  `guides.lock.json` when it is `invalid-lock`. Take the bundle directory and the run report
+  from it and discard everything else it writes, its own validation result included. Handle a
+  failed run and cut its text at 2,000 characters. Record the input hashes of each run, repeat
+  none, rate-limit runs per tenant and keep one open pull request per API version. Write the
+  pull request's title, branch name, commit message and description from fixed text, slugs in
+  code spans, codes and counts only, with each list cut at 50 (section 6).
+- Keep the run report with its run. Show it only to signed-in members of the tenant's account
+  and only under the display rule of 5.2. Never put it in a pull request, a repository or
+  anything published.
+- Facts about the module as it is today (its status file, 2026-11-28). It is a library with one
+  pure function and a command; the command also writes a file for a person beside the bundle
+  directory. It needs Node 22.18 or later, has no build step and no published package, and is
+  pinned by Git commit. At run time it uses `ajv`, `ajv-formats` (MIT) and `yaml` (ISC), inside
+  the step we run. **It declares no licence**, which blocks it under ADR 0001 rule 5 until
+  its owner chooses one. **Ajv compiles a schema to JavaScript**, which the engine ruled out
+  for a tenant's schemas (ADR 0003). Whether the module gives Ajv a schema from the tenant's
+  spec, or only the contract's own schemas, is not known on the portal side, and its
+  validator is suspected of checking sample values against spec schemas. **Running the
+  module on tenant specs is blocked until its owner confirms which it is; if it compiles
+  tenant schemas, the module must change before it can be run** (section 6; ADR 0007).
+- Its bundles do not all work when run. In its first run against a real API, 7 of 236 pages
+  succeeded as written, 77 once a fixed example value was changed (the reason for `{{unique}}`),
+  16 found an empty list, and on 136 a call failed; 32 of those failed because of the kind of
+  key used. Every page it writes is `ready`. Nothing in this contract holds such a page back
+  (section 8, open item 9).
 - The reader's key is supplied by the reader. The portal never issues one. A key pasted into
   "Try it" is held in the reader's browser only and is passed through per request; it is never
   stored or logged by the portal (4.6, item 5; ADR 0003, "Reader keys"). A later handoff of the
@@ -1378,20 +2021,29 @@ engine and renderer. They are here so they are written down on the portal side.
   reach it by itself, and the headers in section 2 authorize nobody. How a request to the asset
   origin is authorized for a private preview is designed in M4 with the security reviewer. The
   headers in section 2 are unchanged in either state.
-- *"Try it" in a private preview.* Decided 2026-11-27: the console runs in example-response
-  mode. It sends no request, to the proxy or to the API. It shows an example the spec declares
-  for the response, labelled as an example, and says so where the spec declares none; it never
-  shows a value made from a schema as a response. Nothing is captured from an example, so a
-  `capture` name stays unfilled as if the sample had not been run (4.3). The MCP is off. The
-  rules are in ADR 0003, "Example-response mode in a private preview". A generator is not
-  affected.
+- *When "Try it" is live, and example-response mode.* Decided 2026-11-27. One rule says when
+  the console sends a request, and it is in ADR 0003, "Live calls and example-response mode";
+  it is not restated here. In short: a callable server whose host the tenant has verified, and,
+  in a private preview, a caller signed in as a member of the tenant's account. Otherwise the
+  console is in example-response mode, on a public portal as in a private preview (decided
+  2026-11-28); it is never absent. In
+  that mode it sends no request, to the proxy or to the API. It shows an example the spec
+  declares for the response, labelled as an example, and says so where the spec declares none;
+  it never shows a value made from a schema as a response. Nothing is captured from an example,
+  so a `capture` name stays unfilled as if the sample had not been run (4.3). Where 4.3 says
+  "Try it" is withheld for a server, this is what it means. Host verification arrives in M4b,
+  so until then every private preview is in the mode. The MCP is off in a private preview. A
+  generator is not affected.
 - The naming and isolation of the asset origin are designed with custom domains (M5 and M6) and
   go to the security reviewer.
 
 **Not exercised by the guides module today**, so the portal needs its own fixtures for them:
 `<Tabs>`, assets and images, `label` and `hidden` in nav, pages of type `reference`, multiple
 `capture` pairs, percent-encoded link targets, `guide:` links with anchors, form 4 of `<Sample>`,
-`status` and `<Todo>`, and with them every rule for a withheld page in 4.7.
+`status` and `<Todo>`, and with them every rule for a withheld page in 4.7. Until the module
+moves to 0.3, also: `{{unique}}` and `{{unique_1}}` to `{{unique_9}}`, `guides.lock.json` and
+the rules for a deleted page, a page error on one page of a bundle, a sample for an operation
+that declares a portal-supplied parameter, and the new members of `report.json`.
 
 No bundle has yet been through a portal validator. The first real ingestion is a test of both
 validators.
@@ -1403,7 +2055,8 @@ Added:
 - `status` in frontmatter, the `<Todo>` component, and the `blocker` severity (4.7, 5).
 - `tryIt` on `<Sample>` (4.3).
 - A named example combined with inline values (4.3).
-- Optional `report.json` and its schema (5.2).
+- Optional `report.json` and its schema (5.2). In 0.2 it was a file of the bundle; 0.3 moves
+  it out (section 12).
 - The full list of codes (5.1).
 - The operation id algorithm with a collision rule (1.1).
 - The heading anchor algorithm and `unknown-anchor` (4.5).
@@ -1563,8 +2216,11 @@ the first changes what a generator's own validator reports:
 - New code: `link-to-withheld-page`, a warning, for a `guide:` link or `<Card>` `href` from a
   page that is not withheld to one that is (4.5, 4.7, 5.1).
 - Open item 6 of section 8 is decided and removed from the open list (8).
-- In a private preview "Try it" shows the spec's declared example response and sends nothing,
-  nothing is captured from it, and the MCP is off (9; ADR 0003).
+- Where "Try it" makes no live call it shows the spec's declared example response and sends
+  nothing, and nothing is captured from it. That is the case for a server that is not callable
+  or whose host is not verified; a private preview
+  makes live calls to a verified host for a signed-in member. The MCP is off in a private
+  preview (9; ADR 0003, "Live calls and example-response mode").
 
 ## 11. Decisions on the v0.1 feedback
 
@@ -1582,7 +2238,7 @@ means it says something different, and a generator built on the assumption needs
 | 3 | Named example with inline values | Confirmed, with a rule for `body` | `example` and an inline block may be combined. Inline `path`, `query` and `headers` are merged per parameter and win over the example. A `body` from both is `invalid-sample`. (4.3) |
 | 4 | Exempt `concept` pages from `page-unreferenced` | Confirmed, and extended | The warning applies only to `quickstart`, `how-to` and `tutorial` pages with no `operations`. `concept` and `reference` are exempt. (5.1) |
 | 5 | Publish the full list of codes | Confirmed | The list in 5.1. All of the module's names are kept. `api-request-code` becomes a warning, `unsupported-syntax` is generator-side only, and nine codes are added. |
-| 6 | A place for the run report | Confirmed | Optional `report.json` at the bundle root, with a minimum shape and a schema; extra members are allowed and ignored. An invalid report is the warning `invalid-report`. (5.2) |
+| 6 | A place for the run report | Confirmed | Optional `report.json` at the bundle root, with a minimum shape and a schema; extra members are allowed and ignored. An invalid report is the warning `invalid-report`. (5.2) **Changed in 0.3:** the report is an output of the run that the portal keeps. It is no longer a file of the bundle and is never in the tenant's repository. |
 
 ### Assumptions
 
@@ -1606,3 +2262,170 @@ means it says something different, and a generator built on the assumption needs
 | 16 | OpenAPI 3.2 | Confirmed | The contract covers 3.0 and 3.1. A 3.2 document is read as 3.1; 3.2-only constructs are ignored and cannot be referenced. (1.1) |
 | 17 | Bare URLs in prose | Confirmed, and tightened | GFM autolink literals are off: a bare URL is text. Angle-bracket autolinks are `disallowed-syntax`. The module does not need to break URLs up. (4.1) |
 | 18 | Entities | Confirmed, and extended, as a requirement on the portal | A variable exists only where its braces are literal characters in the source. Braces from character references, backslash escapes or JSON `\u` escapes are text. Substitution is a single pass and its output is never parsed again. Published output carries variables as structure, never as marker text; client-side substitution fills only those placeholders and never searches text or code for `{{`; text taken from the spec never contains a variable. The feedback's example, `{{api_key}}`, is no longer a variable at all. (4.6) |
+
+## 12. Changes in 0.3
+
+0.3 answers the guides module's feedback on 0.2. 0.2 had been released and implemented, so
+these changes carry a new version. Section 13 gives the decision on each item.
+
+Added:
+
+- The severity `page-error`. A fault in one page's content withholds that page and no longer
+  stops the bundle (4.7, 5, 5.1).
+- The generated values `{{unique}}` and `{{unique_1}}` to `{{unique_9}}` (4.6).
+- `guides.lock.json`, the generation record, with its schema
+  [`guides-lock.schema.json`](./guides-lock.schema.json) (2, 5.3).
+- `settings.json`, the tenant's settings for the generator, as a third input of the step that
+  runs it (2, 5.4, 6).
+- In `report.json`: `code`, `severity`, `title`, `fix` and `count` on a `specProblems` item, and
+  the `extensions` list (5.2).
+- The definition of a portal-supplied parameter and of a name that carries a credential (4.3).
+- What the pull request's description says, when the step runs, and what a failed run does (6).
+- New codes, all warnings: `missing-lock`, `invalid-lock`, `invalid-settings` and
+  `generated-value-as-secret` (5.1).
+
+Changed. **Each of these binds a generator built on 0.2:**
+
+- `contractVersion` is `"0.3"`. A portal on 0.3 rejects `"0.2"` (3, 7).
+- Twenty-two codes move from `error` to `page-error`: `nesting-limit`, `invalid-frontmatter`,
+  `heading-h1`, `disallowed-syntax`, `unknown-component`, `unknown-attribute`,
+  `invalid-attribute`, `invalid-nesting`, `unbalanced-component`, `invalid-tag-placement`,
+  `unknown-variable`, `unknown-operation`, `unknown-schema`, `unknown-guide`, `unknown-anchor`,
+  `unknown-asset`, `unknown-response`, `unknown-example`, `link-not-allowed`, `invalid-sample`,
+  `invalid-capture` and `invalid-code-info`. A generator's validator reports them with the new
+  severity and lists their pages in `withheld`. Twelve codes stay errors (5.1).
+- `withheld` lists pages with a blocker or a page error. `unknown-anchor` is not checked
+  against a page that carries another page error (4.7, 5).
+- A page a person edited is recognised from `guides.lock.json`, not from `report.json`. The
+  record holds a hash for every page, not the first 1,000. The generator reads no report of
+  an earlier run (4.7, 5.2, 5.3).
+- **`report.json` is no longer a file of the bundle.** The generator writes it beside the
+  bundle directory, or returns it apart from the bundle's files, and the portal keeps it. A
+  `report.json` inside a bundle is `unexpected-file`, an error (2, 5.1, 5.2, 6).
+- A page a person deleted is not written again (4.7, 5.3). Under 0.2 the module wrote it again.
+- With no valid record the generator keeps every existing page and the navigation as they are.
+  That was the module's behaviour; it is now a rule (5.3).
+- Settings reach the generator only as the existing bundle's `settings.json`, and the
+  generator emits that file unchanged (5.4, 6).
+- A required parameter that is portal-supplied is not counted as missing. A cookie parameter
+  is portal-supplied (4.3). 0.2 made a sample for such an operation impossible to write.
+- `{{idempotency_key}}` is recognised only in a `<Sample>` inline block. In prose or an
+  ordinary code block it is `unknown-variable` (4.6). The module never wrote it there.
+- A captured name cannot match `unique(_[0-9]+)?` (4.3).
+- The `extensions` list in `report.json` now has a shape and limits; a report that breaks them
+  is `invalid-report` and is ignored (5.2).
+- The schema `$id`s end in `-0.3.json`.
+
+Confirmed, with no change to the rules:
+
+- A page may hold any number of `<Steps>`, each under its own heading (4.2).
+- A sample cannot set a controlled header or a name that carries a credential, declared or
+  not (4.3).
+- The run report stays optional (5.2).
+- Every rule applies to the bundle as ingested, whoever wrote each line (4.7).
+
+Required by the security review of 2026-11-28
+(`docs/reviews/2026-11-28-security-review-contract-0.3.md`), which passed this draft subject to
+these fixes. They were made before 0.3 was released to the guides module, so the version is
+unchanged. The review accepted the 22 and 12 split of codes, the `unique` variables, the
+placement and limits of `settings.json`, the report schema and the generation record.
+**The first four below bind a generator**; the rest bind the portal.
+
+- **The run report leaves the bundle** (F1). The portal keeps `report.json` for the dashboard
+  and does not include it in a pull request. It is an output of a run, written beside the
+  bundle directory. The bundle root no longer lists it, a `report.json` in a bundle is
+  `unexpected-file`, its 2 MB limit is checked on the report and gives `invalid-report`
+  where it gave `size-limit`, and `invalid-report` is a finding on the run (2, 4.7, 5.1,
+  5.2, 6).
+- **No duplicate keys** in `settings.json`, `guides.lock.json` or the run report:
+  `invalid-settings`, `invalid-lock`, `invalid-report` (ruling 4; 2, 5.1 to 5.4).
+- **New warning `generated-value-as-secret`**, where a generated value fills a property or
+  parameter with `format: password` (F5; 4.6, 5.1).
+- **A blocking note to the module.** The portal runs the module on no tenant's spec until its
+  owner confirms what Ajv is given; if it compiles tenant schemas the module must change
+  first. The missing licence blocks it under ADR 0001 rule 5 (ruling 8; 6, 9).
+- **Rendering is gated by the validator.** The renderer builds a page only from the
+  validator's tree for a page with no page error. A page with a page error shows its slug,
+  codes and line numbers and nothing else, so the title and description of a page with
+  `invalid-frontmatter` are never shown; earlier wording would have shown them. A finding's
+  `message` holds no bundle text (ruling 1; 4.7, 5).
+- **How a `unique` value is drawn**: rejection sampling from `crypto.getRandomValues`, never
+  `Math.random`, display text when that is unavailable, and never stored (ruling 2; 4.6).
+- **Which security requirement places a credential** for a portal-supplied parameter: the one
+  in effect for the request, and of alternatives only the one selected (ruling 3; 4.3).
+- **The portal alone builds `Cookie`**, through a cookie encoder, and a name equal to a
+  credential cookie's is never filled from the spec. Earlier wording both forbade and
+  allowed a spec value in that header (F4; 4.3).
+- **How report text is displayed** (ruling 5; 5.2).
+- **The existing-bundle input** omits `report.json`, and the record when it is
+  `invalid-lock`; slugs from the record are lookup keys (ruling 6; 5.3, 6).
+- **The pull request**: its title, branch name and commit message are fixed text like the
+  description, slugs are in code spans, and each list is cut at 50 (ruling 7; 6).
+- **The `x-` warning is on every pull request** from a run that had a `settings.json`, not
+  only on one a settings change started (F2; 5.4, 6).
+- **When the step runs** is decided from the portal's own record of each run's input hashes,
+  not from `settingsSha256`; no run is repeated, runs are rate-limited per tenant, and there
+  is one open pull request per API version (F3; 5.3, 5.4, 6).
+- **A failed run's text** is cut at 2,000 characters (6).
+- **"Try it"** sends nothing while a captured name in the request is unfilled, has no
+  run-all, and shows a write before sending it (F6; 4.3, 8, 9). Open item 8 carries the
+  review's recommendation, and open item 9 must be decided before a held bundle is published
+  unattended.
+
+Not changed by the review, and still open: the isolation of the step is the portal's and is
+in ADR 0007; the guides module's code and its use of Ajv were not reviewed.
+
+## 13. Decisions on the v0.2 feedback
+
+Items are those under "On v0.2" in
+[`guides-contract-feedback.md`](./guides-contract-feedback.md), in its order and with its
+numbers. **Confirmed**, **Changed** and **Rejected** mean what they mean in section 11.
+
+### The gap
+
+| Topic | Decision | The contract now says |
+|---|---|---|
+| A required parameter that a sample may not set | Confirmed, and made exact | A declared parameter that is a controlled header, carries a credential, or is a cookie is **portal-supplied**. A sample never sets it, and it is never counted as missing, so the two rules no longer meet. The portal decides what is sent: a credential is placed by the sample generator only for the schemes of the security requirement in effect for the request, and the parameter's own example is never used. The portal alone builds `Cookie`. An API key header declared both as a scheme and as a parameter is sent once, holding the credential. `Authorization`, `Content-Type` and `Accept` parameters are not in the portal's model at all, as OpenAPI says. (4.3) |
+
+### Proposals
+
+| # | Proposal | Decision | The contract now says |
+|---|---|---|---|
+| 1 | Withhold an invalid page instead of blocking the bundle, when a person wrote it | Changed: confirmed for every page, whoever wrote it | A fault in one page's content has the new severity `page-error` and withholds that page; the other pages are published. Twenty-two codes have it. A fault in the bundle's structure stays an `error` and stops the bundle: the manifest, the version, `nav` against the files, the layout, paths, encodings, size limits and asset types. **Authorship plays no part**: severity is a function of the bundle's content and the spec, and the validator does not read the generation record. Nothing of an invalid page is rendered, in preview either: preview lists its slug and its findings' codes and line numbers, and the renderer builds a page only from the validator's tree. (4.7, 5, 5.1) |
+| 2 | Severity and a fix in `specProblems` | Confirmed, with limits | A `specProblems` item may carry `code`, `severity` (`high`, `medium`, `low`), `title` (200 characters), `fix` (1,000 characters) and `count`. `fix` is advice in plain text, never a patch, and is shown apart from the spec doctor's findings. Other members stay extra and are ignored. (5.2) |
+| 3 | A variable for a value that must be new each time | Confirmed, and extended | `{{unique}}`: eight decimal digits generated in the reader's browser, one value per `<Sample>`, recognised in a sample's inline block only. `{{unique_1}}` to `{{unique_9}}`: the same kind of value, one each per page, so a later step can send the value an earlier step sent. Always a string. Published pages, twins and a page without JavaScript show `UNIQUE` or `UNIQUE_1` to `UNIQUE_9`. Nothing is generated at publish time. Each digit comes from `crypto.getRandomValues` by rejection sampling, and a value is never stored. A value that fills a `format: password` field is reported as `generated-value-as-secret`. Which fields need one is the module's to work out. (4.6) |
+| 5 | Settings as an input of the portal's step | Confirmed, with the place fixed | Settings are the third input. They live in the bundle as `settings.json`, in the tenant's repository, at most 64 KB, and have no other source. The portal passes the bytes unchanged and interprets nothing in them; the generator emits the file unchanged. Their contents are the module's. A bundle the portal holds before a repository is connected has none. A setting that shows an `x-` field publishes its values; the change arrives as a pull request, and every pull request from a run that had settings says so. (5.4, 6) |
+| 6 | Define `extensions` in the report schema | Confirmed, with limits | At most 1,000 items, each with `name`, and optionally `count`, `usedIn`, `valueKinds`, `example` (200 characters, as text) and `suggestedRole`. Every string is untrusted and shown as plain text, to signed-in members of the tenant's account only. For that reason the report is kept by the portal and is not in the bundle or the tenant's repository. The screen that would use it is not designed and needs a security review. (5.2) |
+
+### Questions and assumptions
+
+| # | Topic | Decision | The contract now says |
+|---|---|---|---|
+| 1 | Should a page a person deleted stay deleted? | Yes | A generator does not write again a page it wrote and a person deleted. The deletion is carried from run to run in `deleted` in the generation record, which is in the bundle. A person brings the page back by taking its slug out of that list. With no valid record a deletion cannot be recognised. (4.7, 5.3) |
+| 2 | Edits are recognised by a hash in `report.json`, which may be deleted | Changed | The record moves out of `report.json` into `guides.lock.json`, with a defined shape and a hash for every page. The run report stays optional and is information only; it is an output of the run that the portal keeps, not a file of the bundle, so no run can read one. A bundle with no record is still valid and gets the warning `missing-lock`; the generator then keeps every existing page as it is. The portal's pull request description says what each file is, that the record is to be left in place, and what happens without it. (5.2, 5.3, 6) |
+| 4 | Several `<Steps>` on a page | Confirmed | Any number of `<Steps>` may appear on a page, each under its own `h2` or not. A `<Steps>` cannot be inside a `<Step>` at any depth. (4.2) |
+
+### Rejected alternatives
+
+- **Withholding by authorship** (proposal 1 as written). Validation would depend on the
+  generation record, a file the tenant can edit, and two pages with the same fault would be
+  treated differently. The rule is by the kind of fault instead.
+- **Making the run report required.** A bundle would stop publishing because a file of
+  information was missing.
+- **Keeping `report.json` in the bundle**, as drafts of 0.3 did until the security review. It
+  would be committed to the tenant's repository, and on a public repository the spec's
+  defects and the values of its `x-` fields would be public.
+- **Making the generation record required.** Published pages do not depend on it, and a
+  missing record loses nothing a person wrote, so a warning and a plain statement in the pull
+  request are enough.
+- **Keeping settings in the portal.** They would not be versioned or reviewed beside the pages
+  they change, a bundle could not be regenerated from the repository and the spec alone, and
+  there would be two sources once a repository is connected.
+- **One `{{unique}}` value per page, or per sample only.** Per page, two records created on
+  one page would collide. Per sample only, a later step could not send the same value unless
+  the API returned it. A name chosen by the author, by a new attribute, was also rejected: it
+  adds a second kind of name to check against captured ones, where a closed list of nine adds
+  none.
+- **Letters in a generated value.** A field that takes letters and digits takes digits, and so
+  does a field that takes digits only. A field that needs a letter gets one as literal text
+  beside the value.

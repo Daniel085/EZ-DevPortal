@@ -20,7 +20,8 @@ These are the product's most exposed surfaces. Treat every rule as a requirement
 
 - The proxy only sends requests to hosts listed in the tenant's published spec servers. Resolve
   DNS yourself and refuse private, loopback, link-local and metadata addresses, including after
-  redirects. Do not follow redirects to a host that is not allowlisted.
+  redirects. The proxy does not follow redirects: a 3xx is
+  returned to the caller (ADR 0003, "Proxy destination policy").
 - End-user credentials are passed through per request and never written to a database, log, trace,
   error report or cache. Redact `Authorization`, cookies and any header the spec marks as a
   security scheme before logging.
